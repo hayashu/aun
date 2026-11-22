@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>進め方ガイド モック A2xB3-3</title>
+<style>
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --text: #22282a; --sub: #5f696c;
+  --line: #dde2dc; --accent: #2f6f5e; --accent-bg: #e3f0ec; --warn: #a65b00; --warn-bg: #fdf0dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16191a; --card: #1f2425; --text: #e6eae8; --sub: #9aa5a3;
+    --line: #333b3c; --accent: #6fc2aa; --accent-bg: #223530; --warn: #f0b266; --warn-bg: #3a2c16;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+nav { display: flex; gap: 6px; margin-bottom: 12px; }
+nav button { flex: 1; padding: 8px 2px; font-size: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; }
+nav button.on { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.role { font-size: 12px; color: var(--sub); margin: 0 0 8px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.card h3 { margin: 0 0 4px; font-size: 14px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.tag { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); }
+.tag.old { background: var(--warn-bg); color: var(--warn); }
+.meta { font-size: 12px; color: var(--sub); }
+.note { font-size: 12px; background: var(--warn-bg); color: var(--warn); padding: 8px 10px; border-radius: 8px; margin-bottom: 10px; }
+input, textarea, select { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); margin-bottom: 8px; }
+button.act { padding: 8px 12px; font: inherit; font-size: 13px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); border-radius: 8px; }
+button.sub { padding: 6px 10px; font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; }
+.sticky { background: var(--warn-bg); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 14px; }
+.rule { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; font-size: 14px; }
+.why { font-size: 13px; color: var(--sub); }
+.tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>仕事の種類ごとの「完了の基準」と「相談のルール」ガイド</h1>
+  <small>A2xB3-3 ／ モック（ダミーデータ）</small>
+</header>
+<main>
+  <div class="tools">
+    <span class="meta">製品開発部門・A社</span>
+    <button class="sub" id="sample">サンプルを読み込む</button>
+  </div>
+  <nav id="tabs"></nav>
+  <div id="view"></div>
+</main>
+<script>
+const KINDS = ["調査", "評価", "設計", "資料"];
+const TABS = [
+  { id: "work", label: "書き出し", role: "チームの全員" },
+  { id: "guide", label: "ガイド", role: "全員" },
+  { id: "chief", label: "指摘から追加", role: "課長" },
+  { id: "recv", label: "仕事を受ける", role: "受け手（Bさん／Aさん）" },
+];
+const state = { tab: "work", stickies: [], rules: [], feedback: {}, openWhy: {}, kind: "調査", proposals: [] };
+
+const SAMPLE_STICKIES = [
+  { text: "調査は3案に絞って、推奨を付けて出して", kind: "調査", by: "田中課長" },
+  { text: "詰まったら半日以上悩まずに聞いて", kind: "評価", by: "佐藤" },
+  { text: "評価は測定条件と再現性まで書けば完了", kind: "評価", by: "鈴木" },
+  { text: "方向が決まったら、一度見せてから進めて", kind: "設計", by: "田中課長" },
+  { text: "資料は結論を先頭に、1枚で伝わる形に", kind: "資料", by: "佐藤" },
+];
+const SAMPLE_RULES = [
+  { kind: "調査", done: "3案に絞り、推奨を1つ付ける", ask: "候補が10個を超えたら、一度相談する",
+    why: "選ぶ人は比較できる数しか読めないから", reviewed: "2026-10-15", views: 12, old: false },
+  { kind: "評価", done: "測定条件と再現性を書く", ask: "半日以上詰まったら聞く",
+    why: "条件が違うと、他の人が結果を使えないから", reviewed: "2026-09-30", views: 8, old: false },
+  { kind: "設計", done: "方向が決まった時点で、一度見せる", ask: "仕様に迷う点は、着手前に確認する",
+    why: "作ったあとの手戻りが一番大きいから", reviewed: "2025-11-02", views: 3, old: true },
+  { kind: "資料", done: "結論が先頭にあり、1枚で伝わる", ask: "宛先が不明なら、渡す前に聞く",
+    why: "読む人の時間が限られているから", reviewed: "2026-10-01", views: 5, old: false },
+];
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function renderTabs() {
+  document.getElementById("tabs").innerHTML = TABS.map(t =>
+    `<button class="${t.id === state.tab ? "on" : ""}" data-tab="${t.id}">${t.label}</button>`).join("");
+}
+
+function kindSelect(id, value) {
+  return `<select id="${id}">${KINDS.map(k => `<option ${k === value ? "selected" : ""}>${k}</option>`).join("")}</select>`;
+}
+
+function viewWork() {
+  const list = state.stickies.map((s, i) =>
+    `<div class="sticky">${esc(s.text)}<div class="meta">${esc(s.by)} ／ ${esc(s.kind)}
+     <button class="sub" data-mk="${i}">ガイドの項目にする</button></div></div>`).join("")
+    || `<p class="meta">まだ書き出しがありません。</p>`;
+  return `
+    <div class="card">
+      <h3>新しく来た人に一番よく言うこと</h3>
+      <p class="meta">30分、全員で。上手に書かなくて大丈夫です。付箋のように一言で。</p>
+      <textarea id="wtext" rows="2" placeholder="例）調査は3案に絞って出して"></textarea>
+      ${kindSelect("wkind", state.kind)}
+      <input id="wby" placeholder="名前（任意）">
+      <button class="act" id="wadd">付箋を貼る</button>
+    </div>
+    <h3>貼られた付箋（${state.stickies.length}）</h3>${list}`;
+}
+
+function makeRule(sticky) {
+  state.rules.push({ kind: sticky.kind, done: sticky.text, ask: "（相談のルールを追記）",
+    why: "（理由を一行追記）", reviewed: "2026-11-22", views: 0, old: false });
+}
+
+function viewGuide() {
+  const cards = state.rules.map((r, i) => `
+    <div class="card">
+      <div class="row"><span class="tag">${esc(r.kind)}</span>${r.old ? '<span class="tag old">古いかも</span>' : ""}</div>
+      <div class="rule"><b>完了の基準</b><br>${esc(r.done)}</div>
+      <div class="rule"><b>相談のルール</b><br>${esc(r.ask)}</div>
+      <div class="rule why"><b>なぜ：</b>${esc(r.why)}</div>
+      <p class="meta">最終見直し ${esc(r.reviewed)} ／ 参照 ${r.views}回</p>
+      <button class="sub" data-old="${i}">${r.old ? "印を外す" : "古い印を付ける"}</button>
+    </div>`).join("") || `<p class="meta">ガイドは空です。書き出しから項目を作るか、サンプルを読み込んでください。</p>`;
+  return `<div class="note">基準は目安です。仕事によって変えてかまいません。ガイドへの沿い具合は評価に使いません。</div>${cards}`;
+}
+
+function viewChief() {
+  const props = state.proposals.map(p => `<div class="sticky">追加の提案：${esc(p)}</div>`).join("");
+  return `
+    <div class="card">
+      <h3>新しく来た人に進め方の指摘をしたとき</h3>
+      <p class="meta">同じ説明を繰り返さないために、ガイドへの追加として提案できます。</p>
+      <textarea id="ctext" rows="3" placeholder="例）候補は3つで十分。早めに途中経過を見せてほしかった"></textarea>
+      ${kindSelect("ckind", "調査")}
+      <button class="act" id="cadd">ガイドへの追加を提案</button>
+    </div>
+    ${props}
+    <p class="meta">提案は自動では反映されません。チームで確認してから項目にします。</p>`;
+}
+
+function viewRecv() {
+  const rules = state.rules.filter(r => r.kind === state.rcvKind || (!state.rcvKind && r.kind === "調査"));
+  const kind = state.rcvKind || "調査";
+  const body = rules.map(r => {
+    const i = state.rules.indexOf(r);
+    const fb = state.feedback[i] || "";
+    return `
+      <div class="card">
+        <div class="rule" style="border:0;margin:0;padding:0"><b>完了の基準（目安）</b><br>${esc(r.done)}</div>
+        <div class="rule"><b>相談のルール</b><br>${esc(r.ask)}</div>
+        <div class="rule why">
+          <button class="sub" data-why="${i}">${state.openWhy[i] ? "理由を閉じる" : "なぜそうするの？"}</button>
+          ${state.openWhy[i] ? `<p>${esc(r.why)}</p><p class="meta">この仕事に合わない場合は、理由を見て自分で判断してかまいません。</p>` : ""}
+        </div>
+        <div class="rule"><span class="meta">この表示について</span><div class="row">
+          <button class="sub" data-fb="${i}:good">${fb === "good" ? "✓ " : ""}最初に知れてよかった</button>
+          <button class="sub" data-fb="${i}:same">${fb === "same" ? "✓ " : ""}もう知っていた</button>
+          <button class="sub" data-fb="${i}:ng">${fb === "ng" ? "✓ " : ""}この仕事には合わない</button>
+        </div></div>
+      </div>`;
+  }).join("") || `<p class="meta">この種類のガイド項目がありません。</p>`;
+  return `
+    <div class="card">
+      <h3>仕事を受け取りました</h3>
+      <p class="meta">「電源ICの候補調査」を渡されたとします。仕事の種類を選ぶと、ガイドの項目が表示されます。</p>
+      ${kindSelect("rkind", kind)}
+    </div>${body}`;
+}
+
+function render() {
+  renderTabs();
+  const t = TABS.find(x => x.id === state.tab);
+  const v = { work: viewWork, guide: viewGuide, chief: viewChief, recv: viewRecv }[state.tab]();
+  document.getElementById("view").innerHTML = `<p class="role">操作する人：${t.role}</p>${v}`;
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("button");
+  if (!el) return;
+  if (el.dataset.tab) state.tab = el.dataset.tab;
+  else if (el.id === "sample") {
+    state.stickies = SAMPLE_STICKIES.map(s => ({ ...s }));
+    state.rules = SAMPLE_RULES.map(r => ({ ...r }));
+    state.proposals = [];
+  } else if (el.id === "wadd") {
+    const text = document.getElementById("wtext").value.trim();
+    if (!text) return;
+    state.kind = document.getElementById("wkind").value;
+    state.stickies.push({ text, kind: state.kind, by: document.getElementById("wby").value.trim() || "匿名" });
+  } else if (el.dataset.mk) {
+    makeRule(state.stickies[+el.dataset.mk]);
+    state.tab = "guide";
+  } else if (el.dataset.old) {
+    const r = state.rules[+el.dataset.old];
+    r.old = !r.old;
+  } else if (el.id === "cadd") {
+    const text = document.getElementById("ctext").value.trim();
+    if (!text) return;
+    state.proposals.push(`[${document.getElementById("ckind").value}] ${text}`);
+  } else if (el.dataset.why) {
+    const i = el.dataset.why;
+    state.openWhy[i] = !state.openWhy[i];
+    state.rules[i].views += state.openWhy[i] ? 1 : 0;
+  } else if (el.dataset.fb) {
+    const [i, v] = el.dataset.fb.split(":");
+    state.feedback[i] = v;
+  }
+  render();
+});
+
+document.addEventListener("change", e => {
+  if (e.target.id === "rkind") {
+    state.rcvKind = e.target.value;
+    state.rules.filter(r => r.kind === state.rcvKind).forEach(r => r.views++);
+    render();
+  }
+});
+
+render();
+</script>
+</body>
+</html>

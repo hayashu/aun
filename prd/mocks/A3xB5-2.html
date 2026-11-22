@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>やってみる宣言（A3xB5-2）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #66707d;
+  --line: #d9dee5; --accent: #2b6cb0; --accent-bg: #e6effa;
+  --ok: #2f855a; --warn: #b7791f; --ng: #718096; --broken: #c05621;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6e9ed; --sub: #9aa5b1;
+    --line: #333c46; --accent: #63a4e8; --accent-bg: #1d2c3d;
+    --ok: #68d391; --warn: #ecc94b; --ng: #a0aec0; --broken: #f6ad55;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 12px 16px 8px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 16px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tabs button { flex: 1; }
+button { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); color: var(--text); cursor: pointer; }
+button.on, button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.chip.sel { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.card h2 { margin: 0 0 8px; font-size: 15px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+input[type=text], textarea, select { width: 100%; font: inherit; padding: 8px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.note { font-size: 12px; color: var(--sub); }
+.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.badge { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); }
+.ok { color: var(--ok); } .warn { color: var(--warn); } .ng { color: var(--ng); } .broken { color: var(--broken); }
+.timer { font-size: 12px; color: var(--sub); text-align: right; }
+.item { border-top: 1px solid var(--line); padding: 8px 0; }
+.item:first-child { border-top: 0; }
+.toast { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 8px; font-size: 13px; margin-top: 8px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>やってみる宣言</h1>
+  <small>A3xB5-2 ／ 試す前に「何を試し、壊れたらどうするか」を先輩と共有する</small>
+</header>
+<main>
+  <div class="tabs" id="roles">
+    <button data-r="junior" class="on">若手（Bさん）</button>
+    <button data-r="senior">先輩</button>
+  </div>
+  <button id="sample" style="width:100%;margin-bottom:12px">サンプルを読み込む</button>
+  <div id="view"></div>
+  <p class="note">この一覧は若手と先輩の2人だけが見られます。了承は「把握した」の意味で、結果の責任は問いません。結果は評価に使いません。</p>
+</main>
+<script>
+const CHOICES = {
+  what: ['部品の付け替え', '設定値の変更', '配線の変更', '測定条件の変更'],
+  equip: ['評価ボードA', '評価ボードB', '試作機1号', '電源ユニット'],
+  risk: ['基板が不安定になる', '部品が壊れる', '設定が戻せなくなる', '壊れる可能性は低い'],
+  spare: ['代わりの機材あり', '代わりの機材なし'],
+  contact: ['先輩（直接）', '部門のチャット', '備品担当'],
+};
+let state = { role: 'junior', decls: [], draft: null, nextId: 1, log: [] };
+let timers = {}; // key -> start ms
+
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (ms) => Math.floor(ms / 60000) + '分' + String(Math.floor(ms / 1000) % 60).padStart(2, '0') + '秒';
+
+function newDraft() {
+  timers.draft = null;
+  state.draft = { what: '', equip: '', risk: '', spare: '', contact: '', note: '' };
+}
+
+function startTimer(key) { if (!timers[key]) timers[key] = Date.now(); }
+function stopTimer(key) { const t = timers[key] ? Date.now() - timers[key] : 0; timers[key] = null; return t; }
+
+function chips(field, list) {
+  return '<div class="chips">' + list.map((v) =>
+    '<button class="chip ' + (state.draft[field] === v ? 'sel' : '') + '" data-f="' + field + '" data-v="' + v + '">' + v + '</button>'
+  ).join('') + '</div>';
+}
+
+function juniorView() {
+  const d = state.draft;
+  const waiting = state.decls.filter((x) => x.status === 'waiting');
+  const approved = state.decls.filter((x) => x.status === 'approved' && !x.result);
+  return `
+  <div class="card"><h2>やってみる宣言を書く</h2>
+    <div class="timer" id="t-draft">書き始めると計測します（目安2分）</div>
+    <label>何を試す？</label>${chips('what', CHOICES.what)}
+    <label>使う機材</label>${chips('equip', CHOICES.equip)}
+    <label>壊れるかもしれないこと</label>${chips('risk', CHOICES.risk)}
+    <label>代わりの機材</label>${chips('spare', CHOICES.spare)}
+    <label>壊れたら誰に連絡する？</label>${chips('contact', CHOICES.contact)}
+    <label>一言（任意）</label>
+    <input type="text" id="note" value="${esc(d.note)}" placeholder="例：ノイズが減るか見たい">
+    <p class="note">機材を壊す可能性がない試しは、宣言の対象外です。</p>
+    <button class="primary" id="send" style="width:100%">先輩に送る</button>
+    <div id="msg"></div>
+  </div>
+  ${approved.length ? '<div class="card"><h2>試したあとの結果を報告する</h2>' + approved.map(reportForm).join('') + '</div>' : ''}
+  ${waiting.length ? '<div class="card"><h2>了承待ち</h2>' + waiting.map((x) => '<div class="item">' + summary(x) + '</div>').join('') + '</div>' : ''}
+  ${listView()}`;
+}
+
+function summary(x) {
+  return '<b>' + esc(x.what) + '</b>（' + esc(x.equip) + '）<br><span class="note">壊れるかも：' + esc(x.risk) +
+    ' ／ ' + esc(x.spare) + ' ／ 連絡先：' + esc(x.contact) + (x.note ? ' ／ ' + esc(x.note) : '') + '</span>';
+}
+
+function reportForm(x) {
+  const cond = x.cond ? '<div class="note">先輩の条件：' + esc(x.cond) + '</div>' : '';
+  return `<div class="item">${summary(x)}${cond}
+    <label>結果</label>
+    <div class="chips" data-id="${x.id}">
+      <button class="chip" data-res="うまくいった">うまくいった</button>
+      <button class="chip" data-res="うまくいかなかった">うまくいかなかった</button>
+      <button class="chip" data-res="壊れた">壊れた</button>
+    </div>
+    <input type="text" id="rt-${x.id}" placeholder="一行で書く" style="margin-top:6px">
+    <div id="rm-${x.id}"></div></div>`;
+}
+
+function seniorView() {
+  const waiting = state.decls.filter((x) => x.status === 'waiting');
+  const cards = waiting.map((x) => {
+    startTimer('rev' + x.id);
+    return `<div class="item" data-id="${x.id}">${summary(x)}
+      <div class="timer" id="t-rev${x.id}">確認中（目安1分）</div>
+      <div class="chips" style="margin:6px 0">
+        <button class="chip" data-d="approved">どうぞ</button>
+        <button class="chip" data-d="cond">この範囲までならどうぞ</button>
+        <button class="chip" data-d="wait">今回は待って</button>
+      </div>
+      <input type="text" id="dc-${x.id}" class="hidden" placeholder="条件または理由（例：この部品は替えがないので触らないで）">
+      <button class="primary hidden" data-ok="${x.id}">返事を送る</button></div>`;
+  }).join('');
+  return `<div class="card"><h2>了承する</h2>${cards || '<p class="note">了承待ちの宣言はありません。</p>'}
+    <p class="note">了承は「把握した」の意味です。結果の責任は問いません。</p></div>${listView()}${logView()}`;
+}
+
+function listView() {
+  const label = { waiting: '了承待ち', approved: '了承', cond: '条件つき', wait: '待って' };
+  const cls = { waiting: 'warn', approved: 'ok', cond: 'ok', wait: 'ng' };
+  const items = state.decls.map((x) => `<div class="item">${summary(x)}
+    <div class="row"><span class="badge ${cls[x.status] || ''}">${label[x.status] || x.status}</span>
+    ${x.result ? '<span class="badge ' + (x.result === '壊れた' ? 'broken' : '') + '">結果：' + esc(x.result) + '</span>' : ''}</div>
+    ${x.cond ? '<div class="note">先輩より：' + esc(x.cond) + '</div>' : ''}
+    ${x.resultText ? '<div class="note">' + esc(x.resultText) + '</div>' : ''}</div>`).join('');
+  return '<div class="card"><h2>宣言の一覧</h2>' + (items || '<p class="note">まだ宣言はありません。</p>') + '</div>';
+}
+
+function logView() {
+  if (!state.log.length) return '';
+  return '<div class="card"><h2>届いた知らせ</h2>' + state.log.map((l) => '<div class="toast">' + l + '</div>').join('') + '</div>';
+}
+
+function render() {
+  $('#view').innerHTML = state.role === 'junior' ? juniorView() : seniorView();
+  document.querySelectorAll('#roles button').forEach((b) => b.classList.toggle('on', b.dataset.r === state.role));
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (t.dataset.r) { state.role = t.dataset.r; render(); return; }
+  if (t.dataset.f) {
+    startTimer('draft');
+    state.draft.note = ($('#note') || {}).value || state.draft.note;
+    state.draft[t.dataset.f] = t.dataset.v; render(); return;
+  }
+  if (t.id === 'send') { sendDecl(); return; }
+  if (t.dataset.d) { pickDecision(t); return; }
+  if (t.dataset.ok) { answer(+t.dataset.ok); return; }
+  if (t.dataset.res) { report(t); return; }
+  if (t.id === 'sample') loadSample();
+});
+
+function sendDecl() {
+  const d = state.draft;
+  d.note = $('#note').value;
+  if (!d.what || !d.equip || !d.risk || !d.spare || !d.contact) {
+    $('#msg').innerHTML = '<div class="toast">未選択の項目があります。</div>'; return;
+  }
+  const ms = stopTimer('draft');
+  state.decls.unshift({ id: state.nextId++, ...d, status: 'waiting', result: '', resultText: '', cond: '' });
+  newDraft(); render();
+  $('#msg').innerHTML = '<div class="toast">先輩に送りました。書くのにかかった時間：' + fmt(ms) + '</div>';
+}
+
+function pickDecision(btn) {
+  const box = btn.closest('.item');
+  box.dataset.pick = btn.dataset.d;
+  box.querySelectorAll('[data-d]').forEach((b) => b.classList.toggle('sel', b === btn));
+  box.querySelector('input').classList.toggle('hidden', btn.dataset.d === 'approved');
+  box.querySelector('[data-ok]').classList.remove('hidden');
+}
+
+function answer(id) {
+  const box = document.querySelector('.item[data-id="' + id + '"]');
+  const x = state.decls.find((v) => v.id === id);
+  const ms = stopTimer('rev' + id);
+  x.status = box.dataset.pick;
+  x.cond = x.status === 'approved' ? '' : box.querySelector('input').value;
+  state.log.unshift('「' + esc(x.what) + '」への返事を送りました。了承にかかった時間：' + fmt(ms));
+  render();
+}
+
+function report(btn) {
+  const id = +btn.parentElement.dataset.id;
+  const x = state.decls.find((v) => v.id === id);
+  x.result = btn.dataset.res;
+  x.resultText = $('#rt-' + id).value;
+  if (x.result === '壊れた') {
+    state.log.unshift('【壊れた】' + esc(x.contact) + ' に知らせました：「' + esc(x.what) + '」（' + esc(x.equip) +
+      '）。想定していた結果です。対応：' + esc(x.spare));
+  }
+  render();
+  askAwkward(x);
+}
+
+function askAwkward(x) {
+  if (x.result !== '壊れた') return;
+  $('#view').insertAdjacentHTML('afterbegin', '<div class="card" id="aw"><b>「壊れた」を選んだとき、気まずさはありましたか？（モック検証用）</b>' +
+    '<div class="chips" style="margin-top:6px"><button class="chip" onclick="awk(this)">なかった</button>' +
+    '<button class="chip" onclick="awk(this)">少しあった</button><button class="chip" onclick="awk(this)">あった</button></div></div>');
+}
+function awk(b) { $('#aw').innerHTML = '<span class="note">回答：' + b.textContent + '（この画面内のみ。保存・集計はしません）</span>'; }
+
+function loadSample() {
+  state.decls = [
+    { id: 1, what: '部品の付け替え', equip: '評価ボードA', risk: '部品が壊れる', spare: '代わりの機材あり',
+      contact: '先輩（直接）', note: 'ノイズが減るか見たい', status: 'approved', cond: '', result: '', resultText: '' },
+    { id: 2, what: '設定値の変更', equip: '試作機1号', risk: '基板が不安定になる', spare: '代わりの機材なし',
+      contact: '部門のチャット', note: '', status: 'cond', cond: 'この部品は替えがないので触らないで', result: 'うまくいった', resultText: '設定を戻せた' },
+    { id: 3, what: '配線の変更', equip: '評価ボードB', risk: '部品が壊れる', spare: '代わりの機材あり',
+      contact: '備品担当', note: '', status: 'wait', cond: '今週は評価で使うので来週に', result: '', resultText: '' },
+    { id: 4, what: '測定条件の変更', equip: '電源ユニット', risk: '壊れる可能性は低い', spare: '代わりの機材あり',
+      contact: '先輩（直接）', note: '電圧を少し変える', status: 'waiting', cond: '', result: '', resultText: '' },
+  ];
+  state.nextId = 5; state.log = []; newDraft(); render();
+}
+
+setInterval(() => {
+  const dr = $('#t-draft');
+  if (dr && timers.draft) dr.textContent = '書き始めてから ' + fmt(Date.now() - timers.draft);
+  state.decls.forEach((x) => {
+    const el = $('#t-rev' + x.id);
+    if (el && timers['rev' + x.id]) el.textContent = '確認中 ' + fmt(Date.now() - timers['rev' + x.id]);
+  });
+}, 1000);
+
+newDraft();
+render();
+</script>
+</body>
+</html>

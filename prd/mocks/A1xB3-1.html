@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>依頼分解ツール (A1xB3-1)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #62707e;
+  --line: #d9dee4; --accent: #2f6fdb; --accent-t: #ffffff;
+  --warn: #b45309; --warn-bg: #fef3c7; --ok-bg: #e3f4e8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1f252c; --text: #e6eaee; --sub: #9aa7b4;
+    --line: #36404a; --accent: #6b9cf0; --accent-t: #0c1117;
+    --warn: #f2c26b; --warn-bg: #3a2f14; --ok-bg: #1b3324;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { max-width: 480px; margin: 0 auto; padding: 16px; }
+.steps { display: flex; gap: 4px; margin-bottom: 12px; }
+.steps span { flex: 1; text-align: center; font-size: 11px; padding: 4px 0;
+  border-bottom: 3px solid var(--line); color: var(--sub); }
+.steps .on { border-color: var(--accent); color: var(--text); font-weight: bold; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; margin-bottom: 12px; }
+h2 { font-size: 16px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+textarea { min-height: 70px; }
+button { font: inherit; border: 1px solid var(--accent); background: var(--accent);
+  color: var(--accent-t); border-radius: 6px; padding: 9px 14px; margin: 8px 6px 0 0; }
+button.sub { background: transparent; color: var(--accent); }
+button:disabled { opacity: .4; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); border-radius: 16px; padding: 5px 12px;
+  background: var(--bg); color: var(--text); margin: 0; }
+.chip.sel { background: var(--accent); color: var(--accent-t); border-color: var(--accent); }
+.mark { background: var(--warn-bg); color: var(--warn); border-radius: 3px; padding: 0 3px; }
+.note { font-size: 12px; color: var(--sub); }
+.cand { border-left: 4px solid var(--accent); background: var(--bg); padding: 8px 10px;
+  margin: 8px 0; border-radius: 4px; }
+.cand.true-ok { border-color: var(--warn); }
+.ok { background: var(--ok-bg); padding: 8px 10px; border-radius: 6px; margin-top: 8px; }
+.ms { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
+#timer { float: right; font-size: 12px; color: var(--sub); }
+</style>
+</head>
+<body>
+<header>
+  <span id="timer"></span>
+  <h1>依頼分解ツール</h1>
+  <small>「いい感じに進めておいて」から区切りを作る（A1xB3-1）</small>
+</header>
+<main>
+  <div class="steps" id="steps"></div>
+  <div id="view"></div>
+</main>
+<script>
+const FLAGS = ["急ぎじゃない", "いい感じに", "まとまったら見せて", "適当に", "とりあえず"];
+const STEPS = ["依頼", "推測", "手がかり", "区切り"];
+const SAMPLE = {
+  from: "課長", date: "2026-11-22",
+  text: "急ぎじゃないから、ノイズ対策の案をまとめておいて。まとまったら見せて。"
+};
+let S, startedAt, tick;
+
+function reset() {
+  S = { step: 0, from: "", date: today(), text: "", guessDL: "", guessQ: "",
+    q1: "", q2: "", ask: "", cands: [], nice: null, ms: [], short: false, shown: false };
+  startedAt = null;
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+function esc(t) {
+  return t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function mark(t) {
+  let h = esc(t);
+  FLAGS.forEach(f => { h = h.split(f).join('<span class="mark">' + f + '</span>'); });
+  return h;
+}
+function addDays(d, n) {
+  const x = new Date(d + "T00:00:00");
+  x.setDate(x.getDate() + n);
+  return x.toISOString().slice(0, 10);
+}
+function start() {
+  if (!startedAt) startedAt = Date.now();
+  clearInterval(tick);
+  tick = setInterval(showTimer, 1000);
+}
+function showTimer() {
+  if (!startedAt) { document.getElementById("timer").textContent = ""; return; }
+  const s = Math.floor((Date.now() - startedAt) / 1000);
+  document.getElementById("timer").textContent =
+    "経過 " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") + "（目安5分）";
+}
+function set(k, v) { S[k] = v; render(); }
+function field(k, v) { S[k] = v; start(); updateButtons(); }
+function updateButtons() {
+  const b = document.getElementById("next");
+  if (!b) return;
+  const need = [S.text.trim(), S.guessDL && S.guessQ, S.q1 && S.q2 && S.ask, true][S.step];
+  b.disabled = !need;
+}
+function chips(key, opts) {
+  return '<div class="chips">' + opts.map(o =>
+    '<button class="chip ' + (S[key] === o ? "sel" : "") + '" onclick="set(\'' + key + "','" + o + '\')">' + o + '</button>'
+  ).join("") + '</div>';
+}
+function next() { S.step++; if (S.step === 3) buildMs(); render(); }
+
+function viewRecord() {
+  return '<div class="card"><h2>1. 依頼の記録</h2>' +
+    '<button class="sub" onclick="loadSample()">サンプルを読み込む</button>' +
+    '<label>誰から</label><input value="' + esc(S.from) + '" oninput="field(\'from\',this.value)">' +
+    '<label>頼まれた日</label><input type="date" value="' + S.date + '" onchange="field(\'date\',this.value)">' +
+    '<label>どんな言葉で、何を頼まれたか</label>' +
+    '<textarea oninput="field(\'text\',this.value);document.getElementById(\'pv\').innerHTML=mark(this.value)">' +
+    esc(S.text) + '</textarea>' +
+    '<div class="note">曖昧な言葉には印が付きます</div>' +
+    '<div id="pv">' + mark(S.text) + '</div></div>';
+}
+function viewGuess() {
+  return '<div class="card"><h2>2. 自分の推測（先に決める）</h2>' +
+    '<div class="note">手がかりを見る前に、直感で選んでください。正解はありません。</div>' +
+    '<label>本当の期限はいつ頃？</label>' + chips("guessDL", ["今週", "2週間以内", "1か月以内", "わからない"]) +
+    '<label>期待される完成度は？</label>' + chips("guessQ", ["たたき台", "ほぼ完成"]) + '</div>';
+}
+function viewClues() {
+  return '<div class="card"><h2>3. 手がかりの確認</h2>' +
+    '<div class="note">あなたの推測：' + S.guessDL + ' / ' + S.guessQ + '（他人の予定表は読みません。思い出して答えてください）</div>' +
+    '<label>近くに報告会や会議はありますか</label>' +
+    chips("q1", ["今週中にある", "2週間後にある", "1か月後にある", "思い当たらない"]) +
+    '<label>過去の似た依頼は、頼まれてから何日後に使われましたか</label>' +
+    chips("q2", ["1週間以内", "2週間前後", "1か月以上", "覚えていない"]) +
+    '<label>確かめる一言（期限を問い詰めない言い方）</label>' +
+    chips("ask", ["部長報告に使われる予定はありますか", "途中で一度見ていただくなら、いつ頃がよいですか", "どの程度の形でお見せするのがよいでしょうか"]) +
+    '<div><button class="sub" onclick="showCands()">候補を見る</button></div>' +
+    '<div id="cands"></div></div>';
+}
+function showCands() {
+  const days = { "今週中にある": 6, "2週間後にある": 13, "1か月後にある": 28 }[S.q1];
+  const past = { "1週間以内": 7, "2週間前後": 14, "1か月以上": 30 }[S.q2];
+  S.cands = [];
+  S.shown = true;
+  if (days) S.cands.push({ d: days, t: "会議の前日まで（約" + days + "日以内）。報告に使われる可能性" });
+  if (past) S.cands.push({ d: past, t: "過去の流れから約" + past + "日前後" });
+  S.cands.push({ d: 30, t: "言葉どおり、本当に急ぎではない（1か月以上の余裕）" });
+  const el = document.getElementById("cands");
+  el.innerHTML = S.cands.map((c, i) =>
+    '<div class="cand ' + (i === S.cands.length - 1 ? "true-ok" : "") + '">' + c.t + '</div>').join("") +
+    '<div class="note">どれも断定ではありません。次の一言で確かめます：<br><b>「' + S.ask + '」</b></div>' +
+    '<div class="ok">先に推測した「' + S.guessDL + '」と見比べて、なるほどと思う点はありましたか？<br>' +
+    '<button class="chip ' + (S.nice === "yes" ? "sel" : "") + '" onclick="S.nice=\'yes\';showCands()">あった</button>' +
+    '<button class="chip ' + (S.nice === "no" ? "sel" : "") + '" onclick="S.nice=\'no\';showCands()">なかった</button></div>';
+}
+function buildMs() {
+  const d = Math.min.apply(null, S.cands.filter(c => c.d < 30).map(c => c.d).concat([30]));
+  S.short = d <= 7;
+  const set = S.short ? [["一次案", 0.7]] :
+    [["方向の確認", 0.25], ["一次案", 0.6], ["仕上げ", 0.9]];
+  S.ms = set.map(m => ({ name: m[0], date: addDays(S.date, Math.max(1, Math.round(d * m[1]))) }));
+}
+function viewMs() {
+  const rows = S.ms.map((m, i) =>
+    '<div class="ms"><b>' + m.name + '</b>' +
+    (m.name === "方向の確認" ? '<div class="note">この区切りで上司に途中経過を見せます。「' + esc(S.ask) + '」と聞いてみましょう。</div>' : '') +
+    '<input type="date" value="' + m.date + '" onchange="S.ms[' + i + '].date=this.value"></div>').join("");
+  return '<div class="card"><h2>4. 区切りの作成</h2>' +
+    '<div class="note">' + (S.short ? "1週間以内の依頼なので短い流れ（一次案のみ）にしました。" : "日付は仮置きです。自分で決め直してください。") + '</div>' +
+    '<div class="ms">依頼：' + mark(S.text) + '</div>' + rows +
+    '<div class="note" style="margin-top:10px">自動送信や記録はしません。この画面を閉じると消えます。</div>' +
+    '<button class="sub" onclick="reset();render()">最初からやり直す</button></div>';
+}
+function loadSample() {
+  Object.assign(S, SAMPLE);
+  start();
+  render();
+}
+function render() {
+  document.getElementById("steps").innerHTML = STEPS.map((s, i) =>
+    '<span class="' + (i === S.step ? "on" : "") + '">' + s + '</span>').join("");
+  const v = [viewRecord, viewGuess, viewClues, viewMs][S.step]();
+  const nav = S.step < 3 ? '<button id="next" onclick="next()">次へ</button>' : "";
+  const back = S.step > 0 ? '<button class="sub" onclick="S.step--;render()">戻る</button>' : "";
+  document.getElementById("view").innerHTML = v + nav + back;
+  updateButtons();
+  showTimer();
+  if (S.step === 2 && S.shown) showCands();
+}
+reset();
+render();
+</script>
+</body>
+</html>

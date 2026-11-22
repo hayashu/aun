@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>実験デー モック A4xB5-3</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #5f6b7a;
+  --line: #d9dee5; --accent: #2f6fdb; --accent-text: #ffffff;
+  --warn: #b45309; --warn-bg: #fdf1dc; --ok-bg: #e6f2ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e8ecf1; --sub: #9aa6b4;
+    --line: #333c46; --accent: #6b9cf0; --accent-text: #0e1319;
+    --warn: #f0b45a; --warn-bg: #3a2e18; --ok-bg: #1d3326;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.wrap { max-width: 420px; margin: 0 auto; padding: 0 16px 40px; }
+header { padding: 12px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.bar { display: flex; gap: 6px; margin: 8px 0; }
+.bar button { flex: 1; }
+button { font: inherit; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--text); }
+button.on, button.pri { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.sm { padding: 4px 8px; font-size: 13px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 10px 0; }
+.card h3 { margin: 0 0 4px; font-size: 15px; }
+label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+input, textarea, select { width: 100%; font: inherit; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.note { font-size: 13px; color: var(--sub); }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px;
+  background: var(--ok-bg); margin-right: 4px; }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.pair div { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 14px; }
+.pair b { display: block; font-size: 12px; color: var(--sub); }
+.timer { font-size: 36px; text-align: center; font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 6px; }
+.row > * { flex: 1; }
+.cm { font-size: 14px; border-left: 3px solid var(--accent); padding-left: 8px; margin: 6px 0; }
+ul { padding-left: 18px; margin: 4px 0; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>月に半日の「実験デー」</h1>
+    <small>PRD A4xB5-3 / モック</small>
+  </header>
+
+  <div class="bar" id="roles"></div>
+  <button id="sample" style="width:100%">サンプルを読み込む</button>
+  <div class="bar" id="tabs"></div>
+  <p class="note">成果は求めません。うまくいったかどうかの採点・競争もありません。</p>
+
+  <div id="view"></div>
+</div>
+
+<script>
+const ROLES = ["Bさん（参加者）", "Aさん（参加者）", "進行役"];
+const TABS = ["登録", "機材", "記録", "発表", "一覧"];
+const SAMPLE_TRIALS = [
+  { id: 1, who: "Bさん", title: "バイパスコンデンサの値を変える", gear: "評価ボードA（壊してよい）",
+    expect: "0.1uFを1uFにすればノイズが減る", result: "ノイズが増えた",
+    cause: "容量を上げて自己共振周波数が下がった？", same: false, done: true },
+  { id: 2, who: "Aさん", title: "評価ボードの設定を変えて測る", gear: "評価ボードB",
+    expect: "サンプリング周期を倍にすると波形がなめらかになる", result: "ほぼ予想どおり",
+    cause: "（予想どおり）", same: true, done: true },
+  { id: 3, who: "Bさん", title: "部品の温度特性を見る", gear: "ヒートガン・試験部品セット（壊してよい）",
+    expect: "セラミックコンデンサの容量は温度でほぼ変わらない", result: "高温で容量が下がった",
+    cause: "誘電体の種類（X7Rなど）によるのでは", same: false, done: true },
+];
+const GEARS = [
+  { name: "評価ボードA", breakable: true }, { name: "評価ボードB", breakable: false },
+  { name: "試験部品セット", breakable: true }, { name: "ヒートガン", breakable: false },
+  { name: "オシロスコープ", breakable: false },
+];
+const SAMPLE_COMMENTS = { 1: [{ by: "ベテランC", text: "基板の配線インダクタンスも効いていそう" }],
+  3: [] };
+const IDEAS = ["ノイズ対策の比較", "部品の温度特性", "電源の立ち上がりを測る"];
+
+let S = { role: 0, tab: 0, trials: [], comments: {}, cur: -1, left: 180, timer: null, nextId: 10 };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const me = () => S.role === 0 ? "Bさん" : S.role === 1 ? "Aさん" : "進行役";
+
+function head() {
+  $("roles").innerHTML = ROLES.map((r, i) =>
+    `<button class="${i === S.role ? "on" : ""}" onclick="S.role=${i};render()">${r}</button>`).join("");
+  $("tabs").innerHTML = TABS.map((t, i) =>
+    `<button class="sm ${i === S.tab ? "on" : ""}" onclick="S.tab=${i};render()">${t}</button>`).join("");
+}
+
+function viewRegister() {
+  const mine = S.trials.filter((t) => !t.done);
+  const conflict = (g) => S.trials.some((t) => !t.done && t.gear === g);
+  return `<div class="card"><h3>試しの登録（${me()}）</h3>
+    <p class="note">例：${IDEAS.map((i) => `<a href="#" onclick="idea('${i}');return false">${i}</a>`).join(" / ")}</p>
+    <label>試したいこと</label><input id="r-title">
+    <label>使う機材</label>
+    <select id="r-gear">${GEARS.map((g) => `<option>${g.name}${conflict(g.name) ? "（重なりあり）" : ""}</option>`).join("")}</select>
+    <label>何を変えて、どうなると予想するか</label><textarea id="r-expect" rows="2"></textarea>
+    <p class="note">機材が重なる場合は、使う時間を相談して調整します。</p>
+    <button class="pri" onclick="addTrial()">登録する</button></div>
+    <h4>登録済みの試し（未記録）</h4>
+    ${mine.map((t) => `<div class="card"><h3>${esc(t.title)}</h3>
+      <div class="note">${esc(t.who)} / ${esc(t.gear)}</div>予想：${esc(t.expect)}</div>`).join("") || '<p class="note">まだありません。</p>'}`;
+}
+
+function viewGear() {
+  return `<div class="card"><h3>練習用の機材</h3><ul>${GEARS.map((g) =>
+    `<li>${g.name} ${g.breakable ? '<span class="tag">壊してよい</span>' : ""}</li>`).join("")}</ul>
+    <p class="note warn">電源・高電圧に関わる試しは、事前に安全手順を確認してください。</p></div>`;
+}
+
+function viewRecord() {
+  const todo = S.trials.filter((t) => !t.done);
+  if (!todo.length) return '<p class="note">記録する試しがありません。「登録」から追加してください。</p>';
+  return todo.map((t) => `<div class="card"><h3>${esc(t.title)}</h3>
+    <div class="note">${esc(t.who)}</div>予想：${esc(t.expect)}
+    <label>結果（一行）</label><input id="res-${t.id}">
+    <label>原因の推測（一行）</label><input id="cau-${t.id}">
+    <label>写真（1枚まで・任意）</label><input type="file" accept="image/*" id="pic-${t.id}">
+    <label>予想との関係</label>
+    <select id="same-${t.id}"><option value="0">予想と違った</option><option value="1">予想どおり</option></select>
+    <br><br><button class="pri" onclick="saveRec(${t.id})">記録する</button></div>`).join("");
+}
+
+function order() {
+  const d = S.trials.filter((t) => t.done);
+  return [...d.filter((t) => !t.same), ...d.filter((t) => t.same)];
+}
+
+function viewPresent() {
+  const list = order();
+  if (!list.length) return '<p class="note">発表する試しがありません。サンプルを読み込むか、記録してください。</p>';
+  const mm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  const t = list[S.cur];
+  let h = "";
+  if (S.role === 2) {
+    h += `<div class="card"><h3>進行（一人3分）</h3><div class="timer" id="tm">${mm(S.left)}</div>
+      <div class="row"><button onclick="nextT()">${S.cur < 0 ? "開始" : "次の人へ"}</button>
+      <button onclick="toggle()">${S.timer ? "停止" : "再開"}</button></div></div>`;
+  }
+  h += `<div class="card"><h3>発表順</h3><p class="note">予想と違った試しを先に発表します。</p><ol>` +
+    list.map((x, i) => `<li ${i === S.cur ? "style='font-weight:bold'" : ""}>${esc(x.who)}：${esc(x.title)}
+    ${x.same ? "" : '<span class="tag warn">予想と違った</span>'}</li>`).join("") + "</ol></div>";
+  if (t) {
+    const cs = S.comments[t.id] || [];
+    h += `<div class="card"><h3>${esc(t.title)}</h3><div class="note">${esc(t.who)} / ${esc(t.gear)}</div>
+      <div class="pair"><div><b>予想</b>${esc(t.expect)}</div><div><b>結果</b>${esc(t.result)}</div></div>
+      <div><b class="note">原因の推測</b><br>${esc(t.cause)}</div>
+      <h4>原因を考える一言</h4>
+      ${cs.map((c) => `<div class="cm">${esc(c.text)}<br><span class="note">${esc(c.by)}</span></div>`).join("") || '<p class="note">まだ一言はありません。</p>'}
+      <label>「こういう原因もありそう」</label><input id="cm-in">
+      <br><br><button class="pri" onclick="addCm(${t.id})">一言を書く</button></div>`;
+  }
+  return h;
+}
+
+function viewList() {
+  const d = S.trials.filter((t) => t.done);
+  return d.map((t) => `<div class="card"><h3>${esc(t.title)}</h3>
+    <div class="note">${esc(t.who)}</div>
+    <div class="pair"><div><b>予想</b>${esc(t.expect)}</div><div><b>結果</b>${esc(t.result)}</div></div>
+    原因の推測：${esc(t.cause)}
+    ${(S.comments[t.id] || []).map((c) => `<div class="cm">${esc(c.text)}（${esc(c.by)}）</div>`).join("")}</div>`).join("")
+    || '<p class="note">まだありません。</p>';
+}
+
+function render() {
+  head();
+  $("view").innerHTML = [viewRegister, viewGear, viewRecord, viewPresent, viewList][S.tab]();
+}
+
+function idea(i) { $("r-title").value = i; }
+function addTrial() {
+  const title = $("r-title").value.trim(), expect = $("r-expect").value.trim();
+  if (!title || !expect) { alert("試したいことと予想を入力してください"); return; }
+  S.trials.push({ id: S.nextId++, who: me(), title, gear: $("r-gear").value, expect,
+    result: "", cause: "", same: false, done: false });
+  render();
+}
+function saveRec(id) {
+  const t = S.trials.find((x) => x.id === id);
+  t.result = $("res-" + id).value.trim() || "（未記入）";
+  t.cause = $("cau-" + id).value.trim() || "（未記入）";
+  t.same = $("same-" + id).value === "1";
+  t.done = true;
+  render();
+}
+function nextT() {
+  const n = order().length;
+  S.cur = Math.min(S.cur + 1, n - 1);
+  S.left = 180;
+  toggle(true);
+}
+function toggle(force) {
+  if (S.timer && !force) { clearInterval(S.timer); S.timer = null; render(); return; }
+  clearInterval(S.timer);
+  S.timer = setInterval(() => {
+    S.left = Math.max(0, S.left - 1);
+    const el = $("tm");
+    if (el) el.textContent = String(Math.floor(S.left / 60)).padStart(2, "0") + ":" + String(S.left % 60).padStart(2, "0");
+    if (S.left === 0) { clearInterval(S.timer); S.timer = null; }
+  }, 1000);
+  render();
+}
+function addCm(id) {
+  const v = $("cm-in").value.trim();
+  if (!v) return;
+  (S.comments[id] = S.comments[id] || []).push({ by: me(), text: v });
+  render();
+}
+$("sample").onclick = () => {
+  clearInterval(S.timer);
+  S = { role: 0, tab: 3, trials: JSON.parse(JSON.stringify(SAMPLE_TRIALS)),
+    comments: JSON.parse(JSON.stringify(SAMPLE_COMMENTS)), cur: 0, left: 180, timer: null, nextId: 10 };
+  render();
+};
+render();
+</script>
+</body>
+</html>

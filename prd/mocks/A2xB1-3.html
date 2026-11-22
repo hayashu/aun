@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>資料ダイエット A2xB1-3</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1d2330; --sub: #5d6676;
+  --line: #d9dde5; --accent: #2a6f5e; --accent-bg: #e3f1ed; --warn: #b3540f; --bar: #9fb8d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --card: #1e232c; --text: #e8ebf0; --sub: #9aa3b2;
+    --line: #333a47; --accent: #62c3a9; --accent-bg: #1f3a33; --warn: #f0a46a; --bar: #4f6b8c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 14px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+button, select, textarea, input { font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+button { cursor: pointer; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+label { font-weight: bold; display: block; }
+textarea { width: 100%; min-height: 56px; }
+.help { background: var(--accent-bg); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px;
+  font-size: 13px; }
+.help b { color: var(--accent); }
+.note { color: var(--sub); font-size: 12px; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.col { display: flex; align-items: flex-end; gap: 4px; height: 90px; margin: 6px 0 2px; }
+.col div { flex: 1; text-align: center; font-size: 10px; }
+.col span { display: block; background: var(--bar); border-radius: 3px 3px 0 0; }
+.col .slot span { background: var(--accent); }
+.big { font-size: 22px; font-weight: bold; color: var(--accent); }
+.warn { color: var(--warn); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td, th { border-bottom: 1px solid var(--line); padding: 5px 2px; text-align: left; }
+.paper { border: 1px dashed var(--line); padding: 8px; margin-top: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header><h1>資料の型を1枚に明文化し、浮いた時間をものづくり枠へ</h1><small>A2xB1-3 / モック</small></header>
+<main>
+  <div class="bar" id="roles"></div>
+  <div class="bar" id="tabs"></div>
+  <button id="sample">サンプルを読み込む</button>
+  <div id="view" style="margin-top:12px"></div>
+</main>
+<script>
+const ROLES = ["Bさん（作成者）", "Aさん（作成者）", "部門長"];
+const FIELDS = [
+  { k: "conclusion", n: "結論", ph: "例: 評価Aは目標を満たした。量産移行を提案する",
+    why: "<b>なぜ先頭か:</b> 読み手は最初の1行で判断したい。経緯は後ろでよい。",
+    how: "<b>どこまで:</b> 1〜2文。理由は書かない。" },
+  { k: "numbers", n: "数字（前回比つき）", ph: "例: 不良率 1.2%（前回 2.0%、-0.8pt）",
+    why: "<b>なぜ前回比か:</b> 数字単体では良し悪しが読めない。変化で判断する。",
+    how: "<b>どこまで:</b> 主要な3つまで。詳細は添付へ。" },
+  { k: "issue", n: "課題", ph: "例: 高温時のばらつきが未解消",
+    why: "<b>なぜ数字の次か:</b> 結果を見た直後が、課題を一番受け止めやすい。",
+    how: "<b>どこまで:</b> 未解決のものだけ。解決済みは書かない。" },
+  { k: "next", n: "次の一手", ph: "例: 来週、恒温槽で再試験（Bさん）",
+    why: "<b>なぜ最後か:</b> 会議の決めごとにつながる欄だから。",
+    how: "<b>どこまで:</b> 誰が・いつまでに、を1行で。" }
+];
+const BANDS = [["〜30分", .25], ["30分〜1時間", .75], ["1〜2時間", 1.5], ["2時間〜", 3]];
+const MEMBERS = 6;
+const SAMPLE = {
+  draft: { conclusion: "評価結果Aは目標を満たした。量産移行を提案する",
+    numbers: "不良率 1.2%（前回 2.0%、-0.8pt）", issue: "高温時のばらつきが未解消",
+    next: "来週、恒温槽で再試験（Bさん）", attach: 1 },
+  weeks: [
+    { w: "10/6", hours: 38, redo: 5, of: 12, slot: 0 }, { w: "10/13", hours: 36, redo: 4, of: 13, slot: 0 },
+    { w: "10/20", hours: 33, redo: 3, of: 12, slot: 4 }, { w: "10/27", hours: 28, redo: 2, of: 11, slot: 8 },
+    { w: "11/3", hours: 24, redo: 1, of: 9, slot: 12 }, { w: "11/10", hours: 21, redo: 1, of: 8, slot: 14 }
+  ],
+  audit: [
+    { t: "週報（設計）", d: "置き換え" }, { t: "評価結果報告", d: "置き換え" },
+    { t: "進捗の口頭確認用スライド", d: "口頭" }, { t: "部長向け月次報告", d: "必要" }
+  ],
+  slots: [3, 2, 3, 2, 2, 2]
+};
+const state = { role: 0, tab: "write", draft: {}, attach: 0, weeks: [], audit: [], slots: [], logged: false, loaded: false };
+const $ = (id) => document.getElementById(id);
+
+function renderBars() {
+  $("roles").innerHTML = ROLES.map((r, i) =>
+    `<button class="${i === state.role ? "on" : ""}" onclick="state.role=${i};render()">${r}</button>`).join("");
+  const tabs = [["write", "1枚を書く"], ["time", "時間と枠"], ["audit", "棚卸し"]];
+  $("tabs").innerHTML = tabs.map(([k, n]) =>
+    `<button class="${k === state.tab ? "on" : ""}" onclick="state.tab='${k}';render()">${n}</button>`).join("");
+}
+
+function viewWrite() {
+  const f = FIELDS.map((x) => `
+    <div class="card">
+      <label for="f_${x.k}">${x.n}</label>
+      <div class="help">${x.why}<br>${x.how}</div>
+      <textarea id="f_${x.k}" placeholder="${x.ph}" oninput="state.draft.${x.k}=this.value;fillPaper()">${state.draft[x.k] || ""}</textarea>
+    </div>`).join("");
+  const over = state.attach > 2;
+  return f + `
+    <div class="card">
+      <div class="row"><label>添付資料の枚数</label>
+        <span><button onclick="state.attach=Math.max(0,state.attach-1);render()">−</button>
+        <b>${state.attach}</b> <button onclick="state.attach++;render()">＋</button></span></div>
+      <div class="note ${over ? "warn" : ""}">上限は2枚。${over ? "上限を超えています。棚卸しで見直しましょう（送信は止めません）。" : "1枚に収まらない詳細だけ添付します。"}</div>
+    </div>
+    <div class="card"><h2>プレビュー（この1枚を定例会議で使う）</h2><div id="paper"></div></div>
+    <div class="card">
+      <h2>この資料の作成時間（任意・個人別には出ません）</h2>
+      <div class="chips">${BANDS.map((b, i) =>
+        `<button onclick="logTime(${i})">${b[0]}</button>`).join("")}</div>
+      <div class="note" id="logmsg">${state.logged ? "記録しました。チーム合計にだけ加わります。" : "時間帯を1つ選ぶだけです。"}</div>
+    </div>`;
+}
+
+function fillPaper() {
+  const el = $("paper");
+  if (!el) return;
+  el.innerHTML = FIELDS.map((x) =>
+    `<div class="paper"><b>${x.n}</b><br>${esc(state.draft[x.k]) || '<span class="note">（未記入）</span>'}</div>`).join("");
+}
+
+function esc(s) {
+  return (s || "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+function logTime(i) {
+  const last = state.weeks[state.weeks.length - 1];
+  if (last) last.hours += BANDS[i][1];
+  state.logged = true;
+  $("logmsg").textContent = "記録しました。チーム合計にだけ加わります。";
+}
+
+function viewTime() {
+  const ws = state.weeks;
+  if (!ws.length) return `<div class="card note">データがありません。「サンプルを読み込む」を押してください。</div>`;
+  const first = ws.find((w) => w.hours) || ws[0], last = ws[ws.length - 1];
+  const maxH = Math.max(...ws.map((w) => w.hours), 1), maxS = Math.max(...ws.map((w) => w.slot), 1);
+  const saved = Math.round(first.hours - last.hours);
+  const rate = (w) => Math.round((w.redo / w.of) * 100);
+  const bars = (key, max, cls) => `<div class="col ${cls}">${ws.map((w) =>
+    `<div><span style="height:${(w[key] / max) * 70}px"></span>${Math.round(w[key])}</div>`).join("")}</div>`;
+  const labels = `<div class="col" style="height:auto;margin:0">${ws.map((w) => `<div class="note">${w.w}</div>`).join("")}</div>`;
+  const mine = state.role === 2 ? "" : `<div class="note">あなたの枠: 週 ${state.slots[state.role] ?? "-"} 時間</div>`;
+  return `
+    <div class="card"><h2>チームの資料作成時間（週合計・時間）</h2>${bars("hours", maxH, "")}${labels}
+      <div class="note">個人別の表示はありません。</div></div>
+    <div class="card"><h2>確保できたものづくり枠（チーム合計・時間）</h2>${bars("slot", maxS, "slot")}${labels}
+      ${mine}</div>
+    <div class="card">
+      <div class="note">最初の週から</div>
+      <div class="big">資料作成 −${saved}時間 ／ ものづくり枠 +${last.slot}時間</div>
+      <div class="note">差し戻しがあった資料: ${rate(first)}% → ${rate(last)}%</div>
+      <div class="note ${last.slot < saved * 0.5 ? "warn" : ""}">${last.slot < saved * 0.5
+        ? "減った時間のうち、枠になっていない分があります。別の資料で埋まっていないか確認しましょう。"
+        : "減った時間の多くが枠として確保されています。"}</div>
+    </div>
+    ${state.role === 2 ? `<div class="card"><h2>枠が使われなかった週の振り返り</h2>
+      <div class="note">枠が資料作成に使われた週は、理由を部門長が確かめます（評価ではなく、仕組みの見直しのため）。</div></div>` : ""}`;
+}
+
+function viewAudit() {
+  if (!state.audit.length) return `<div class="card note">データがありません。「サンプルを読み込む」を押してください。</div>`;
+  const opts = [["置き換え", "1枚に置き換えられる"], ["口頭", "口頭で済む"], ["必要", "このまま必要"]];
+  const rows = state.audit.map((a, i) => `<tr><td>${esc(a.t)}</td><td>
+    <select onchange="state.audit[${i}].d=this.value;render()">${opts.map(([v, n]) =>
+      `<option value="${v}" ${a.d === v ? "selected" : ""}>${n}</option>`).join("")}</select></td></tr>`).join("");
+  const n = (v) => state.audit.filter((a) => a.d === v).length;
+  return `<div class="card"><h2>定例会議の資料の棚卸し（月1回・チームで判断）</h2>
+    <table>${rows}</table>
+    <div class="note" style="margin-top:8px">1枚に置き換え ${n("置き換え")}本 ／ 口頭 ${n("口頭")}本 ／ 必要 ${n("必要")}本。正解はなく、チームで決めた結果が答えです。</div></div>`;
+}
+
+function render() {
+  renderBars();
+  const v = { write: viewWrite, time: viewTime, audit: viewAudit }[state.tab];
+  $("view").innerHTML = v();
+  fillPaper();
+}
+
+$("sample").onclick = () => {
+  state.draft = { ...SAMPLE.draft };
+  state.attach = SAMPLE.draft.attach;
+  state.weeks = SAMPLE.weeks.map((w) => ({ ...w }));
+  state.audit = SAMPLE.audit.map((a) => ({ ...a }));
+  state.slots = SAMPLE.slots.slice();
+  state.logged = false;
+  render();
+};
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前提ボード モック（A3xB4-2）</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --text:#222; --sub:#666; --line:#dcd9d2;
+  --accent:#2f5d8a; --accent-bg:#e6eef6;
+  --ok:#2e7d4f; --ok-bg:#e3f2e8;
+  --vague:#9a6a00; --vague-bg:#fff2cc;
+  --no:#b3392f; --no-bg:#fbe4e1;
+  --gap:#c2410c; --gap-bg:#fff1e6;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181b; --card:#212429; --text:#e8e8e8; --sub:#a0a4aa; --line:#3a3e45;
+    --accent:#7fb1e3; --accent-bg:#24344a;
+    --ok:#6fd195; --ok-bg:#1f3a2a;
+    --vague:#e8bd55; --vague-bg:#3d3216;
+    --no:#f0877e; --no-bg:#442421;
+    --gap:#ff9a5c; --gap-bg:#40261a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+header{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+header h1{margin:0;font-size:16px}
+header small{color:var(--sub);font-size:12px}
+main{padding:12px 16px 48px;max-width:640px;margin:0 auto}
+h2{font-size:15px;margin:20px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:8px 12px;cursor:pointer;min-height:40px}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input[type=text]{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 auto}
+.tabs button{flex:1;padding:8px 4px;font-size:13px}
+.tabs button.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);font-weight:700}
+.note{font-size:12px;color:var(--sub);margin:4px 0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chips button{min-height:32px;padding:4px 10px;font-size:13px;border-radius:16px}
+.marks button{flex:1;padding:10px 2px}
+.marks button.ok.on{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);font-weight:700}
+.marks button.vague.on{background:var(--vague-bg);border-color:var(--vague);color:var(--vague);font-weight:700}
+.marks button.no.on{background:var(--no-bg);border-color:var(--no);color:var(--no);font-weight:700}
+.term{font-weight:700;font-size:17px}
+.gap{border:2px solid var(--gap);background:var(--gap-bg)}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.badge.gap{background:var(--gap);color:#fff;border:0}
+.badge.same{background:var(--ok-bg);color:var(--ok)}
+.counts{display:flex;gap:6px;margin:8px 0;font-size:13px}
+.counts span{flex:1;text-align:center;padding:4px;border-radius:6px}
+.c-ok{background:var(--ok-bg);color:var(--ok)}
+.c-vague{background:var(--vague-bg);color:var(--vague)}
+.c-no{background:var(--no-bg);color:var(--no)}
+.means{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;margin:6px 0}
+.mean{background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--gap);border-radius:6px;padding:6px 8px;font-size:14px}
+.mean b{display:block;font-size:11px;color:var(--sub)}
+.cand{display:flex;gap:6px;align-items:flex-start;border-top:1px dashed var(--line);padding:6px 0;font-size:14px}
+.cand span{flex:1}
+.cand button{min-height:32px;padding:2px 8px;font-size:12px}
+.cand button.on{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.cand button.off.on{background:var(--vague-bg);border-color:var(--vague);color:var(--vague)}
+.status{font-size:13px}
+.status i{font-style:normal;padding:2px 8px;border-radius:10px;background:var(--bg);border:1px solid var(--line);margin-right:4px;display:inline-block}
+.status i.d{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <h1>話す2人の「知っている前提」を並べて見せる前提ボード</h1>
+  <small>A3xB4-2 ／ モック（1台で複数参加者をシミュレート）</small>
+</header>
+<main id="app"></main>
+
+<script>
+const PEOPLE = [{id:'A',name:'Aさん'},{id:'B',name:'Bさん'},{id:'C',name:'Cさん(機械)'}];
+const FIELD_SUGGEST = {
+  '電気電子': ['定格','ディレーティング','リップル'],
+  '機械': ['公差','剛性','放熱']
+};
+// 聞き返しの一文（自分の理解を確かめる言い方に限る）
+const ASKBACK = {
+  '熱設計マージン': [
+    'いまの「マージン」は、部品の中の温度の話ですか、外側の温度の話ですか',
+    '私の理解では内部温度の余裕ですが、同じ意味で合っていますか',
+    '念のため、何度に対して何度の余裕か、数字で確かめてもいいですか'
+  ],
+  'ディレーティング': [
+    '「ディレーティング」は、定格より控えめに使うという意味で受け取っていますが、合っていますか',
+    '分野が違うので、この言葉を一度言い換えてもらってもいいですか',
+    '私の分野では別の使い方をするので、この場での意味を確かめたいです'
+  ],
+  '公差': [
+    'ここでの「公差」は、寸法のばらつきの許容幅という理解で合っていますか',
+    '「公差」の数字は、どの寸法に対するものか教えてもらえますか',
+    '私が聞き違えていたら教えてください。「公差」は片側ですか、両側ですか'
+  ]
+};
+const genericAsk = t => [
+  `「${t}」は、この場ではどういう意味で使っていますか。私の理解を合わせたいです`,
+  `私は「${t}」を〇〇と受け取りましたが、同じですか`,
+  `「${t}」を、別の言い方でもう一度聞いてもいいですか`
+];
+const LBL = {ok:'わかる', vague:'あいまい', no:'わからない'};
+
+let S;
+function fresh(){ return {terms:[], marks:{A:{},B:{},C:{}}, done:{A:false,B:false,C:false},
+  cur:'A', revealed:false, fb:{}, rec:{}, nid:1}; }
+S = fresh();
+
+function loadSample(fillA){
+  S = fresh();
+  const T = ['熱設計マージン','定格','ディレーティング','放熱','公差'];
+  T.forEach(t => S.terms.push({id:S.nid++, text:t}));
+  const m = (p,i,k,v) => S.marks[p][i] = {m:k, mean:v||''};
+  const B = [['ok','部品の内部温度が、定格に対してどれだけ余裕があるか'],['ok','部品が連続して使える上限値'],['ok','定格より低い値で使い、余裕を持たせること'],['ok','部品の熱を逃がすこと'],['vague','']];
+  const C = [['ok','筐体の外側の温度に、どれだけ余裕があるか'],['ok','部品が連続して使える上限値'],['vague',''],['ok','部品の熱を逃がすこと'],['ok','寸法のばらつきの許容幅']];
+  const Aa = [['ok','部品の内部温度の余裕'],['ok','部品が連続して使える上限値'],['no',''],['ok','部品の熱を逃がすこと'],['vague','']];
+  T.forEach((_,i)=>{ m('B',i+1,...B[i]); m('C',i+1,...C[i]); if(fillA) m('A',i+1,...Aa[i]); });
+  S.done.B = S.done.C = true; S.done.A = !!fillA;
+  render();
+}
+function addTerm(t){
+  t = t.trim(); if(!t || S.terms.some(x=>x.text===t)) return;
+  S.terms.push({id:S.nid++, text:t}); render();
+}
+function setMark(p,id,k){
+  if(S.done[p]) return;
+  const o = S.marks[p][id] || {m:'',mean:''};
+  S.marks[p][id] = {m:k, mean:k==='ok'?o.mean:''}; render();
+}
+function setMean(p,id,v){ S.marks[p][id].mean = v; }
+function finish(p){
+  S.done[p] = true;
+  const next = PEOPLE.find(x=>!S.done[x.id]); if(next) S.cur = next.id;
+  render();
+}
+const allDone = () => PEOPLE.every(p=>S.done[p.id]);
+
+// ずれの判定（どちらが正しいかは判定しない）
+function analyze(t){
+  const ms = PEOPLE.map(p=>S.marks[p.id][t.id] || {m:'vague',mean:''});
+  const c = {ok:0, vague:0, no:0};
+  ms.forEach(x=>c[x.m||'vague']++);
+  const means = [...new Set(ms.filter(x=>x.m==='ok' && x.mean.trim()).map(x=>x.mean.trim()))];
+  const blank = ms.filter(x=>x.m==='ok' && !x.mean.trim()).length;
+  const markGap = (c.ok>0) + (c.vague>0) + (c.no>0) > 1;
+  const meanGap = means.length > 1;
+  return {c, means, blank, gap: markGap || meanGap, meanGap};
+}
+
+function render(){
+  const cur = S.cur, h = [];
+  h.push(`<div class="card"><div class="row"><button class="primary" onclick="loadSample(false)">サンプルを読み込む（Aさんは自分で付ける）</button>
+    <button onclick="loadSample(true)">全員分入りで読み込む</button><button onclick="S=fresh();render()">空に戻す</button></div>
+    <p class="note">シナリオ：試作基板の発熱の打ち合わせ。録音はしません。</p></div>`);
+
+  // 言葉の置き場
+  h.push(`<h2>① 言葉の置き場</h2><div class="card">
+    <div class="row"><input type="text" id="nt" placeholder="話に出た言葉を追加" onkeydown="if(event.key==='Enter')addTerm(this.value)">
+    <button style="flex:0 0 auto" onclick="addTerm(document.getElementById('nt').value)">置く</button></div>`);
+  for(const f in FIELD_SUGGEST){
+    h.push(`<div class="note">${f}と機械で取り違えやすい言葉（候補）</div><div class="chips">` +
+      FIELD_SUGGEST[f].map(w=>`<button onclick="addTerm('${w}')">+ ${w}</button>`).join('') + `</div>`);
+  }
+  h.push(`<p class="note">置いた言葉：${S.terms.length ? S.terms.map(t=>t.text).join('、') : 'まだありません'}</p></div>`);
+
+  // 参加者切替
+  h.push(`<h2>② 伏せて付ける印</h2>
+    <div class="row tabs">${PEOPLE.map(p=>`<button class="${p.id===cur?'on':''}" onclick="S.cur='${p.id}';render()">${p.name}${S.done[p.id]?' ✓':''}</button>`).join('')}</div>
+    <p class="status">${PEOPLE.map(p=>`<i class="${S.done[p.id]?'d':''}">${p.name}：${S.done[p.id]?'付け終えた':'付け中'}</i>`).join('')}</p>
+    <p class="note">いま ${PEOPLE.find(p=>p.id===cur).name} の画面です。他の人の印は、全員が付け終えるまで見えません。</p>`);
+  if(!S.terms.length) h.push(`<div class="card note">言葉を置くか、サンプルを読み込んでください。</div>`);
+  S.terms.forEach(t=>{
+    const o = S.marks[cur][t.id] || {m:'',mean:''}, dn = S.done[cur];
+    h.push(`<div class="card"><div class="term">${t.text}</div>
+      <div class="row marks" style="margin-top:6px">${['ok','vague','no'].map(k=>`<button class="${k} ${o.m===k?'on':''}" ${dn?'disabled':''} onclick="setMark('${cur}',${t.id},'${k}')">${LBL[k]}</button>`).join('')}</div>`);
+    if(o.m==='ok') h.push(`<input type="text" style="margin-top:6px" ${dn?'disabled':''} value="${o.mean.replace(/"/g,'&quot;')}" placeholder="どういう意味？ 一言で（任意・書くとずれが見えます）" oninput="setMean('${cur}',${t.id},this.value)">`);
+    h.push(`</div>`);
+  });
+  const unmarked = S.terms.filter(t=>!(S.marks[cur][t.id]||{}).m).length;
+  h.push(`<div class="row"><button class="primary" ${S.done[cur]||!S.terms.length||unmarked?'disabled':''} onclick="finish('${cur}')">付け終えた${unmarked?`（残り${unmarked}語）`:''}</button></div>`);
+
+  // ずれの表示
+  h.push(`<h2>③ ずれの表示</h2>`);
+  if(!allDone()){
+    h.push(`<div class="card note">全員が付け終えると、そろえて表示できます（あと ${PEOPLE.filter(p=>!S.done[p.id]).length} 人）。</div>`);
+    h.push(`<button disabled>そろえて表示する</button>`);
+  } else if(!S.revealed){
+    h.push(`<button class="primary" style="width:100%" onclick="S.revealed=true;render()">そろえて表示する</button>`);
+  } else {
+    const rs = S.terms.map(t=>({t, a:analyze(t)})).sort((x,y)=>y.a.gap-x.a.gap);
+    const n = rs.filter(r=>r.a.gap).length;
+    h.push(`<p><b>${n}語</b>で理解が分かれています（全${rs.length}語）。ずれは言葉の性質であり、誰の説明のせいでもありません。</p>`);
+    rs.forEach(({t,a})=>{
+      h.push(`<div class="card ${a.gap?'gap':''}"><span class="term">${t.text}</span>
+        <span class="badge ${a.gap?'gap':'same'}">${a.gap?'ずれあり':'そろっている'}</span>
+        <div class="counts"><span class="c-ok">わかる ${a.c.ok}</span><span class="c-vague">あいまい ${a.c.vague}</span><span class="c-no">わからない ${a.c.no}</span></div>`);
+      if(a.means.length) h.push(`<div class="note">「わかる」の人が書いた意味${a.meanGap?'（並べると違います）':''}</div>
+        <div class="means">${a.means.map((m,i)=>`<div class="mean" ${a.meanGap?'':'style="border-left-color:var(--ok)"'}><b>意味${'①②③'[i]||i+1}</b>${m}</div>`).join('')}</div>`);
+      if(a.blank) h.push(`<p class="note">意味が未記入の「わかる」が${a.blank}件あります。書かれていないと、意味の違いは見えません。</p>`);
+      if(a.gap){
+        const cs = ASKBACK[t.text] || genericAsk(t.text);
+        h.push(`<div class="note" style="margin-top:8px"><b>聞き返しの一文（候補）</b> ― 自分の理解を確かめる言い方です</div>` +
+          cs.map((s,i)=>{ const k=t.id+'-'+i, v=S.fb[k];
+            return `<div class="cand"><span>${s}</span><button class="${v==='y'?'on':''}" onclick="fb('${k}','y')">言えそう</button><button class="off ${v==='n'?'on':''}" onclick="fb('${k}','n')">言いにくい</button></div>`; }).join('') +
+          `<div class="note" style="margin-top:8px">確認した結果の意味（記録には言葉と意味だけ残ります）</div>
+           <input type="text" value="${(S.rec[t.id]||'').replace(/"/g,'&quot;')}" placeholder="確認できた意味を一言で" oninput="S.rec[${t.id}]=this.value">`);
+      }
+      h.push(`</div>`);
+    });
+    h.push(`<div class="row"><button onclick="showRecord()">ずれの記録を見る</button></div><div id="record"></div>`);
+  }
+  const keep = document.getElementById('nt'), nv = keep ? keep.value : '';
+  document.getElementById('app').innerHTML = h.join('');
+  const nt = document.getElementById('nt'); if(nt && nv) nt.value = nv;
+}
+function fb(k,v){ S.fb[k] = S.fb[k]===v ? '' : v; const y=window.scrollY; render(); window.scrollTo(0,y); }
+function showRecord(){
+  const rows = S.terms.filter(t=>analyze(t).gap).map(t=>`<li><b>${t.text}</b>：${S.rec[t.id]||'（未確認）'}</li>`);
+  document.getElementById('record').innerHTML = `<div class="card"><b>ずれの記録</b><ul>${rows.join('')||'<li>ずれはありませんでした</li>'}</ul>
+    <p class="note">誰が「わからない」と付けたかは残しません。個人の評価にも使いません。</p></div>`;
+}
+render();
+</script>
+</body>
+</html>

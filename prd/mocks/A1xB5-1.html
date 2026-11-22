@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>許可ことばトレーナー A1xB5-1</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #626f7b;
+  --line: #d9dee3; --accent: #2f6fb0; --accent-bg: #e4eef8; --warm: #fff4e0;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1f252b; --text: #e6eaee; --sub: #9aa6b2;
+    --line: #36404a; --accent: #6fa8e0; --accent-bg: #23364a; --warm: #3a3020;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 16px; }
+header small { color: var(--sub); }
+main { max-width: 420px; margin: 0 auto; padding: 12px 16px 40px; }
+nav { display: flex; gap: 6px; margin-bottom: 12px; }
+nav button { flex: 1; padding: 8px 4px; font-size: 13px; }
+button {
+  font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  cursor: pointer; text-align: left;
+}
+button.on { background: var(--accent-bg); border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); text-align: center; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.card h2 { margin: 0 0 6px; font-size: 14px; color: var(--sub); }
+.quote { background: var(--warm); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+.opts { display: grid; gap: 6px; margin: 8px 0; }
+.note { color: var(--sub); font-size: 13px; }
+textarea {
+  width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+}
+.bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line); margin: 6px 0; }
+.bar i { display: block; }
+.hidden { display: none; }
+ul { padding-left: 18px; margin: 4px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>許可ことばトレーナー</h1>
+  <small>A1xB5-1 / 練習用モック（入力内容は保存・送信されません）</small>
+</header>
+<main>
+  <nav>
+    <button data-tab="practice" class="on">練習</button>
+    <button data-tab="own">自分の言葉</button>
+    <button data-tab="log">外し方の記録</button>
+  </nav>
+  <button class="primary" id="sample" style="width:100%;margin-bottom:12px">サンプルを読み込む</button>
+  <section id="practice"></section>
+  <section id="own" class="hidden"></section>
+  <section id="log" class="hidden"></section>
+</main>
+<script>
+const STAGES = ["見るだけ", "電源を入れて測る", "部品を付け替える", "分解する"];
+const SCENES = [
+  { who: "Bさん", say: "先輩が旧型の評価ボードを渡して「好きにいじっていいよ」と言った",
+    actual: 2, conds: ["壊れても困らない範囲なら", "使ったら元の状態に戻す", "本当に自由にしてよい場合もある"],
+    asks: ["部品の付け替えまでやってみてもいいですか", "壊してしまったら困るところはありますか"] },
+  { who: "Aさん", say: "先輩が測定器を指して「空いてたら使っていいよ」と言った",
+    actual: 1, conds: ["予約表で確かめてから", "他の人の測定中は使わない", "本当に自由にしてよい場合もある"],
+    asks: ["使う前に予約表に書く決まりはありますか", "校正や設定を変えてもいいですか"] },
+  { who: "Bさん", say: "先輩が試作機を机に置いて「壊さないでね。触ってみて」と言った",
+    actual: 1, conds: ["分解は不要という意味かも", "動作確認までという意味かも", "本当に自由にしてよい場合もある"],
+    asks: ["電源を入れて動かすところまでで大丈夫ですか", "ふたを開けてもいいですか"] },
+];
+const SAMPLE_OWN = { text: "「この電源、余ってるから使っていいよ」と言われた", stage: 1 };
+const S = { i: 0, picked: null, ask: null, history: [], own: { text: "", stage: null, ask: "", made: "" } };
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function stageButtons(sel, handler) {
+  return STAGES.map((s, k) =>
+    `<button class="${sel === k ? "on" : ""}" onclick="${handler}(${k})">${s}</button>`).join("");
+}
+
+function renderPractice() {
+  const sc = SCENES[S.i], el = $("practice");
+  let h = `<div class="card"><h2>場面 ${S.i + 1} / ${SCENES.length}（${sc.who}）</h2>
+    <div class="quote">${esc(sc.say)}</div>
+    <p>どこまでが許されていると思いますか。</p>
+    <div class="opts">${stageButtons(S.picked, "pick")}</div></div>`;
+  if (S.picked !== null) {
+    h += `<div class="card"><h2>この言葉に含まれやすい条件（候補）</h2>
+      <ul>${sc.conds.map(c => `<li>${esc(c)}</li>`).join("")}</ul>
+      <p class="note">正解はひとつではありません。職場や人によって違います。あなたの選択: 「${STAGES[S.picked]}」</p>
+      <p class="note">この場面の先輩の意図（一例）: 「${STAGES[sc.actual]}」まで。${judge(S.picked, sc.actual)}</p></div>
+      <div class="card"><h2>範囲を確かめる一言を選んで、自分の言葉に直す</h2>
+      <div class="opts">${sc.asks.map((a, k) =>
+        `<button class="${S.ask === k ? "on" : ""}" onclick="chooseAsk(${k})">${esc(a)}</button>`).join("")}</div>
+      <textarea id="myask" rows="2" placeholder="自分の言い方に直してみる"></textarea>
+      <p class="note">この文は表示のみで、誰にも送られません。</p>
+      <button class="primary" style="width:100%" onclick="nextScene()">次の場面へ</button></div>`;
+  }
+  el.innerHTML = h;
+}
+function judge(p, a) {
+  return p === a ? "一致しました。" : p < a ? "少し狭く見ていたようです（狭く見すぎ）。" : "少し広く見ていたようです（広く見すぎ）。";
+}
+function pick(k) {
+  S.picked = k; S.ask = null;
+  const a = SCENES[S.i].actual;
+  S.history[S.i] = k === a ? "一致" : k < a ? "狭い" : "広い";
+  renderPractice(); renderLog();
+}
+function chooseAsk(k) {
+  S.ask = k; renderPractice();
+  $("myask").value = SCENES[S.i].asks[k];
+}
+function nextScene() {
+  S.i = (S.i + 1) % SCENES.length; S.picked = null; S.ask = null;
+  renderPractice();
+}
+
+function renderOwn() {
+  const o = S.own;
+  let h = `<div class="card"><h2>実際に言われた許可の言葉</h2>
+    <textarea id="owntext" rows="3" placeholder="例:「好きに使っていいよ」">${esc(o.text)}</textarea>
+    <p>どこまでだと思いますか。</p>
+    <div class="opts">${stageButtons(o.stage, "ownStage")}</div></div>`;
+  if (o.stage !== null) {
+    h += `<div class="card"><h2>考えられる条件（候補）</h2>
+      <ul><li>壊れても困らない範囲なら</li><li>誰かの予約や作業とぶつからなければ</li>
+      <li>使ったら元に戻す</li><li>本当に自由にしてよい場合もある</li></ul>
+      <p class="note">どれが当てはまるかは、相手に聞かないとわかりません。</p>
+      <div class="opts">
+        <button onclick="ownAsk('${STAGES[Math.min(o.stage + 1, 3)]}までやってみてもいいですか')">一歩広い範囲を聞く</button>
+        <button onclick="ownAsk('壊してしまったら困るところはありますか')">困るところを聞く</button>
+        <button onclick="ownAsk('使う前に確かめておくことはありますか')">事前の決まりを聞く</button>
+      </div>
+      <textarea id="ownask" rows="2" placeholder="確かめる一言（自分の言葉に直してください）">${esc(o.ask)}</textarea>
+      <p class="note">自動では送信されません。コピーして、ご自身で伝えてください。</p></div>`;
+  }
+  $("own").innerHTML = h;
+  const t = $("owntext");
+  if (t) t.oninput = () => { S.own.text = t.value; };
+}
+function ownStage(k) { S.own.stage = k; renderOwn(); }
+function ownAsk(t) { S.own.ask = t; renderOwn(); }
+
+function renderLog() {
+  const done = S.history.filter(Boolean);
+  if (!done.length) {
+    $("log").innerHTML = `<div class="card">設問に答えると、ここに傾向が出ます。</div>`;
+    return;
+  }
+  const n = { "狭い": 0, "広い": 0, "一致": 0 };
+  done.forEach(x => n[x]++);
+  const pct = k => (n[k] / done.length * 100) + "%";
+  let msg = "いまの回答では、片寄りは見られません。ただし職場ごとに違うので、確かめる一言は引き続き有効です。";
+  if (n["狭い"] > n["広い"]) msg = "範囲を少し狭めに見る傾向があります。確かめれば許される範囲は広がります。聞くことは、やる気の表れとして受け取られることが多いです。";
+  if (n["広い"] > n["狭い"]) msg = "範囲を少し広めに見る傾向があります。動く前に一言確かめておくと、安心して試せます。";
+  $("log").innerHTML = `<div class="card"><h2>外し方の記録（${done.length}問）</h2>
+    <div class="bar"><i style="width:${pct("狭い")};background:#e0a030"></i>
+    <i style="width:${pct("一致")};background:#5aa66e"></i>
+    <i style="width:${pct("広い")};background:#d06a5a"></i></div>
+    <p class="note">黄: 狭く見た ${n["狭い"]} / 緑: 近かった ${n["一致"]} / 赤: 広く見た ${n["広い"]}</p>
+    <p>${msg}</p>
+    <p class="note">これは評価ではなく、今回の回答からの傾向です。</p></div>`;
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  ["practice", "own", "log"].forEach(id => $(id).classList.toggle("hidden", id !== b.dataset.tab));
+});
+$("sample").onclick = () => {
+  S.history = ["狭い", "一致", "広い"];
+  S.own = { text: SAMPLE_OWN.text, stage: SAMPLE_OWN.stage, ask: "余っている分なら、測定に使ってもいいですか", made: "" };
+  S.i = 0; S.picked = 0; S.ask = null;
+  renderPractice(); renderOwn(); renderLog();
+};
+renderPractice(); renderOwn(); renderLog();
+</script>
+</body>
+</html>

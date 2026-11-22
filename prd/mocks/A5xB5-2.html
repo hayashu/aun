@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>練習課題の交換日記 A5xB5-2</title>
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --text: #222; --sub: #666; --line: #ddd9cf;
+  --accent: #2f6f5e; --accent-text: #fff; --warn-bg: #fff4d6; --warn-text: #6b4a00; --chip: #ece9e0;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17191a; --card: #212425; --text: #eceae4; --sub: #a5a39c; --line: #383b3c;
+    --accent: #6cc4a8; --accent-text: #0e1a16; --warn-bg: #3a3014; --warn-text: #f1d58a; --chip: #2e3233;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow-x: hidden; }
+body { background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; padding: 0 16px 48px; }
+header { padding: 12px 0 8px; }
+header h1 { font-size: 16px; margin: 0; }
+header small { color: var(--sub); }
+.roles { display: flex; gap: 8px; margin: 8px 0 12px; }
+.roles button { flex: 1; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button.on, button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.link { border: 0; background: none; color: var(--accent); padding: 4px 0; text-decoration: underline; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.card h2 { font-size: 14px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 8px 0 2px; }
+input[type=text], input[type=number], textarea, select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { background: var(--chip); border-radius: 16px; padding: 4px 12px; font-size: 14px; }
+.chips button.on { background: var(--accent); color: var(--accent-text); }
+.warn { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
+.photo { width: 100%; height: 150px; border-radius: 8px; background: var(--chip); display: flex; align-items: center; justify-content: center; color: var(--sub); overflow: hidden; }
+.photo img { width: 100%; height: 100%; object-fit: cover; }
+.meta { font-size: 12px; color: var(--sub); }
+.timer { font-size: 13px; color: var(--accent); margin-top: 8px; }
+.entry { border-left: 3px solid var(--accent); padding-left: 10px; margin: 0 0 14px; }
+.entry p { margin: 2px 0; }
+.tag { font-size: 12px; color: var(--sub); }
+.row { display: flex; gap: 8px; margin-top: 10px; }
+.row > * { flex: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>練習課題の交換日記</h1>
+  <small>A5xB5-2 / この日記は先輩とBさんの2人だけが見られます（採点はありません）</small>
+</header>
+
+<div class="roles">
+  <button id="r-senior">先輩（Aさん）</button>
+  <button id="r-junior">若手（Bさん）</button>
+</div>
+<div class="row" style="margin:0 0 12px"><button id="load">サンプルを読み込む</button><button id="reset">最初から</button></div>
+
+<main id="app"></main>
+
+<script>
+const COMMON = [
+  { text: "練習基板に抵抗を5本はんだ付けする", parts: "練習基板、抵抗5本", min: 20, power: false },
+  { text: "ICソケットを基板にはんだ付けする", parts: "練習基板、ICソケット", min: 30, power: false },
+  { text: "LED点灯回路を組んで電源を入れる", parts: "ブレッドボード、LED、抵抗、電池", min: 30, power: true },
+];
+const GOOD = ["はんだの形がきれい", "部品の向きが正しい", "手順が丁寧", "失敗を書いてくれた"];
+const NEXT = ["はんだの量を少なめに", "こての当て時間を短く", "部品を先に固定する", "写真を近づけて撮る"];
+let role = "junior", entries = [], draft = {}, startedAt = Date.now(), lastTime = "";
+
+function newEntry(t) { return { task: t, result: null, comment: null, sentDay: null }; }
+function sample() {
+  entries = [
+    { task: COMMON[0], result: { note: "5本付けた。2本目は量が多すぎた", photo: null, fail: true }, comment: { good: "部品の向きが正しい", next: "はんだの量を少なめに", text: "2本目の山は盛りすぎ。3本目の形を目標に。" } },
+    { task: COMMON[1], result: { note: "ソケットは付いたが1ピン浮いた", photo: null, fail: true }, comment: { good: "失敗を書いてくれた", next: "部品を先に固定する", text: "角の1ピンを先に留めると浮かない。" } },
+    { task: { text: "ICソケットを2個はんだ付けする", parts: "練習基板、ICソケット2個", min: 40, power: false }, result: { note: "今回は浮かなかった。ブリッジが1か所", photo: null, fail: false }, comment: null, sentDay: 4 },
+  ];
+  draft = {}; render();
+}
+function open() { return entries.find(e => !e.result); }
+function waiting() { return entries.find(e => e.result && !e.comment); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function photoHtml(r) { return `<div class="photo">${r.photo ? `<img src="${r.photo}" alt="結果の写真">` : "写真（サンプル）"}</div>`; }
+function chips(name, list) {
+  return `<div class="chips">${list.map(x => `<button data-chip="${name}" data-v="${x}" class="${draft[name] === x ? "on" : ""}">${x}</button>`).join("")}</div>`;
+}
+function taskCard(t) {
+  return `<div class="card"><h2>今の課題</h2><p><b>${esc(t.text)}</b></p>
+    <p class="meta">部品と道具：${esc(t.parts)} / 目安 ${t.min}分</p>
+    <div class="warn">${t.power ? "電源を使う課題です。先輩の付き添いのもとで行ってください。" : "はんだごては高温です。換気し、置き場所に注意して作業します。"}</div></div>`;
+}
+function diary() {
+  const done = entries.filter(e => e.result);
+  if (!done.length) return `<div class="card"><h2>日記の一覧</h2><p class="meta">まだ記録がありません。</p></div>`;
+  const items = done.map((e, i) => `<div class="entry">
+    <p class="tag">${i + 1}つ目の課題</p><p><b>課題</b> ${esc(e.task.text)}</p>
+    <p><b>結果</b> ${esc(e.result.note)}${e.result.fail ? "（うまくいかなかった点あり）" : ""}</p>${photoHtml(e.result)}
+    <p><b>一言</b> ${e.comment ? `良かった点：${esc(e.comment.good)} / 次は：${esc(e.comment.next)}${e.comment.text ? "<br>" + esc(e.comment.text) : ""}` : '<span class="meta">先輩の返事を待っています</span>'}</p></div>`).join("");
+  return `<div class="card"><h2>日記の一覧（${done.length}件）</h2>${items}</div>`;
+}
+function taskForm() {
+  const o = draft.task || {};
+  return `<div class="card"><h2>${entries.length ? "次の課題を出す" : "課題を出す"}</h2>
+    <label>よくある課題から選ぶ</label>
+    <select id="pick"><option value="">選択してください</option>${COMMON.map((c, i) => `<option value="${i}">${esc(c.text)}</option>`).join("")}</select>
+    <label>課題（一行）</label><input type="text" id="t-text" value="${esc(o.text || "")}">
+    <label>必要な部品と道具</label><input type="text" id="t-parts" value="${esc(o.parts || "")}">
+    <label>目安の時間（分）</label><input type="number" id="t-min" value="${o.min || 20}">
+    <label><input type="checkbox" id="t-power" ${o.power ? "checked" : ""}> 電源を使う（付き添いが条件になります）</label>
+    <div class="row"><button class="primary" id="t-send">${waiting() ? "一言と次の課題を送る" : "この課題を出す"}</button></div></div>`;
+}
+function seniorView() {
+  const w = waiting();
+  if (w) {
+    const late = w.sentDay >= 3;
+    return `<div class="card"><h2>Bさんの結果（返事待ち）</h2>
+      ${late ? `<div class="warn">結果が届いて${w.sentDay}日たちました。軽く一言返しましょう。</div>` : ""}
+      <p><b>課題</b> ${esc(w.task.text)}</p><p><b>メモ</b> ${esc(w.result.note)}</p>${photoHtml(w.result)}
+      <p class="meta">写真の見方の例：近づいて、斜めから撮ってあると見やすい。判断しづらければ「もう一枚」と一言添えます。</p>
+      <label>良かった点を一つ</label>${chips("good", GOOD)}
+      <label>次に気をつける点を一つ</label>${chips("next", NEXT)}
+      <label>一言（任意・一行）</label><input type="text" id="c-text">
+      <div class="timer" id="clock"></div></div>
+      ${taskForm()}<p class="meta">一言と次の課題を送ると、日記に載ります。</p>`;
+  }
+  if (open()) return `<div class="card"><p>Bさんの結果を待っています。</p></div>${taskCard(open().task)}`;
+  return taskForm();
+}
+function juniorView() {
+  const o = open();
+  let top = "";
+  if (o) {
+    top = taskCard(o.task) + `<div class="card"><h2>結果を返す</h2>
+      <label>写真</label><input type="file" id="file" accept="image/*">
+      <p class="meta">撮り方の例：近づいて、斜めから。</p>
+      <label>一行メモ</label><input type="text" id="r-note" placeholder="例：5本付けた。2本目は量が多すぎた">
+      <label><input type="checkbox" id="r-fail"> うまくいかなかった点がある（書いてOKです）</label>
+      <div class="row"><button class="primary" id="r-send">結果を返す</button></div>
+      <div class="timer" id="clock"></div></div>`;
+  } else if (waiting()) top = `<div class="card"><p>先輩の返事を待っています。次の課題は一言と一緒に届きます。</p></div>`;
+  else top = `<div class="card"><p>先輩からの課題を待っています。</p></div>`;
+  return top;
+}
+function render() {
+  document.getElementById("r-senior").className = role === "senior" ? "on" : "";
+  document.getElementById("r-junior").className = role === "junior" ? "on" : "";
+  document.getElementById("app").innerHTML =
+    (lastTime ? `<div class="timer">前回の操作：${lastTime}</div>` : "") +
+    (role === "senior" ? seniorView() : juniorView()) + diary();
+  startedAt = Date.now();
+}
+function secs() { return Math.max(1, Math.round((Date.now() - startedAt) / 1000)); }
+function readTask() {
+  const text = document.getElementById("t-text").value.trim();
+  if (!text) { alert("課題を一行で書いてください"); return null; }
+  return { text, parts: document.getElementById("t-parts").value || "なし", min: +document.getElementById("t-min").value || 20, power: document.getElementById("t-power").checked };
+}
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  if (b.id === "r-senior") { role = "senior"; render(); }
+  else if (b.id === "r-junior") { role = "junior"; render(); }
+  else if (b.id === "load") sample();
+  else if (b.id === "reset") { entries = []; draft = {}; lastTime = ""; render(); }
+  else if (b.dataset.chip) {
+    draft[b.dataset.chip] = b.dataset.v;
+    const txt = document.getElementById("c-text"), keep = txt ? txt.value : "";
+    render();
+    if (keep) document.getElementById("c-text").value = keep;
+  } else if (b.id === "t-send") {
+    const w = waiting();
+    if (w && (!draft.good || !draft.next)) { alert("良かった点と次に気をつける点を選んでください"); return; }
+    const t = readTask(); if (!t) return;
+    if (w) w.comment = { good: draft.good, next: draft.next, text: document.getElementById("c-text").value.trim() };
+    entries.push(newEntry(t)); draft = {};
+    lastTime = `${w ? "一言と次の課題を返すまで" : "課題を出すまで"} ${secs()}秒`; role = "junior"; render();
+  } else if (b.id === "r-send") {
+    const note = document.getElementById("r-note").value.trim();
+    if (!note) { alert("一行メモを書いてください"); return; }
+    const o = open(), f = document.getElementById("file").files[0];
+    const done = photo => {
+      o.result = { note, photo, fail: document.getElementById("r-fail").checked };
+      o.sentDay = 0; lastTime = `結果を返すまで ${secs()}秒`; role = "senior"; render();
+    };
+    if (f) { const rd = new FileReader(); rd.onload = () => done(rd.result); rd.readAsDataURL(f); } else done(null);
+  }
+});
+document.addEventListener("change", ev => {
+  if (ev.target.id === "pick" && ev.target.value !== "") { draft.task = COMMON[+ev.target.value]; render(); document.getElementById("pick").value = ev.target.value; }
+});
+render();
+</script>
+</body>
+</html>

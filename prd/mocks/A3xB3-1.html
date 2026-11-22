@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>遅れの報告 下書きツール (A3xB3-1)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #64707d;
+  --line: #d9dee4; --accent: #2b6cb0; --accent-text: #ffffff; --warn: #b7791f; --ok: #2f855a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6eaee; --sub: #98a3ae;
+    --line: #333c46; --accent: #63a4e8; --accent-text: #0e1318; --warn: #e0b04f; --ok: #5fc08a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { max-width: 420px; margin: 0 auto; padding: 16px; }
+section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+h2 { margin: 0 0 8px; font-size: 15px; }
+label { display: block; font-weight: bold; margin-top: 12px; }
+.hint { color: var(--sub); font-size: 13px; font-weight: normal; }
+input[type=text], input[type=number], textarea {
+  width: 100%; padding: 8px; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+textarea { min-height: 70px; }
+button {
+  font: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); cursor: pointer;
+}
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.row button { flex: 1 1 auto; }
+.chip { font-size: 13px; padding: 5px 10px; border-radius: 16px; }
+.chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.tabs button { flex: 1; font-size: 13px; padding: 7px 2px; }
+.tabs button.on { border-color: var(--accent); color: var(--accent); font-weight: bold; }
+.draft { white-space: pre-wrap; background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; padding: 10px; }
+.timer { font-size: 13px; color: var(--sub); }
+.timer.over { color: var(--warn); }
+.log { border-top: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
+.note { font-size: 12px; color: var(--sub); margin-top: 8px; }
+.cnt { float: right; font-size: 12px; color: var(--sub); font-weight: normal; }
+.cnt.over { color: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>遅れを「結論→状況→対策→相談」で伝える下書きツール</h1>
+  <small>PRD A3xB3-1 / モック</small>
+</header>
+<main>
+  <div class="row" style="margin:0 0 14px">
+    <button id="sample">サンプルを読み込む</button>
+    <button id="reset">最初から</button>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+  <div id="view"></div>
+  <p class="note">下書きまでを作るツールです。上司への送信や、報告の良し悪しの採点はしません。伝えるのは本人です。</p>
+</main>
+<script>
+var STEPS = ['区切り', '4つの問い', '下書き', '振り返り'];
+var CANDIDATES = ['範囲を絞る（評価項目を減らす）', '手伝いを頼む（測定を分担する）', '順番を入れ替える（先にできる作業から進める）'];
+var CHECKS = ['予定どおり', '遅れそう', '遅れた'];
+var REACTIONS = ['すぐ了承', '聞き返された', '追加の相談になった'];
+var ASKS = ['結論は？', '状況は？', '対策は？', '何を判断してほしい？'];
+var state;
+
+function fresh() {
+  return {
+    step: 0, milestone: '', due: '', check: '',
+    days: '', why: '', plans: [''], ask: '',
+    startedAt: null, finishedAt: null,
+    fearBefore: '', fearAfter: '', logs: []
+  };
+}
+state = fresh();
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+function validPlans() {
+  return state.plans.filter(function (p) { return p.trim(); });
+}
+
+function oralDraft() {
+  var plans = validPlans();
+  return '【結論】' + state.milestone + 'が、約' + state.days + '日遅れそうです。\n' +
+    '【状況】' + state.why + '\n' +
+    '【対策】' + plans.join('、') + '。\n' +
+    '【相談】' + state.ask + 'をご判断いただけますか。';
+}
+
+function chatDraft() {
+  var plans = validPlans();
+  var lines = ['お疲れさまです。' + state.milestone + 'の件で、遅れそうなので先にお伝えします。',
+    '', '■結論：約' + state.days + '日遅れる見込み', '■状況：' + state.why, '■対策'];
+  plans.forEach(function (p, i) { lines.push('  ' + (i + 1) + '. ' + p); });
+  lines.push('■相談：' + state.ask);
+  return lines.join('\n');
+}
+
+function renderTabs() {
+  var html = '';
+  STEPS.forEach(function (s, i) {
+    html += '<button class="' + (i === state.step ? 'on' : '') + '" data-step="' + i + '">' + (i + 1) + '. ' + s + '</button>';
+  });
+  document.getElementById('tabs').innerHTML = html;
+}
+
+function stepCheck() {
+  var h = '<section><h2>区切りの確認</h2><p class="hint">区切りの日だけ、1タップで答えます。</p>';
+  h += '<label>区切り</label><input type="text" id="milestone" value="' + esc(state.milestone) + '" placeholder="例：ノイズ対策の評価完了">';
+  h += '<label>予定日</label><input type="text" id="due" value="' + esc(state.due) + '" placeholder="例：11/28">';
+  h += '<label>予定どおりですか？</label><div class="row">';
+  CHECKS.forEach(function (c) {
+    h += '<button class="chip ' + (state.check === c ? 'on' : '') + '" data-check="' + c + '">' + c + '</button>';
+  });
+  h += '</div>';
+  if (state.check === '遅れそう') {
+    h += '<p style="color:var(--warn)">確定する前の「遅れそう」の段階で、いま伝えるのがおすすめです。</p>';
+  } else if (state.check === '遅れた') {
+    h += '<p style="color:var(--warn)">遅れが出ています。早めに伝えましょう。</p>';
+  } else if (state.check === '予定どおり') {
+    h += '<p class="hint">今回は報告の必要はありません。</p>';
+  }
+  if (state.check === '遅れそう' || state.check === '遅れた') {
+    h += '<label>いまの気持ち：遅れを報告するのは怖い？ <span class="hint">1=怖くない 5=とても怖い</span></label><div class="row">';
+    [1, 2, 3, 4, 5].forEach(function (n) {
+      h += '<button class="chip ' + (state.fearBefore === n ? 'on' : '') + '" data-fb="' + n + '">' + n + '</button>';
+    });
+    h += '</div><div class="row"><button class="primary" id="toQ">4つの問いへ</button></div>';
+  }
+  return h + '</section>';
+}
+
+function stepQuestions() {
+  if (!state.startedAt) { state.startedAt = Date.now(); }
+  var h = '<section><h2>4つの問い</h2><div class="timer" id="timer"></div>';
+  h += '<label>1. どれだけ遅れる？ <span class="hint">日数</span></label>';
+  h += '<input type="number" id="days" min="1" value="' + esc(state.days) + '" placeholder="例：5">';
+  h += '<label>2. なぜ？ <span class="hint">一行で</span><span class="cnt" id="whyCnt"></span></label>';
+  h += '<input type="text" id="why" value="' + esc(state.why) + '" placeholder="例：測定器の不調で測定が止まった">';
+  h += '<label>3. どうする？ <span class="hint">対策を一つ以上</span></label>';
+  state.plans.forEach(function (p, i) {
+    h += '<textarea data-plan="' + i + '" placeholder="対策を書く">' + esc(p) + '</textarea>';
+  });
+  h += '<div class="row"><button id="addPlan">対策を追加</button></div>';
+  h += '<p class="hint" style="margin:10px 0 4px">思いつかないときの候補（タップで追加）</p><div class="row">';
+  CANDIDATES.forEach(function (c, i) { h += '<button class="chip" data-cand="' + i + '">' + esc(c) + '</button>'; });
+  h += '</div><label>4. 何を判断してほしい？</label>';
+  h += '<input type="text" id="ask" value="' + esc(state.ask) + '" placeholder="例：期限の延長、手伝い、優先度の変更">';
+  h += '<div class="row"><button class="primary" id="toDraft">下書きを作る</button></div></section>';
+  return h;
+}
+
+function stepDraft() {
+  if (!state.days || !state.why || !validPlans().length || !state.ask) {
+    return '<section><h2>報告の下書き</h2><p>4つの問いに答えると、下書きができます。</p></section>';
+  }
+  if (!state.finishedAt) { state.finishedAt = Date.now(); }
+  var sec = Math.round((state.finishedAt - state.startedAt) / 1000);
+  var h = '<section><h2>口頭用（30秒で話せる長さ）</h2><div class="draft">' + esc(oralDraft()) + '</div>';
+  h += '<p class="timer">4つの問いから下書きまで：' + Math.floor(sec / 60) + '分' + (sec % 60) + '秒</p></section>';
+  h += '<section><h2>チャット用</h2><div class="draft">' + esc(chatDraft()) + '</div>';
+  h += '<div class="row"><button id="copy">コピー（送信はしません）</button></div></section>';
+  h += '<section><h2>下書きを見て、どうですか？</h2><p class="hint">1=まだ怖い 5=これなら報告できる</p><div class="row">';
+  [1, 2, 3, 4, 5].forEach(function (n) {
+    h += '<button class="chip ' + (state.fearAfter === n ? 'on' : '') + '" data-fa="' + n + '">' + n + '</button>';
+  });
+  h += '</div>';
+  if (state.fearBefore && state.fearAfter) {
+    h += '<p class="note">報告前の「怖さ」' + state.fearBefore + '（5=とても怖い）→ 下書き後の「報告できそう」' + state.fearAfter + '（5=報告できる）。自己申告の記録です。</p>';
+  }
+  h += '<p class="note">下書きは要点だけです。読み上げず、自分の言葉で話してください。</p></section>';
+  return h;
+}
+
+function lastAsked() {
+  var count = {};
+  state.logs.forEach(function (l) { l.asked.forEach(function (a) { count[a] = (count[a] || 0) + 1; }); });
+  return Object.keys(count).sort(function (a, b) { return count[b] - count[a]; });
+}
+
+function stepReview() {
+  var h = '<section><h2>報告の振り返り</h2><p class="hint">報告したあとの上司の反応を記録します（評価ではありません）。</p>';
+  h += '<label>上司の反応</label><div class="row">';
+  REACTIONS.forEach(function (r) { h += '<button class="chip" data-react="' + r + '">' + r + '</button>'; });
+  h += '</div></section>';
+  var tips = lastAsked();
+  if (tips.length) {
+    h += '<section><h2>次の報告で注意する点</h2><p>聞き返されたことがある項目：<b>' + esc(tips.join('、')) + '</b></p>';
+    h += '<p class="note">あなたの上司の好みを知る手がかりです。上司一般の傾向ではありません。</p></section>';
+  }
+  if (state.logs.length) {
+    h += '<section><h2>記録</h2>';
+    state.logs.forEach(function (l) {
+      h += '<div class="log">' + esc(l.date) + ' ' + esc(l.milestone) + '：<b>' + esc(l.reaction) + '</b>' +
+        (l.asked.length ? '（聞き返し：' + esc(l.asked.join('、')) + '）' : '') + '</div>';
+    });
+    h += '</section>';
+  }
+  return h;
+}
+
+var pendingReaction = null;
+function render() {
+  renderTabs();
+  var v = document.getElementById('view');
+  var html = [stepCheck, stepQuestions, stepDraft, stepReview][state.step]();
+  if (state.step === 3 && pendingReaction === '聞き返された') {
+    html += '<section><h2>何を聞き返されましたか？</h2><div class="row">';
+    ASKS.forEach(function (a) { html += '<button class="chip" data-asked="' + a + '">' + a + '</button>'; });
+    html += '</div><div class="row"><button class="primary" id="saveLog">記録する</button></div></section>';
+  }
+  v.innerHTML = html;
+  if (state.step === 1) { tick(); updateWhyCount(); }
+}
+
+function tick() {
+  var t = document.getElementById('timer');
+  if (!t || state.step !== 1) { return; }
+  var sec = Math.round((Date.now() - state.startedAt) / 1000);
+  var left = 180 - sec;
+  t.className = 'timer' + (left < 0 ? ' over' : '');
+  t.textContent = '経過 ' + Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2) + '（目安：直前の3分）';
+}
+setInterval(tick, 1000);
+
+function updateWhyCount() {
+  var c = document.getElementById('whyCnt');
+  if (!c) { return; }
+  var n = document.getElementById('why').value.length;
+  c.textContent = n + '/40字';
+  c.className = 'cnt' + (n > 40 ? ' over' : '');
+}
+
+function readInputs() {
+  var g = function (id) { return document.getElementById(id); };
+  if (g('milestone')) { state.milestone = g('milestone').value; state.due = g('due').value; }
+  if (g('days')) { state.days = g('days').value; state.why = g('why').value; state.ask = g('ask').value; }
+  document.querySelectorAll('[data-plan]').forEach(function (t) { state.plans[+t.dataset.plan] = t.value; });
+}
+
+function goStep(n) { readInputs(); state.step = n; pendingReaction = null; render(); }
+
+var asked = [];
+document.addEventListener('input', function (e) {
+  if (e.target.id === 'why') { updateWhyCount(); }
+});
+document.addEventListener('click', function (e) {
+  var d = e.target.dataset;
+  if (e.target.id === 'sample') { loadSample(); return; }
+  if (e.target.id === 'reset') { state = fresh(); render(); return; }
+  readInputs();
+  if (d.step) { goStep(+d.step); return; }
+  if (d.check) { state.check = d.check; render(); return; }
+  if (d.fb) { state.fearBefore = +d.fb; render(); return; }
+  if (d.fa) { state.fearAfter = +d.fa; render(); return; }
+  if (d.cand !== undefined) {
+    var c = CANDIDATES[+d.cand];
+    var empty = state.plans.indexOf('');
+    if (empty >= 0) { state.plans[empty] = c; } else { state.plans.push(c); }
+    render(); return;
+  }
+  if (e.target.id === 'addPlan') { state.plans.push(''); render(); return; }
+  if (e.target.id === 'toQ') { state.startedAt = Date.now(); state.finishedAt = null; goStep(1); return; }
+  if (e.target.id === 'toDraft') { state.finishedAt = null; goStep(2); return; }
+  if (e.target.id === 'copy') {
+    if (navigator.clipboard) { navigator.clipboard.writeText(chatDraft()); }
+    e.target.textContent = 'コピーしました'; return;
+  }
+  if (d.react) {
+    pendingReaction = d.react; asked = [];
+    if (d.react !== '聞き返された') { saveLog(); } else { render(); }
+    return;
+  }
+  if (d.asked) {
+    var i = asked.indexOf(d.asked);
+    if (i >= 0) { asked.splice(i, 1); } else { asked.push(d.asked); }
+    e.target.classList.toggle('on'); return;
+  }
+  if (e.target.id === 'saveLog') { saveLog(); }
+});
+
+function saveLog() {
+  state.logs.push({
+    date: new Date().toLocaleDateString('ja-JP'),
+    milestone: state.milestone || '（区切り未入力）',
+    reaction: pendingReaction,
+    asked: asked.slice()
+  });
+  pendingReaction = null; asked = [];
+  render();
+}
+
+function loadSample() {
+  state = fresh();
+  state.milestone = 'ノイズ対策の評価完了';
+  state.due = '11/28';
+  state.check = '遅れそう';
+  state.fearBefore = 4;
+  state.days = '5';
+  state.why = '測定器の不調で、測定が1週間止まった';
+  state.plans = ['評価項目を、重要な3項目に絞る', '隣の班に測定器を借りて、測定を分担する'];
+  state.ask = '完了日を11/28から12/5へ延ばすこと';
+  state.startedAt = Date.now() - 150000;
+  state.logs = [
+    { date: '2026/11/10', milestone: '回路の一次案', reaction: '聞き返された', asked: ['結論は？', '対策は？'] },
+    { date: '2026/11/17', milestone: '部品選定', reaction: 'すぐ了承', asked: [] }
+  ];
+  state.step = 0;
+  render();
+}
+render();
+</script>
+</body>
+</html>

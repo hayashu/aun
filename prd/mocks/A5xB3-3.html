@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>進め方相談のオフィスアワー モック</title>
+<style>
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --text: #22282a; --sub: #66706f;
+  --line: #dde2dd; --accent: #2f6f5e; --accent-t: #ffffff; --soft: #e4f0ea; --warn: #fff4d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161a19; --card: #20272a; --text: #e8ece9; --sub: #9aa6a3;
+    --line: #333d3f; --accent: #5fb89c; --accent-t: #10201b; --soft: #24352f; --warn: #3a3420;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 12px 16px 8px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.roles { display: flex; gap: 6px; margin-bottom: 12px; }
+.roles button { flex: 1; }
+button { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); cursor: pointer; }
+button.on, button.primary { background: var(--accent); color: var(--accent-t); border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 8px 0 2px; }
+input[type=text], input[type=date], textarea { width: 100%; font: inherit; padding: 8px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+textarea { min-height: 60px; }
+.slots, .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.slots button, .chips button { padding: 6px 10px; font-size: 14px; }
+.note { background: var(--soft); border-radius: 8px; padding: 8px; font-size: 13px; margin: 8px 0; }
+.warn { background: var(--warn); }
+.tag { font-size: 12px; color: var(--sub); }
+.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.pair { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.blk { border-left: 3px solid var(--accent); padding-left: 8px; margin: 6px 0; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>進め方相談のオフィスアワー</h1>
+  <small>PRD A5xB3-3 ／ 評価と切り離した進め方の相談窓口</small>
+</header>
+<main>
+  <div class="roles" id="roles"></div>
+  <div class="row" style="margin-bottom:12px">
+    <button id="sample">サンプルを読み込む</button>
+    <button id="reset">空にする</button>
+  </div>
+  <div id="view"></div>
+</main>
+<script>
+const SLOTS = ['13:00', '13:20', '13:40', '14:00', '14:20', '14:40'];
+const TROUBLES = ['区切り方', '見積もり', '優先順位', '何から始めるか'];
+const ROLES = { wakate: '若手（Bさん）', soudan: '相談員', joshi: '上司' };
+let state = { role: 'wakate', bookings: [], draft: { slot: '', troubles: [], hide: false, summary: '', deadline: '', detail: '' } };
+
+const COMMON = [
+  { q: '調査の仕事をどう区切ればよいか', a: '「範囲を決める→資料を集める→まとめる」の3つに分け、各区切りに日付を置く' },
+  { q: '資料作成の遅れに直前まで気づかない', a: '締め切りの半分の日に「骨子だけ」の中間点を作り、そこで進み具合を見る' },
+  { q: '見積もりが毎回外れる', a: '初めて扱う作業は、見積もりに1.5倍の余裕を足して、終わった後に実際との差を記録する' },
+];
+
+function sample() {
+  state.bookings = [
+    { id: 1, slot: '13:00', summary: '評価資料の作成（中身は伏せる）', hide: true, deadline: '2026-12-10',
+      troubles: ['区切り方', '見積もり'], detail: '全体は見えているが、どこで区切ればよいかわからない。',
+      split: '', next: '', shared: false, done: false },
+    { id: 2, slot: '14:20', summary: '部品の調査と報告書', hide: false, deadline: '2026-12-18',
+      troubles: ['優先順位'], detail: '調査の項目が多く、順番が決められない。',
+      split: '①調査の範囲を3項目に絞る ②各項目の資料を集める ③比較表にまとめる',
+      next: '今日中に、調査項目を3つまで書き出す', shared: false, done: true },
+  ];
+  render();
+}
+
+function el(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function takenSlots() { return state.bookings.map(b => b.slot); }
+
+function viewWakate() {
+  const d = state.draft;
+  let h = '<div class="card"><h2>よくある相談と区切り方の例</h2>';
+  h += COMMON.map(c => `<div class="blk"><b>${esc(c.q)}</b><br><span class="tag">例：</span>${esc(c.a)}</div>`).join('');
+  h += '<div class="tag">予約の前に読めます（相談の内容を一般化したもの）</div></div>';
+
+  h += '<div class="card"><h2>相談を予約する（20分）</h2>';
+  h += '<div class="note">相談の内容は、あなたが望まない限り上司には伝わりません。仕事の中身は伏せてかまいません。</div>';
+  h += '<label>今週のオフィスアワー（木曜 13:00〜15:00）</label><div class="slots">';
+  h += SLOTS.map(s => `<button data-slot="${s}" class="${d.slot === s ? 'on' : ''}" ${takenSlots().includes(s) ? 'disabled' : ''}>${s}</button>`).join('');
+  h += '</div>';
+  h += '<label>仕事の概要</label><input type="text" id="f-summary" value="' + esc(d.summary) + '" placeholder="例：評価資料の作成">';
+  h += '<label><input type="checkbox" id="f-hide" ' + (d.hide ? 'checked' : '') + '> 中身は伏せる（概要は「内容は伏せる」と表示）</label>';
+  h += '<label>締め切り</label><input type="date" id="f-deadline" value="' + esc(d.deadline) + '">';
+  h += '<label>困っていること（複数可）</label><div class="chips">';
+  h += TROUBLES.map(t => `<button data-trouble="${t}" class="${d.troubles.includes(t) ? 'on' : ''}">${t}</button>`).join('');
+  h += '</div><label>ひとこと（任意）</label><textarea id="f-detail">' + esc(d.detail) + '</textarea>';
+  h += '<div style="margin-top:10px"><button class="primary" id="book" ' + (d.slot && d.summary ? '' : 'disabled') + '>予約する</button></div></div>';
+
+  h += '<h2>自分の相談</h2>';
+  const mine = state.bookings;
+  if (!mine.length) h += '<div class="tag">まだ予約はありません</div>';
+  h += mine.map(b => cardMine(b)).join('');
+  return h;
+}
+
+function cardMine(b) {
+  let h = `<div class="card"><div class="row"><b>${b.slot}　${esc(b.hide ? '（内容は伏せる）' : b.summary)}</b>`;
+  h += `<span class="tag">${b.done ? 'まとめあり' : '予約済み'}</span></div>`;
+  h += `<div class="tag">締め切り ${esc(b.deadline || '未設定')}／${esc(b.troubles.join('・') || '困りごと未選択')}</div>`;
+  if (!b.done) return h + '<div class="note">相談のあと、まとめがここに届きます。</div></div>';
+  h += `<div class="blk"><b>この仕事の区切り方の例</b><br>${esc(b.split)}</div>`;
+  h += `<div class="blk"><b>次にやること</b><br>${esc(b.next)}</div>`;
+  h += `<label>自分の仕事に当てはめてみる（この端末だけに残ります）</label>`;
+  h += `<textarea data-apply="${b.id}" placeholder="例の形を使って、自分の仕事を区切ってみる">${esc(b.apply || '')}</textarea>`;
+  h += `<div class="row"><label style="margin:0"><input type="checkbox" data-share="${b.id}" ${b.shared ? 'checked' : ''}> 上司に共有する</label>`;
+  h += `<span class="tag">${b.shared ? '上司が見られます' : '本人と相談員のみ'}</span></div></div>`;
+  return h;
+}
+
+function viewSoudan() {
+  let h = '<div class="note">相談員は進め方を一緒に考えるだけで、仕事は代行しません。相談の記録は本人と相談員だけが見られます。</div>';
+  h += '<div class="card"><h2>相談員の登録</h2><div class="tag">担当日：毎週木曜 13:00〜15:00（持ち回り）</div></div>';
+  if (!state.bookings.length) return h + '<div class="tag">予約はまだありません</div>';
+  h += state.bookings.slice().sort((a, b) => a.slot.localeCompare(b.slot)).map(b => {
+    let c = `<div class="card"><b>${b.slot}　${esc(b.hide ? '（内容は伏せる）' : b.summary)}</b>`;
+    c += `<div class="tag">締め切り ${esc(b.deadline || '未設定')}／${esc(b.troubles.join('・'))}</div>`;
+    if (b.detail) c += `<div>${esc(b.detail)}</div>`;
+    if (b.done) return c + '<div class="note">まとめを渡しました</div></div>';
+    c += `<label>この仕事の区切り方の例（一行）</label><input type="text" data-split="${b.id}">`;
+    c += `<label>次にやること（一行）</label><input type="text" data-next="${b.id}">`;
+    return c + `<div style="margin-top:8px"><button class="primary" data-send="${b.id}">本人に渡す</button></div></div>`;
+  }).join('');
+  return h;
+}
+
+function viewJoshi() {
+  const shared = state.bookings.filter(b => b.shared);
+  let h = '<div class="note warn">窓口は進め方の相談に限ります。業務の報告は、これまでどおり上司へ行います。</div>';
+  h += '<div class="card"><h2>本人が共有した相談</h2>';
+  if (!shared.length) h += '<div class="tag">共有された相談はありません。相談の有無や内容は、本人が共有しない限り表示されません。</div>';
+  h += shared.map(b => `<div class="blk"><b>${esc(b.hide ? '（内容は伏せる）' : b.summary)}</b><br>区切り方の例：${esc(b.split)}<br>次にやること：${esc(b.next)}</div>`).join('');
+  return h + '</div>';
+}
+
+function render() {
+  el('roles').innerHTML = Object.keys(ROLES).map(k => `<button data-role="${k}" class="${state.role === k ? 'on' : ''}">${ROLES[k]}</button>`).join('');
+  const v = { wakate: viewWakate, soudan: viewSoudan, joshi: viewJoshi }[state.role]();
+  el('view').innerHTML = v;
+}
+
+document.addEventListener('click', e => {
+  const t = e.target, d = state.draft;
+  if (t.dataset.role) { state.role = t.dataset.role; render(); }
+  else if (t.dataset.slot) { d.slot = t.dataset.slot; render(); }
+  else if (t.dataset.trouble) {
+    const i = d.troubles.indexOf(t.dataset.trouble);
+    if (i < 0) d.troubles.push(t.dataset.trouble); else d.troubles.splice(i, 1);
+    render();
+  }
+  else if (t.id === 'book') {
+    state.bookings.push({ id: Date.now(), slot: d.slot, summary: d.summary, hide: d.hide, deadline: d.deadline,
+      troubles: d.troubles.slice(), detail: d.detail, split: '', next: '', shared: false, done: false });
+    state.draft = { slot: '', troubles: [], hide: false, summary: '', deadline: '', detail: '' };
+    render();
+  }
+  else if (t.dataset.send) {
+    const b = state.bookings.find(x => x.id == t.dataset.send);
+    const sp = document.querySelector(`[data-split="${b.id}"]`).value.trim();
+    const nx = document.querySelector(`[data-next="${b.id}"]`).value.trim();
+    if (!sp || !nx) { alert('区切り方の例と次にやることを、一行ずつ書いてください'); return; }
+    b.split = sp; b.next = nx; b.done = true; render();
+  }
+  else if (t.id === 'sample') sample();
+  else if (t.id === 'reset') { state.bookings = []; render(); }
+});
+
+document.addEventListener('input', e => {
+  const t = e.target, d = state.draft;
+  if (t.id === 'f-summary') { d.summary = t.value; el('book').disabled = !(d.slot && d.summary); }
+  else if (t.id === 'f-deadline') d.deadline = t.value;
+  else if (t.id === 'f-detail') d.detail = t.value;
+  else if (t.dataset.apply) state.bookings.find(x => x.id == t.dataset.apply).apply = t.value;
+});
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'f-hide') state.draft.hide = t.checked;
+  else if (t.dataset.share) { state.bookings.find(x => x.id == t.dataset.share).shared = t.checked; render(); }
+});
+
+render();
+</script>
+</body>
+</html>

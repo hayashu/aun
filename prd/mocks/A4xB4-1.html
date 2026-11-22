@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手戻り経緯マップ A4xB4-1</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1f2937; --sub: #6b7280; --line: #d9dde3;
+  --accent: #2f6fb0; --elec: #b7791f; --mech: #2f855a; --warn: #fdf1d8; --warnb: #e0b45a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --card: #1d2229; --text: #e5e7eb; --sub: #9aa3af; --line: #343b45;
+    --accent: #6aa7e6; --elec: #e0b45a; --mech: #5fc08d; --warn: #3a3220; --warnb: #8a6d2c;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow-x: hidden; }
+body { background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; padding: 0 16px 40px; max-width: 420px; margin: 0 auto; }
+header { padding: 12px 0 8px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 16px; margin: 0; }
+header small { color: var(--sub); }
+.roles, .tabs { display: flex; gap: 6px; margin: 10px 0; }
+.roles button, .tabs button { flex: 1; padding: 8px 4px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; font-size: 13px; }
+.roles button.on, .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+h2 { font-size: 15px; margin: 4px 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+input, select, textarea { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+button.primary { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px; width: 100%; margin-top: 10px; font-size: 14px; }
+button.ghost { background: none; color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+button.small { background: none; border: 0; color: var(--sub); font-size: 12px; }
+.note { font-size: 12px; color: var(--sub); }
+.ev { border-left: 4px solid var(--line); padding-left: 10px; }
+.ev.gap { border-left-color: var(--warnb); background: var(--warn); }
+.ev.cause { outline: 2px solid var(--warnb); }
+.meta { font-size: 12px; color: var(--sub); }
+.badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--line); margin-right: 4px; }
+.badge.gap { background: var(--warnb); color: #000; border-color: var(--warnb); }
+.know { display: flex; gap: 8px; margin-top: 6px; }
+.know > div { flex: 1; }
+.know .e b { color: var(--elec); }
+.know .m b { color: var(--mech); }
+.know label { margin: 0; color: var(--text); display: flex; gap: 4px; align-items: center; font-size: 13px; }
+.know input[type=checkbox] { width: auto; }
+.know input[type=text] { margin-top: 4px; font-size: 13px; padding: 5px; }
+.bar { display: flex; height: 18px; border-radius: 6px; overflow: hidden; background: var(--line); margin: 6px 0; }
+.bar span { display: block; height: 100%; }
+.hide { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>手戻り経緯マップ</h1>
+  <small>PRD A4xB4-1 ／ モック（個人向け・保存はこの画面内のみ）</small>
+</header>
+
+<div class="roles" id="roles"></div>
+<div class="tabs" id="tabs"></div>
+<div id="view"></div>
+
+<script>
+const TYPES = ["チャット", "メール", "図面", "会議"];
+const CAUSES = {
+  oversight: { label: "見落とし", side: "受け取る側" },
+  telling:   { label: "伝え方（正式な改版がなかったなど）", side: "伝える側" },
+  checking:  { label: "確認の不足", side: "双方" }
+};
+const SAMPLE = {
+  issue: "2回目の試作で、基板のコネクタが筐体の開口部と2mmずれていた",
+  events: [
+    { date: "2026-09-02", type: "図面", text: "筐体図面 Rev.B 発行（開口部位置 X=42.0）",
+      e: true, m: true, en: "Rev.Bを受領、配置の基準にした", mn: "Rev.Bを発行した" },
+    { date: "2026-09-10", type: "会議", text: "試作1回目の評価会議。開口部は現状維持と確認",
+      e: true, m: true, en: "出席して了承", mn: "出席して了承" },
+    { date: "2026-09-18", type: "チャット", text: "機械側から「開口部を2mm右へ寄せた」と一言連絡",
+      e: false, m: true, en: "投稿に気づかなかった", mn: "変更したので一言伝えた" },
+    { date: "2026-09-19", type: "図面", text: "（改版なし）Rev.Bのまま。変更は図面に反映されていない",
+      e: false, m: true, en: "最新はRev.Bだと認識", mn: "改版は後で出すつもりだった" },
+    { date: "2026-09-25", type: "メール", text: "試作2回目の基板発注。Rev.B基準の配置データで発注",
+      e: true, m: false, en: "Rev.Bどおりと信じて発注", mn: "発注内容の写しは見ていない" }
+  ],
+  causes: {
+    2: { kind: "oversight", fix: "チャットの変更連絡を、確認が必要な通知として拾えていれば防げた" },
+    3: { kind: "telling", fix: "変更時に正式な改版が出ていれば防げた" },
+    4: { kind: "checking", fix: "発注前に開口部位置を両側で突き合わせていれば防げた" }
+  }
+};
+
+let S = { role: "B", tab: 0, issue: "", events: [], causes: {} };
+
+function render() {
+  document.getElementById("roles").innerHTML =
+    [["B", "Bさん（電気・当事者）"], ["A", "Aさん（調整役）"]]
+      .map(([k, l]) => `<button class="${S.role === k ? "on" : ""}" onclick="S.role='${k}';render()">${l}</button>`).join("");
+  const tabs = ["記録", "時系列", "食い違い", "原因の分け方"];
+  document.getElementById("tabs").innerHTML =
+    tabs.map((t, i) => `<button class="${S.tab === i ? "on" : ""}" onclick="S.tab=${i};render()">${t}</button>`).join("");
+  document.getElementById("view").innerHTML = [vIssue, vTimeline, vGap, vCause][S.tab]();
+}
+
+function sorted() {
+  return S.events.map((ev, i) => ({ ev, i })).sort((a, b) => a.ev.date.localeCompare(b.ev.date));
+}
+const isGap = ev => ev.e !== ev.m;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function sampleBtn() {
+  return `<button class="ghost" onclick="loadSample()">サンプルを読み込む</button>`;
+}
+function loadSample() {
+  S.issue = SAMPLE.issue;
+  S.events = JSON.parse(JSON.stringify(SAMPLE.events));
+  S.causes = JSON.parse(JSON.stringify(SAMPLE.causes));
+  S.tab = 1;
+  render();
+}
+
+function vIssue() {
+  return `<div class="card"><h2>手戻りの記録</h2>
+    <label>何が合わなかったか</label>
+    <textarea rows="3" id="issue" oninput="S.issue=this.value">${esc(S.issue)}</textarea>
+    <p class="note">誰が悪いかを決めるツールではありません。出来事を並べて、どこで食い違ったかを探します。</p>
+    ${sampleBtn()}</div>`;
+}
+
+function vTimeline() {
+  const list = sorted();
+  const items = list.map(({ ev, i }) => `
+    <div class="card ev ${isGap(ev) ? "gap" : ""}">
+      <div class="meta">${ev.date}　<span class="badge">${ev.type}</span>
+        ${isGap(ev) ? '<span class="badge gap">片方だけが知っていた</span>' : ""}
+        <button class="small" onclick="delEv(${i})">削除</button></div>
+      <div>${esc(ev.text)}</div>
+      <div class="know">
+        <div class="e"><label><input type="checkbox" ${ev.e ? "checked" : ""} onchange="setK(${i},'e',this.checked)"><b>電気側は知っていた</b></label>
+          <input type="text" value="${esc(ev.en)}" placeholder="何を知っていたか" onchange="S.events[${i}].en=this.value"></div>
+        <div class="m"><label><input type="checkbox" ${ev.m ? "checked" : ""} onchange="setK(${i},'m',this.checked)"><b>機械側は知っていた</b></label>
+          <input type="text" value="${esc(ev.mn)}" placeholder="何を知っていたか" onchange="S.events[${i}].mn=this.value"></div>
+      </div>
+    </div>`).join("");
+  const over = S.events.length > 5
+    ? `<p class="note">登録が${S.events.length}件です。関係するやりとりは5件程度に絞ると見やすくなります。</p>` : "";
+  return `<div class="card"><h2>やりとりの並べ替え</h2>
+      <p class="note">原文は貼らず、要約だけ登録してください。記録は自動では取り込みません。</p>
+      <label>日付</label><input type="date" id="nd">
+      <label>種類</label><select id="nt">${TYPES.map(t => `<option>${t}</option>`).join("")}</select>
+      <label>内容の要約</label><input type="text" id="nx" placeholder="例：開口部の位置を変更したと連絡">
+      <button class="primary" onclick="addEv()">登録（時系列に並ぶ）</button>
+      <p></p>${sampleBtn()}</div>
+    ${over}${items || '<p class="note">まだ登録がありません。</p>'}`;
+}
+
+function addEv() {
+  const date = document.getElementById("nd").value;
+  const text = document.getElementById("nx").value.trim();
+  if (!date || !text) return alert("日付と要約を入れてください");
+  S.events.push({ date, type: document.getElementById("nt").value, text, e: true, m: true, en: "", mn: "" });
+  render();
+}
+function delEv(i) {
+  S.events.splice(i, 1);
+  const next = {};
+  Object.keys(S.causes).forEach(k => {
+    const n = +k;
+    if (n < i) next[n] = S.causes[k];
+    else if (n > i) next[n - 1] = S.causes[k];
+  });
+  S.causes = next;
+  render();
+}
+function setK(i, side, v) {
+  S.events[i][side] = v;
+  if (!isGap(S.events[i])) delete S.causes[i];
+  render();
+}
+
+function vGap() {
+  const gaps = sorted().filter(({ ev }) => isGap(ev));
+  if (!gaps.length) return `<div class="card">片方だけが知っていた時点はまだありません。時系列タブで登録するか、${sampleBtn()}</div>`;
+  const cards = gaps.map(({ ev, i }) => {
+    const c = S.causes[i];
+    return `<div class="card ev gap ${c ? "cause" : ""}">
+      <div class="meta">${ev.date}　<span class="badge">${ev.type}</span>
+        ${ev.e ? "機械側にだけ届いていない" : "電気側にだけ届いていない"}</div>
+      <div>${esc(ev.text)}</div>
+      <label><input type="checkbox" style="width:auto" ${c ? "checked" : ""} onchange="toggleCause(${i},this.checked)">
+        手戻りの原因になった時点として選ぶ</label>
+      ${c ? `<label>何があれば防げたか（一行）</label>
+        <input type="text" value="${esc(c.fix)}" onchange="S.causes[${i}].fix=this.value">` : ""}
+    </div>`;
+  }).join("");
+  return `<p class="note">印の付いた時点は、情報が片方にしか届いていなかった時点です。原因になったものを選び、出来事として一行で書いてください。</p>${cards}`;
+}
+function toggleCause(i, on) {
+  if (on) S.causes[i] = { kind: "oversight", fix: "" };
+  else delete S.causes[i];
+  render();
+}
+
+function vCause() {
+  const ids = Object.keys(S.causes).map(Number).sort((a, b) => S.events[a].date.localeCompare(S.events[b].date));
+  if (!ids.length) return `<div class="card">食い違いの時点を選ぶと、原因の分け方が表示されます。</div>`;
+  const rows = ids.map(i => {
+    const ev = S.events[i], c = S.causes[i];
+    const opts = Object.entries(CAUSES).map(([k, v]) =>
+      `<option value="${k}" ${c.kind === k ? "selected" : ""}>${v.label}</option>`).join("");
+    return `<div class="card ev gap"><div class="meta">${ev.date}　${ev.type}</div>
+      <div>${esc(ev.text)}</div>
+      <label>この時点の原因の種類</label>
+      <select onchange="S.causes[${i}].kind=this.value;render()">${opts}</select>
+      <div class="note">防げたこと：${esc(c.fix) || "（未記入）"}</div></div>`;
+  }).join("");
+  const cnt = { oversight: 0, telling: 0, checking: 0 };
+  ids.forEach(i => cnt[S.causes[i].kind]++);
+  const colors = { oversight: "var(--elec)", telling: "var(--mech)", checking: "var(--accent)" };
+  const bar = Object.keys(cnt).filter(k => cnt[k])
+    .map(k => `<span style="width:${cnt[k] / ids.length * 100}%;background:${colors[k]}"></span>`).join("");
+  const legend = Object.keys(cnt).map(k =>
+    `<div class="meta"><span class="badge" style="background:${colors[k]};border-color:${colors[k]}">&nbsp;</span>${CAUSES[k].label}：${cnt[k]}件（${CAUSES[k].side}）</div>`).join("");
+  let msg = "";
+  if (!cnt.oversight && !cnt.checking) {
+    msg = "受け取る側（自分の側）の要因が一つも入っていません。見落としや確認の不足がなかったか、もう一度見直してみてください。";
+  } else if (!cnt.telling && !cnt.checking) {
+    msg = "伝える側の要因が入っていません。伝え方や正式な改版の有無も確かめてみてください。";
+  } else {
+    msg = "原因は一方だけにありません。それぞれの側に、次の試作で取れる対策があります。";
+  }
+  const aView = S.role === "A" ? `<div class="card"><h2>調整役として両方の分野に求める対策</h2>
+      <ul style="margin:0;padding-left:18px">${ids.map(i => `<li>${esc(S.causes[i].fix) || "（未記入）"}</li>`).join("")}</ul>
+      <p class="note">誰の責任かではなく、出来事ごとの対策として共有します。</p></div>` : "";
+  return `<div class="card"><h2>原因の分け方</h2>
+      <div class="bar">${bar}</div>${legend}
+      <div class="card" style="background:var(--warn);border-color:var(--warnb)">${msg}</div>
+      <p class="note">件数は多い少ないを評価するものではありません。見え方の確認用です。</p></div>
+    ${aView}${rows}`;
+}
+
+render();
+</script>
+</body>
+</html>

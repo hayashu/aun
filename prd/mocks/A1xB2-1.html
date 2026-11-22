@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>質問ノート モック A1xB2-1</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6678;--line:#dde1e8;--accent:#2f6fdb;--accent-t:#fff;--soft:#e8f0fd;--warn:#fff4d6}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1e222b;--text:#e8eaf0;--sub:#9aa3b5;--line:#343a47;--accent:#6b9cf0;--accent-t:#10151f;--soft:#26324a;--warn:#3a3320}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Hiragino Sans",sans-serif;max-width:480px;margin-inline:auto;padding:0 16px 48px;overflow-x:hidden}
+header{padding:12px 0 8px}
+header h1{font-size:15px;margin:0;line-height:1.4}
+header small{color:var(--sub)}
+nav{display:flex;gap:6px;margin:8px 0}
+nav button{flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+h2{font-size:15px;margin:0 0 8px}
+label{display:block;font-size:13px;color:var(--sub);margin:8px 0 2px}
+input,textarea,select{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
+button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer}
+button.pri,button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.opt{display:block;width:100%;text-align:left;margin:6px 0}
+.note{font-size:13px;color:var(--sub)}
+.box{background:var(--soft);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:14px}
+.warn{background:var(--warn);border-radius:8px;padding:8px 10px;font-size:13px}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:0 8px;color:var(--sub)}
+.task{display:flex;gap:8px;align-items:flex-start;margin:6px 0}
+.task input{width:auto;margin-top:5px}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>先輩の「追々わかるよ」を、今週やる学習課題に変える質問ノート<br><small>PRD ID: A1xB2-1 / モック（保存はこのページ内のみ）</small></h1>
+</header>
+<nav>
+  <button id="t-flow" class="on" onclick="tab('flow')">記録して読む</button>
+  <button id="t-map" onclick="tab('map')">知識マップ</button>
+</nav>
+<div class="row"><button onclick="loadSample()">サンプルを読み込む</button><button onclick="resetAll()">空にする</button></div>
+
+<main id="flow">
+  <div class="card" id="s1">
+    <h2>1. 質問と返事の記録</h2>
+    <label>分野</label>
+    <select id="field"><option>筐体・機構</option><option>材料</option><option>電気・基板</option><option>その他</option></select>
+    <label>何を聞きましたか</label>
+    <textarea id="q" rows="2" placeholder="例：筐体の板厚の決め方"></textarea>
+    <label>返ってきた言葉</label>
+    <textarea id="r" rows="2" placeholder="例：それは追々わかるよ"></textarea>
+    <label>いつまでに必要ですか</label>
+    <select id="dl"><option>今週中</option><option>来週のレビューまで</option><option>2週間以内</option><option>期限は特にない</option></select>
+    <p class="note">相手の言葉をそのまま書く欄です。先輩の本心を断定する機能はありません。</p>
+    <button class="pri" onclick="startRead()">次へ：自分の読みを選ぶ</button>
+  </div>
+
+  <div class="card hide" id="s2">
+    <h2>2. 自分の読み（解説の前に選ぶ）</h2>
+    <p class="note">返事は、いまのあなたにはどれに近く聞こえましたか。正解はありません。</p>
+    <div id="reads"></div>
+  </div>
+
+  <div class="card hide" id="s3">
+    <h2>3. 解釈の幅と確かめる一言</h2>
+    <p class="note">あなたの読み：<b id="myread"></b></p>
+    <div class="box" id="range"></div>
+    <p class="note">言葉だけでは、どれかは決まりません。確かめる一言を選んでください（候補を参考に、自分の言葉に直して構いません）。</p>
+    <div id="phrases"></div>
+    <label>自分の言葉に直す</label>
+    <textarea id="phrase" rows="2"></textarea>
+    <p class="note">この文面はどこにも送られません。先輩には自分で聞いてください。</p>
+    <button class="pri" onclick="toTasks()">次へ：学習課題に分ける</button>
+  </div>
+
+  <div class="card hide" id="s4">
+    <h2>4. 今週やる学習課題</h2>
+    <p class="note">候補は例です。範囲は自分で決めて書き換えてください。</p>
+    <label>今週読む資料の章</label><input id="k1">
+    <label>実物で確かめること</label><input id="k2">
+    <label>次に聞くこと</label><input id="k3">
+    <button class="pri" style="margin-top:10px" onclick="saveEntry()">今週の課題に入れる</button>
+    <p class="note" id="timer"></p>
+  </div>
+</main>
+
+<main id="map" class="hide">
+  <div class="card">
+    <h2>今週の課題（最大3つ）</h2>
+    <div id="week"></div>
+    <p class="note" id="weeknote"></p>
+  </div>
+  <div class="card">
+    <h2>知識マップ</h2>
+    <label class="note"><input type="checkbox" id="cnt" style="width:auto" onchange="drawMap()"> 「まだ」の数も表示する（見え方の比較用）</label>
+    <div id="mapbody"></div>
+  </div>
+  <div class="card">
+    <h2>見たあとの気持ち（自己申告）</h2>
+    <p class="note">焦りの度合い（1 = 落ち着いている ／ 5 = とても焦る）。人の評価には使いません。</p>
+    <div class="row" id="mood"></div>
+    <p class="note" id="moodlog"></p>
+  </div>
+</main>
+
+<script>
+const READS=["今は時間がない","自分で調べて","今は知らなくてよい","基礎から学べ"];
+const RANGE={
+ "今は時間がない":"今は説明する余裕がないだけで、後で聞けば答えてもらえる可能性があります。",
+ "自分で調べて":"調べる前提で、どこを見るかの手がかりなら教えてもらえる可能性があります。",
+ "今は知らなくてよい":"いまの業務には影響しない、という可能性があります。ただし期限が近い場合は確かめる価値があります。",
+ "基礎から学べ":"最初から全部ではなく、業務に必要な範囲の入り口を指している可能性があります。"};
+const PHRASES=["来週のレビューまでに知っておくべきですか","どこを調べればよいですか","最初に見るべき資料はありますか","いつ頃なら5分お時間をいただけますか","業務で使う範囲だけ先に絞ってもよいですか"];
+const FIELDS=["筐体・機構","材料","電気・基板","その他"];
+const SAMPLE=[
+ {field:"筐体・機構",q:"筐体の板厚の決め方",r:"それは追々わかるよ",dl:"来週のレビューまで",read:"今は知らなくてよい",phrase:"来週のレビューまでに知っておくべきですか",tasks:["板厚と基板配置の制約の章を読む","実機の筐体の板厚をノギスで測る","最初に見るべき資料を先輩に聞く"],done:[true,false,false]},
+ {field:"材料",q:"材料力学をどこから学ぶか",r:"基礎からやっといたほうがいいね",dl:"2週間以内",read:"基礎から学べ",phrase:"業務で使う範囲だけ先に絞ってもよいですか",tasks:["たわみの章だけ読む","","業務で使う範囲を確認する"],done:[false,false,false]}];
+let entries=[],cur={},t0=null,moods=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function tab(n){
+  $("flow").classList.toggle("hide",n!=="flow");$("map").classList.toggle("hide",n!=="map");
+  $("t-flow").classList.toggle("on",n==="flow");$("t-map").classList.toggle("on",n==="map");
+  if(n==="map")drawMap();
+}
+function show(id){$(id).classList.remove("hide");$(id).scrollIntoView({behavior:"smooth"})}
+
+function startRead(){
+  if(!$("q").value.trim()||!$("r").value.trim()){alert("質問と返ってきた言葉を書いてください");return}
+  if(!t0)t0=Date.now();
+  cur={field:$("field").value,q:$("q").value.trim(),r:$("r").value.trim(),dl:$("dl").value};
+  $("reads").innerHTML=READS.map(x=>`<button class="opt" onclick="pick('${x}')">${x}</button>`).join("")+
+    `<button class="opt" onclick="pick('決められない')">決められない</button>`;
+  show("s2");
+}
+function pick(x){
+  cur.read=x;$("myread").textContent=x;
+  $("range").innerHTML=x in RANGE?RANGE[x]+"<br>他の意味の可能性もあります。":"決められないのは自然です。「時間がない／調べて／今は不要／基礎から」のどれもありえます。";
+  $("phrases").innerHTML=PHRASES.map((p,i)=>`<button class="opt" onclick="setPhrase(${i})">${p}</button>`).join("");
+  $("phrase").value="";show("s3");
+}
+function setPhrase(i){$("phrase").value=PHRASES[i]}
+function toTasks(){
+  if(!$("phrase").value.trim()){alert("確かめる一言を選ぶか、書いてください（解釈は一言とセットでのみ使います）");return}
+  cur.phrase=$("phrase").value.trim();
+  const g=cur.field;
+  $("k1").value=g==="材料"?"業務で使う範囲の章（例：たわみ）":g==="筐体・機構"?"板厚と基板配置の制約の章":"今の設計に関係する章";
+  $("k2").value="実機・実物で寸法や構造を確かめる";
+  $("k3").value=cur.phrase;
+  show("s4");
+}
+function weekCount(){return entries.reduce((n,e)=>n+e.tasks.filter((t,i)=>t&&!e.done[i]&&!e.next).length,0)}
+function saveEntry(){
+  const ts=[$("k1").value.trim(),$("k2").value.trim(),$("k3").value.trim()];
+  const n=ts.filter(Boolean).length;
+  if(weekCount()+n>3&&!confirm("今週の課題が3つを超えます。超えた分は次週に送ります。よいですか"))return;
+  cur.tasks=ts;cur.done=[false,false,false];entries.push(cur);
+  const sec=Math.round((Date.now()-t0)/1000);
+  $("timer").textContent=`記録から分解まで：${Math.floor(sec/60)}分${sec%60}秒（5分以内の目安：${sec<=300?"収まりました":"超えました"}）`;
+  t0=null;rebalance();
+}
+function rebalance(){
+  let c=0;
+  entries.forEach(e=>e.tasks.forEach((t,i)=>{if(t&&!e.done[i]){const p=e.pin&&e.pin[i];if(!p)c++;if(p||c>3){(e.later=e.later||{})[i]=true}else if(e.later)delete e.later[i]}}));
+}
+function drawWeek(){
+  let html="",later="";
+  entries.forEach((e,ei)=>e.tasks.forEach((t,i)=>{
+    if(!t)return;
+    const lat=e.later&&e.later[i];
+    const row=`<div class="task"><input type="checkbox" ${e.done[i]?"checked":""} onchange="toggle(${ei},${i})"><div>${esc(t)}<br><span class="tag">${["資料","実物","次に聞く"][i]}</span> <span class="tag">${esc(e.field)}</span>${!e.done[i]&&!lat?` <button onclick="defer(${ei},${i})">次週に送る</button>`:""}</div></div>`;
+    if(e.done[i])return;
+    if(lat)later+=row;else html+=row;
+  }));
+  $("week").innerHTML=html||'<p class="note">今週の課題はありません。</p>';
+  $("weeknote").innerHTML=later?`<b>次週以降</b>（一度に見せるのは3つまで）${later}`:"";
+}
+function toggle(ei,i){entries[ei].done[i]=!entries[ei].done[i];rebalance();drawMap();}
+function defer(ei,i){(entries[ei].pin=entries[ei].pin||{})[i]=true;rebalance();drawMap()}
+function drawMap(){
+  drawWeek();
+  const showN=$("cnt").checked;
+  $("mapbody").innerHTML=entries.length?FIELDS.map(f=>{
+    const es=entries.filter(e=>e.field===f);if(!es.length)return"";
+    const all=es.flatMap(e=>e.tasks.map((t,i)=>t?e.done[i]:null)).filter(x=>x!==null);
+    const d=all.filter(x=>x===true).length;
+    const next=es.flatMap(e=>e.tasks.filter((t,i)=>t&&e.done[i]!==true)).find(Boolean);
+    return `<div class="box"><b>${f}</b> ${showN?`<span class="tag">学んだ ${d} ／ まだ ${all.length-d}</span>`:""}
+      <div class="bar"><i style="width:${all.length?d/all.length*100:0}%"></i></div>
+      ${es.map(e=>`<div class="note">・${esc(e.q)}（${esc(e.dl)}）</div>`).join("")}
+      <div>${next?"次の一歩："+esc(next):"この分野は一通り終わりました"}</div></div>`}).join(""):'<p class="note">記録がまだありません。</p>';
+  $("mood").innerHTML=[1,2,3,4,5].map(n=>`<button onclick="mood(${n})">${n}</button>`).join("");
+  $("moodlog").textContent=moods.length?"記録：「"+moods.join("」→「")+"」（数も表示：切替で比べられます）":"";
+}
+function mood(n){moods.push(n+($("cnt").checked?"・数あり":"・数なし"));drawMap()}
+function loadSample(){entries=JSON.parse(JSON.stringify(SAMPLE));rebalance();
+  $("field").value="筐体・機構";$("q").value="電源基板の絶縁距離";$("r").value="まあ、基礎からやっといたほうがいいね";$("dl").value="今週中";
+  tab("flow");}
+function resetAll(){entries=[];moods=[];cur={};t0=null;["s2","s3","s4"].forEach(i=>$(i).classList.add("hide"));drawMap()}
+drawMap();
+</script>
+</body>
+</html>

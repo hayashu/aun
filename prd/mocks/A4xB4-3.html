@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手戻りレビュー会 (A4xB4-3)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1f2933; --sub: #6b7785;
+  --line: #dde1e6; --accent: #2f6fba; --warn: #c2571a; --warn-bg: #fdf0e6;
+  --ok: #2d7a4f; --ok-bg: #e7f5ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6e9ed; --sub: #9aa5b1;
+    --line: #333c46; --accent: #6aa5e8; --warn: #f0925a; --warn-bg: #3a2a1d;
+    --ok: #6cc592; --ok-bg: #1b3326;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 12px 16px 8px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 14px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 420px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.card h2 { margin: 0 0 8px; font-size: 15px; }
+.rule { background: var(--ok-bg); color: var(--ok); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button, select, input, textarea { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+textarea, input[type=text], select { width: 100%; margin-bottom: 8px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.tabs button { flex: 1; padding: 6px 2px; font-size: 13px; }
+.item { border-top: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
+.item:first-of-type { border-top: 0; }
+.tag { display: inline-block; font-size: 12px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--sub); margin: 2px 4px 2px 0; }
+.tag.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+.bar { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; }
+.bar .name { width: 96px; flex-shrink: 0; }
+.bar .track { flex: 1; background: var(--line); border-radius: 6px; height: 18px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); }
+.bar.hot .fill { background: var(--warn); }
+.bar .n { width: 28px; text-align: right; }
+.flag { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-top: 8px; }
+.muted { color: var(--sub); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>手戻りレビュー会 <small>PRD A4xB4-3</small></h1>
+</header>
+<main>
+  <div class="rule">ルール: 担当者の名前は登録しません。話すのは「取り決めをどう変えるか」だけです。誰の手戻りかは問いません。</div>
+  <div class="row" style="margin-bottom:12px">
+    <select id="role" style="flex:1;margin:0">
+      <option>調整役（Aさん）</option>
+      <option>当事者（Bさん）</option>
+      <option>ベテランの担当者</option>
+    </select>
+    <button id="sample">サンプルを読み込む</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</main>
+<script>
+const CATS = ["見落とし", "伝え方", "確認の不足", "受け渡しの仕組み"];
+const FIELDS = ["電気", "機械", "ソフト", "品質"];
+const THRESHOLD = 3;
+const TABS = [["reg", "登録"], ["cls", "分類"], ["rep", "繰り返し"], ["rule", "取り決め"]];
+let state = { tab: "reg", cur: null, items: [], rules: [], feedback: null, draft: { text: "", fields: [] } };
+
+const SAMPLE_ITEMS = [
+  { text: "基板コネクタと筐体の開口部が2mmずれた（試作2回目）", fields: ["電気", "機械"], cats: ["伝え方", "受け渡しの仕組み"] },
+  { text: "基板の高さと筐体のリブが干渉した（試作3回目）", fields: ["電気", "機械"], cats: ["伝え方", "受け渡しの仕組み"] },
+  { text: "ネジ穴位置が旧図面のまま加工された", fields: ["機械"], cats: ["受け渡しの仕組み", "確認の不足"] },
+  { text: "ケーブル長が筐体改版に合わず足りなかった", fields: ["電気", "機械"], cats: ["伝え方", "受け渡しの仕組み"] },
+  { text: "放熱穴の位置を見落として部品を配置した", fields: ["電気"], cats: ["見落とし"] },
+  { text: "ファームの想定電圧が基板仕様と違った", fields: ["ソフト", "電気"], cats: ["確認の不足"] }
+];
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function counts() {
+  return CATS.map(c => state.items.filter(i => i.cats && i.cats.includes(c)).length);
+}
+function ruleThisMonth() { return state.rules.some(r => r.month === "今月"); }
+
+function renderTabs() {
+  document.getElementById("tabs").innerHTML = TABS.map(([k, l]) =>
+    `<button class="${state.tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("");
+}
+
+function viewReg() {
+  const d = state.draft;
+  return `<div class="card"><h2>手戻りの登録</h2>
+    <p class="muted">調整役・当事者のどちらでも登録できます。名前は入力欄がありません。</p>
+    <textarea id="txt" rows="2" placeholder="何が合わなかったか">${esc(d.text)}</textarea>
+    <div class="muted">関係する分野</div>
+    <div class="row" style="margin:4px 0 8px">${FIELDS.map(f =>
+      `<button data-field="${f}" class="${d.fields.includes(f) ? "on" : ""}">${f}</button>`).join("")}</div>
+    <button class="primary" id="add">登録する</button></div>
+    <div class="card"><h2>今月の登録（${state.items.length}件）</h2>
+    ${state.items.map(i => `<div class="item">${esc(i.text)}<br>${i.fields.map(f => `<span class="tag">${f}</span>`).join("")}</div>`).join("") || '<p class="muted">まだありません。</p>'}</div>`;
+}
+
+function viewCls() {
+  if (!state.items.length) return '<div class="card muted">登録された手戻りがありません。</div>';
+  const i = Math.min(state.cur ?? 0, state.items.length - 1);
+  const it = state.items[i];
+  return `<div class="card"><h2>原因の分類（${i + 1}/${state.items.length}）</h2>
+    <div class="item" style="border:0">${esc(it.text)}</div>
+    <p class="muted">複数選べます。決まらなければ、空のままで次へ進めます。</p>
+    <div class="row">${CATS.map(c =>
+      `<button data-cat="${c}" class="${it.cats && it.cats.includes(c) ? "on" : ""}">${c}</button>`).join("")}</div>
+    <div class="row" style="margin-top:12px">
+      <button data-nav="-1">前へ</button><button data-nav="1">次へ</button></div></div>`;
+}
+
+function viewRep() {
+  const cs = counts();
+  const max = Math.max(THRESHOLD, ...cs);
+  const hot = CATS.filter((c, k) => cs[k] >= THRESHOLD);
+  return `<div class="card"><h2>原因の分類ごとの件数</h2>
+    ${CATS.map((c, k) => `<div class="bar ${cs[k] >= THRESHOLD ? "hot" : ""}">
+      <span class="name">${c}</span>
+      <span class="track"><span class="fill" style="width:${cs[k] / max * 100}%;display:block"></span></span>
+      <span class="n">${cs[k]}</span></div>`).join("")}
+    <p class="muted">${THRESHOLD}件以上で、仕組みの見直し候補になります。</p>
+    ${hot.map(c => `<div class="flag">「${c}」が${cs[CATS.indexOf(c)]}件。見直し候補です。分野ではなく受け渡しの仕組みとして見てください。</div>`).join("")}
+    ${hot.length ? "" : '<p class="muted">見直し候補はありません。</p>'}
+    <div class="muted" style="margin-top:12px">試してみてください: この画面で、見直しが必要な原因はひと目でわかりましたか。</div>
+    <div class="row" style="margin-top:6px">${["わかった", "少し迷った", "わからない"].map(v =>
+      `<button data-fb="a${v}" class="${state.feedback === "a" + v ? "on" : ""}">${v}</button>`).join("")}</div>
+    <div class="muted" style="margin-top:12px">この並びを見て、当事者は責められていないと感じられそうですか。</div>
+    <div class="row" style="margin-top:6px">${["感じられる", "どちらとも", "感じにくい"].map(v =>
+      `<button data-fb="b${v}" class="${state.feedback === "b" + v ? "on" : ""}">${v}</button>`).join("")}</div>
+    ${state.feedback ? '<p class="muted">回答はこの画面内だけに保持され、保存も送信もされません。</p>' : ""}
+  </div>`;
+}
+
+function viewRule() {
+  const cs = counts();
+  const hot = CATS.filter((c, k) => cs[k] >= THRESHOLD);
+  const locked = ruleThisMonth();
+  return `<div class="card"><h2>取り決めの見直し</h2>
+    <p class="muted">見直しは月に一つまで。効果を確かめてから次に進みます。</p>
+    ${hot.length ? `<select id="rcat">${hot.map(c => `<option>${c}</option>`).join("")}</select>
+      <input type="text" id="rtxt" placeholder="例: 確定した変更は必ず図面を改版する" ${locked ? "disabled" : ""}>
+      <button class="primary" id="radd" ${locked ? "disabled" : ""}>取り決めを変えて全員に知らせる</button>
+      ${locked ? '<p class="muted">今月の見直しは済んでいます。</p>' : ""}`
+      : '<p class="muted">見直し候補がありません。「繰り返し」を確認してください。</p>'}</div>
+    <div class="card"><h2>変えた取り決めと効果</h2>
+    ${state.rules.map(r => `<div class="item"><span class="tag">${r.month}</span><span class="tag">${r.cat}</span><br>${esc(r.text)}
+      <div class="muted">${r.effect}</div></div>`).join("") || '<p class="muted">まだありません。</p>'}</div>`;
+}
+
+function render() {
+  renderTabs();
+  const v = { reg: viewReg, cls: viewCls, rep: viewRep, rule: viewRule }[state.tab]();
+  document.getElementById("view").innerHTML = v;
+}
+
+document.getElementById("tabs").addEventListener("click", e => {
+  if (e.target.dataset.tab) { state.tab = e.target.dataset.tab; render(); }
+});
+document.getElementById("sample").addEventListener("click", () => {
+  state.items = SAMPLE_ITEMS.map(x => ({ ...x, cats: [...x.cats] }));
+  state.rules = [{ month: "先月", cat: "確認の不足", text: "試作の発注前に、両分野で寸法を読み合わせる",
+    effect: "効果: 「確認の不足」は先月3件から今月2件に減りました。" }];
+  state.cur = 0; state.tab = "rep"; render();
+});
+document.getElementById("view").addEventListener("click", e => {
+  const t = e.target, d = t.dataset;
+  if (d.field) {
+    const f = state.draft.fields;
+    state.draft.text = document.getElementById("txt").value;
+    f.includes(d.field) ? f.splice(f.indexOf(d.field), 1) : f.push(d.field);
+    render();
+  } else if (t.id === "add") {
+    const text = document.getElementById("txt").value.trim();
+    if (!text) return;
+    state.items.push({ text, fields: [...state.draft.fields], cats: [] });
+    state.draft = { text: "", fields: [] }; render();
+  } else if (d.cat) {
+    const it = state.items[state.cur ?? 0];
+    it.cats = it.cats.includes(d.cat) ? it.cats.filter(c => c !== d.cat) : [...it.cats, d.cat];
+    render();
+  } else if (d.nav) {
+    state.cur = Math.max(0, Math.min(state.items.length - 1, (state.cur ?? 0) + Number(d.nav))); render();
+  } else if (d.fb) {
+    state.feedback = d.fb; render();
+  } else if (t.id === "radd") {
+    const text = document.getElementById("rtxt").value.trim();
+    if (!text) return;
+    state.rules.push({ month: "今月", cat: document.getElementById("rcat").value, text,
+      effect: "効果: 次のレビュー会で、同じ分類の件数が減ったかを確かめます。" });
+    render();
+  }
+});
+render();
+</script>
+</body>
+</html>

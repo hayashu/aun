@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>返事ノート（A1xB1-1）モック</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--text:#222;--sub:#666;--line:#ddd9cf;--accent:#2f6b5e;--accent-bg:#e3efeb;--warn:#8a5a00;--warn-bg:#fbf1d9}
+@media (prefers-color-scheme:dark){:root{--bg:#161817;--card:#212423;--text:#ecebe6;--sub:#a3a69f;--line:#3a3e3c;--accent:#7cc4b2;--accent-bg:#233631;--warn:#e6bd6a;--warn-bg:#3a3220}}
+*{box-sizing:border-box}
+html,body{margin:0;overflow-x:hidden}
+body{background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;padding:0 16px 48px;max-width:480px;margin:0 auto}
+header{padding:14px 0 10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+header h1{font-size:15px;margin:0;line-height:1.5}
+header small{color:var(--sub);font-size:12px}
+h2{font-size:15px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+.card.off{display:none}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+input[type=text],textarea{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
+textarea{min-height:64px;resize:vertical}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:14px;margin:0;color:var(--text)}
+.opt input{margin-top:5px}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-bg)}
+button{font:inherit;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--bg);padding:10px 14px;cursor:pointer;margin:10px 8px 0 0}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.note{font-size:12px;color:var(--sub)}
+.step{font-size:12px;color:var(--accent);font-weight:bold}
+.quote{border-left:3px solid var(--accent);padding:2px 10px;margin:6px 0;background:var(--accent-bg)}
+.interp{border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0}
+.interp b{display:block}
+.hint{font-size:13px;color:var(--sub)}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:13px;margin:8px 0}
+.say{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.say button{margin:0;padding:6px 10px;font-size:13px}
+.say button.on{background:var(--accent);color:var(--bg)}
+.say button:not(.on){background:transparent;color:var(--text);border-color:var(--line)}
+.log{font-size:13px}
+.log li{margin:4px 0}
+ul{padding-left:18px;margin:6px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>「いいね、そのうちね」を読み解いて次の一手を決める返事ノート</h1>
+  <small>A1xB1-1 ／ モック（個人向け・データは端末内のみ）</small>
+</header>
+
+<div class="card" id="intro">
+  <p class="note" style="margin:0">上司の本心は断定しません。返事を読む練習と、確かめる一言を自分の言葉にするためのノートです。<br>使い方: ①返事を記録 → ②自分の読みを選ぶ → ③解釈の幅を見る → ④確かめる一言を選んで直す。</p>
+  <button type="button" id="sample">サンプルを読み込む</button>
+  <button type="button" class="ghost" id="reset">最初からやり直す</button>
+</div>
+
+<!-- 1 返事の記録 -->
+<section class="card" id="s1">
+  <div class="step">① 返事の記録</div>
+  <label for="who">誰に</label>
+  <input type="text" id="who" placeholder="例: 課長">
+  <label for="ask">何を頼んだか</label>
+  <input type="text" id="ask" placeholder="例: 試作基板の評価を自分でやってみたい">
+  <label for="said">返ってきた言葉</label>
+  <input type="text" id="said" placeholder="例: いいね、落ち着いたらやろうか">
+  <label>そのときの相手の様子</label>
+  <div class="opts" id="manner"></div>
+  <button type="button" id="to2">記録して次へ</button>
+  <p class="note">入力は言葉と様子の選択だけ。相手を疑うための記録ではありません。</p>
+</section>
+
+<!-- 2 自分の読み -->
+<section class="card off" id="s2">
+  <div class="step">② 自分の読み（解説はまだ表示しません）</div>
+  <div class="quote" id="rec"></div>
+  <p style="margin:10px 0 4px">この返事は、どれに近いと思いますか。</p>
+  <div class="opts" id="guess"></div>
+  <label>そう思った理由（近いものを選ぶ）</label>
+  <div class="opts" id="reason"></div>
+  <button type="button" id="to3" disabled>自分の読みを決めて、解釈の幅を見る</button>
+  <p class="note">どれを選んでも正解・不正解はありません。あとで見比べるための記録です。</p>
+</section>
+
+<!-- 3 解釈の幅 -->
+<section class="card off" id="s3">
+  <div class="step">③ 解釈の幅</div>
+  <p class="hint" id="mine"></p>
+  <div id="interps"></div>
+  <div class="warn">どれが本心かは、この言葉だけでは決められません。順位もつけていません。下の「何がわかれば絞れるか」を確かめる手がかりにしてください。</div>
+  <div class="interp"><b>何がわかれば絞れるか</b><ul><li>いつ頃を想定しているか</li><li>何がそろえば進められるか（予算・担当・優先度）</li></ul></div>
+  <p class="hint" id="cmp"></p>
+  <button type="button" id="to4">確かめる一言を考える</button>
+</section>
+
+<!-- 4 確かめる一言 -->
+<section class="card off" id="s4">
+  <div class="step">④ 確かめる一言</div>
+  <p class="note" style="margin:0">候補から一つ選び、自分の言い方に直してください。送信はされません。</p>
+  <div class="opts" id="phrases"></div>
+  <label for="mytext">自分の言葉に直す</label>
+  <textarea id="mytext" placeholder="ここで言い回しを直せます"></textarea>
+  <label>これを実際に上司に言えそうですか（選ぶのは感触だけ）</label>
+  <div class="say" id="say"></div>
+  <p class="note" id="saynote"></p>
+  <button type="button" id="save" disabled>この一言を手元のメモに残す</button>
+  <ul class="log" id="log"></ul>
+</section>
+
+<script>
+const MANNERS=["すぐ答えた","間があった","話題を変えた"];
+const GUESS=[["perm","許可に近い"],["hold","保留に近い"],["deny","断りに近い"]];
+const REASONS=["「いいね」と言われたから","「落ち着いたら」と時期が示されたから","時期がはっきりしなかったから","相手の様子が気になったから","過去にも似た返事があったから"];
+const INTERP=[
+ ["本当に忙しいだけ","今は手が回らない。落ち着けば実際に任せる気がある。","「落ち着く」時期の目安を言うか／繁忙期が終わった後に声がかかるか"],
+ ["予算や担当の都合で、実質的に難しい","やりたい気持ちはあるが、外注や担当割りが先に決まっている。","外注の発注時期、評価の担当割り、予算枠のこと"],
+ ["前向きだが、まだ具体的には考えていない","悪い印象はないが、実現の段取りは何もない。","「何があれば進められそうか」への答えが具体的か"]];
+const PHRASES=[
+ "お忙しいところすみません。落ち着くのは、いつ頃のイメージでしょうか。",
+ "進められるとしたら、何がそろっていれば良さそうでしょうか。",
+ "先に手順書を作っておこうと思いますが、見ておいていただく機会はありますか。",
+ "一部だけでも先にやってみる形は、可能でしょうか。"];
+const SAY=["言えそう","少し直せば言える","言えなさそう"];
+const SAMPLE={who:"課長",ask:"試作基板の評価を自分でやってみたい",said:"いいね、落ち着いたらやろうか",manner:1};
+const $=id=>document.getElementById(id);
+const st={manner:null,guess:null,reason:null,say:null};
+function radios(el,name,items,cb){
+  el.innerHTML=items.map((t,i)=>`<label class="opt"><input type="radio" name="${name}" value="${i}"><span>${t}</span></label>`).join("");
+  el.onchange=e=>cb(+e.target.value);
+}
+radios($("manner"),"m",MANNERS,i=>st.manner=i);
+radios($("guess"),"g",GUESS.map(g=>g[1]),i=>{st.guess=i;chk2()});
+radios($("reason"),"r",REASONS,i=>{st.reason=i;chk2()});
+radios($("phrases"),"p",PHRASES,i=>{$("mytext").value=PHRASES[i];chk4()});
+function chk2(){$("to3").disabled=st.guess===null||st.reason===null}
+function chk4(){$("save").disabled=!$("mytext").value.trim()||st.say===null}
+$("say").innerHTML=SAY.map((t,i)=>`<button type="button" data-i="${i}">${t}</button>`).join("");
+$("say").onclick=e=>{
+  const i=e.target.dataset.i;if(i===undefined)return;
+  st.say=+i;
+  [...$("say").children].forEach((b,j)=>b.classList.toggle("on",j==i));
+  $("saynote").textContent=i==2?"言えなさそうな理由は、言い回しか、相手との関係か。候補を直して、言えそうな形を探してみてください。":"";
+  chk4();
+};
+$("mytext").oninput=chk4;
+function show(n){["s1","s2","s3","s4"].forEach((s,i)=>$(s).classList.toggle("off",i>n-1));$("s"+n).scrollIntoView({behavior:"smooth"})}
+$("to2").onclick=()=>{
+  const w=$("who").value.trim(),a=$("ask").value.trim(),s=$("said").value.trim();
+  if(!w||!a||!s||st.manner===null){alert("誰に・何を・返ってきた言葉・相手の様子を入れてください。");return}
+  $("rec").innerHTML=`${esc(w)}さんに「${esc(a)}」と伝えた。<br>返事:「${esc(s)}」（${MANNERS[st.manner]}）`;
+  show(2);
+};
+$("to3").onclick=()=>{
+  $("mine").textContent=`あなたの読み: ${GUESS[st.guess][1]}（理由: ${REASONS[st.reason]}）`;
+  $("interps").innerHTML=INTERP.map((x,i)=>`<div class="interp"><b>${"ABC"[i]}. ${x[0]}</b>${x[1]}<div class="hint">手がかり: ${x[2]}</div></div>`).join("");
+  $("cmp").textContent="自分の読みの他にも、上のような見方がありえます。想定していなかったものがあれば、確かめる一言の材料になります。";
+  show(3);
+};
+$("to4").onclick=()=>show(4);
+$("save").onclick=()=>{
+  const li=document.createElement("li");
+  li.textContent=`メモ: 「${$("mytext").value.trim()}」（言えそうか: ${SAY[st.say]}）`;
+  $("log").appendChild(li);
+};
+$("sample").onclick=()=>{
+  $("who").value=SAMPLE.who;$("ask").value=SAMPLE.ask;$("said").value=SAMPLE.said;
+  document.querySelectorAll('input[name=m]')[SAMPLE.manner].click();
+};
+$("reset").onclick=()=>{
+  document.querySelectorAll("input,textarea").forEach(x=>{x.checked=false;if(x.type!="radio")x.value=""});
+  st.manner=st.guess=st.reason=st.say=null;$("log").innerHTML="";$("saynote").textContent="";
+  [...$("say").children].forEach(b=>b.classList.remove("on"));chk2();chk4();show(1);scrollTo(0,0);
+};
+function esc(t){return t.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+</script>
+</body>
+</html>

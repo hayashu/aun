@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>説明練習ペア A5xB4-2</title>
+<style>
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --text: #22291f; --sub: #66705f;
+  --line: #dde2d6; --accent: #3f7a52; --accent-bg: #e4f0e7;
+  --warm: #b7791f; --warm-bg: #fbf1dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161a15; --card: #20261f; --text: #e8ece4; --sub: #9aa592;
+    --line: #333b30; --accent: #7fc296; --accent-bg: #23372a;
+    --warm: #e3b45f; --warm-bg: #382d16;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 16px 48px; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  max-width: 420px; margin-inline: auto; overflow-x: hidden;
+}
+header { padding: 14px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.roles, .steps { display: flex; gap: 6px; margin: 8px 0; }
+.roles button, .steps button { flex: 1; }
+button {
+  font: inherit; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+}
+button.on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+button.main { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+button.ghost { color: var(--sub); }
+.steps button { font-size: 12px; padding: 6px 2px; }
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 12px; padding: 14px; margin: 12px 0;
+}
+.card h2 { font-size: 15px; margin: 0 0 6px; }
+.note { color: var(--sub); font-size: 13px; margin: 4px 0; }
+.who { font-size: 13px; color: var(--accent); font-weight: bold; }
+input, select {
+  font: inherit; width: 100%; padding: 9px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+.row { display: flex; gap: 6px; margin: 8px 0; }
+.row input { flex: 1; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip {
+  background: var(--warm-bg); color: var(--warm); border-radius: 999px;
+  padding: 3px 10px; font-size: 13px;
+}
+.item { border-top: 1px solid var(--line); padding: 10px 0; }
+.item:first-of-type { border-top: 0; }
+.term { font-weight: bold; }
+.tag { font-size: 12px; border-radius: 6px; padding: 1px 7px; margin-left: 4px; }
+.tag.ok { background: var(--accent-bg); color: var(--accent); }
+.tag.wait { background: var(--warm-bg); color: var(--warm); }
+.text-box { background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+.timer { font-size: 28px; font-weight: bold; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>説明練習ペア（5分ずつ説明して「わからなかった言葉」を返し合う）</h1>
+  <small>PRD A5xB4-2 / モック</small>
+</header>
+
+<div class="roles" id="roles"></div>
+<div class="steps" id="steps"></div>
+<div id="view"></div>
+<div class="row">
+  <button id="sample">サンプルを読み込む</button>
+  <button class="ghost" id="reset">最初から</button>
+</div>
+
+<script>
+const SAMPLE = {
+  theme: "電子機器の筐体設計で、ノイズ対策の基板を選んだ場面",
+  scene: "試作の基板でコモンモードノイズが出たので、フェライトコアとシールドを足して抑えました。" +
+    "グランドの取り方も変えて、EMC試験を通しました。",
+  words: ["コモンモードノイズ", "フェライトコア", "グランド", "EMC試験"],
+  rephr: {
+    "コモンモードノイズ": "電線の行きと帰りの両方に同じ向きで乗る、余計な電気の揺れ",
+    "フェライトコア": "電線に通す磁石の入った輪っか。余計な揺れを熱にして逃がす",
+  },
+  ans: { "コモンモードノイズ": "ok", "フェライトコア": "ok", "グランド": "no" },
+};
+const blank = () => ({ role: "speaker", step: 0, theme: "", scene: "", words: [], rephr: {}, ans: {} });
+let S = blank();
+let timer = { sec: 300, id: null };
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ROLES = [["speaker", "説明する人（Bさん）"], ["listener", "聞き手（機械の担当者）"]];
+const STEPS = ["1 題材", "2 書き留め", "3 言い換え", "4 記録"];
+
+function renderNav() {
+  $("roles").innerHTML = ROLES.map(([k, l]) =>
+    `<button class="${S.role === k ? "on" : ""}" data-role="${k}">${l}</button>`).join("");
+  $("steps").innerHTML = STEPS.map((l, i) =>
+    `<button class="${S.step === i ? "on" : ""}" data-step="${i}">${l}</button>`).join("");
+}
+
+function viewTheme() {
+  if (S.role !== "speaker") {
+    return `<div class="card"><h2>説明の題材</h2>
+      <p class="note">題材は説明する人が選びます。いまは説明する人の画面で入力してください。</p>
+      <div class="text-box">${S.theme ? esc(S.theme) : "（まだ決まっていません）"}</div></div>`;
+  }
+  return `<div class="card"><h2>説明の題材</h2>
+    <p class="note">自分の仕事の一場面を選びます。業務の機密に関わらない範囲にしてください。</p>
+    <input id="theme" placeholder="例：基板のノイズ対策を決めた場面" value="${esc(S.theme)}">
+    <p class="note">説明のメモ（5分で話す内容。任意）</p>
+    <input id="scene" placeholder="話す内容のメモ" value="${esc(S.scene)}">
+    <p class="note">この練習は業務の打ち合わせではありません。業務の判断はしません。</p>
+    <button class="main" data-go="1">説明をはじめる</button></div>`;
+}
+
+function viewJot() {
+  const mm = String(Math.floor(timer.sec / 60)).padStart(2, "0");
+  const ss = String(timer.sec % 60).padStart(2, "0");
+  const chips = S.words.map((w) => `<span class="chip">${esc(w)}</span>`).join("");
+  const timerHtml = `<div class="timer" id="timer">${mm}:${ss}</div>
+    <div class="row"><button data-act="timer">${timer.id ? "止める" : "5分をはかる"}</button></div>`;
+  if (S.role === "speaker") {
+    return `<div class="card"><h2>説明中</h2>
+      <p class="note">題材：${esc(S.theme || "（未入力）")}</p>${timerHtml}
+      ${S.scene ? `<div class="text-box">${esc(S.scene)}</div>` : ""}
+      <p class="note">聞き手が書き留めた言葉は、説明が終わるまで見えません。説明を止めずに話してください。</p>
+      <button class="main" data-go="2">説明を終える</button></div>`;
+  }
+  return `<div class="card"><h2>わからなかった言葉を書き留める</h2>
+    <p class="note">聞きながら、わからなかった言葉をそのまま入力して Enter。説明は止めなくて大丈夫です。</p>
+    <div class="row"><input id="word" placeholder="わからなかった言葉" autocomplete="off">
+      <button class="main" data-act="addword">書く</button></div>
+    <div class="chips">${chips || '<span class="note">まだありません</span>'}</div>
+    <p class="note">${S.words.length}語。ルール：3つ以上書く（「わからない」を言いやすくするため）。</p>
+    ${S.words.length ? '<button class="ghost" data-act="undo">最後の1語を消す</button>' : ""}</div>${timerHtml}`;
+}
+
+function viewRephrase() {
+  if (!S.words.length) {
+    return `<div class="card"><p class="note">まだ書き留められた言葉がありません。「2 書き留め」で聞き手が入力します。</p></div>`;
+  }
+  const items = S.words.map((w, i) => {
+    const r = S.rephr[w], a = S.ans[w];
+    let body = "";
+    if (S.role === "speaker") {
+      body = `<div class="row"><input data-r="${i}" placeholder="やさしく言い換えてみる" value="${esc(r || "")}">
+        <button data-act="send" data-i="${i}">出す</button></div>`;
+      if (a === "ok") body += `<span class="tag ok">通じた</span>`;
+      else if (a === "no") body += `<span class="tag wait">もう一度言い換えてみる</span>`;
+    } else if (r) {
+      body = `<div class="text-box">${esc(r)}</div>
+        <div class="row"><button data-act="ans" data-i="${i}" data-v="ok">わかった</button>
+        <button data-act="ans" data-i="${i}" data-v="no">まだわからない</button></div>`;
+      if (a) body += `<span class="tag ${a === "ok" ? "ok" : "wait"}">${a === "ok" ? "わかった" : "まだわからない"}</span>`;
+    } else {
+      body = `<p class="note">言い換えを待っています</p>`;
+    }
+    return `<div class="item"><span class="term">${esc(w)}</span>${body}</div>`;
+  }).join("");
+  const frame = S.role === "speaker"
+    ? "一覧は、直せる箇所の候補です。責めるものではありません。気になるものから、一つずつ試してください。"
+    : "「まだわからない」と返しても大丈夫です。説明を良くするための情報です。";
+  return `<div class="card"><h2>直せる箇所（${S.words.length}）</h2>
+    <p class="note">${frame}</p>${items}
+    <button class="main" data-go="3">記録を見る</button></div>`;
+}
+
+function viewRecord() {
+  const done = S.words.filter((w) => S.ans[w] === "ok" && S.rephr[w]);
+  const left = S.words.filter((w) => S.ans[w] !== "ok");
+  const list = done.map((w) => `<div class="item"><span class="term">${esc(w)}</span>
+    <div class="text-box">${esc(S.rephr[w])}</div></div>`).join("");
+  const rest = left.length
+    ? `<p class="note">まだ通じていない言葉：${left.map(esc).join("、")}（次回の練習へ）</p>` : "";
+  if (S.role === "listener") {
+    return `<div class="card"><h2>この回で通じた言い換え</h2>
+      <p class="note">言い換えの記録は説明する人のものです。聞き手の画面には件数だけ出します。</p>
+      <p>${done.length}件が通じました。</p></div>`;
+  }
+  return `<div class="card"><h2>通じた言い換えの記録</h2>
+    <p class="note">本番の会議の前に見返せます。点数や順位はつけません。</p>
+    ${list || '<p class="note">まだありません。「3 言い換え」で試してください。</p>'}${rest}
+    <p class="note">役を交代して、もう一度同じ流れで練習します。</p>
+    <button data-act="swap">役を交代して最初から</button></div>`;
+}
+
+function render() {
+  renderNav();
+  const views = [viewTheme, viewJot, viewRephrase, viewRecord];
+  $("view").innerHTML = views[S.step]();
+}
+
+function go(step) {
+  if (S.step === 0) {
+    S.theme = ($("theme") || { value: S.theme }).value;
+    S.scene = ($("scene") || { value: S.scene }).value;
+  }
+  S.step = step;
+  render();
+}
+
+function stopTimer() {
+  clearInterval(timer.id);
+  timer.id = null;
+}
+
+function addWord() {
+  const el = $("word");
+  const v = el.value.trim();
+  if (!v) return;
+  if (!S.words.includes(v)) S.words.push(v);
+  render();
+  $("word").focus();
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const d = b.dataset;
+  if (d.role) { S.role = d.role; render(); return; }
+  if (d.step) { go(Number(d.step)); return; }
+  if (d.go) { go(Number(d.go)); return; }
+  if (d.act === "addword") addWord();
+  if (d.act === "undo") { S.words.pop(); render(); }
+  if (d.act === "send") {
+    const v = document.querySelector(`[data-r="${d.i}"]`).value.trim();
+    const w = S.words[d.i];
+    if (v) { S.rephr[w] = v; delete S.ans[w]; }
+    render();
+  }
+  if (d.act === "ans") { S.ans[S.words[d.i]] = d.v; render(); }
+  if (d.act === "timer") {
+    if (timer.id) { stopTimer(); render(); return; }
+    timer.id = setInterval(() => {
+      timer.sec = Math.max(0, timer.sec - 1);
+      const el = $("timer");
+      if (el) el.textContent = String(Math.floor(timer.sec / 60)).padStart(2, "0") + ":" + String(timer.sec % 60).padStart(2, "0");
+      if (timer.sec === 0) stopTimer();
+    }, 1000);
+    render();
+  }
+  if (d.act === "swap") { const r = S.role; S = blank(); S.role = r === "speaker" ? "listener" : "speaker"; stopTimer(); timer.sec = 300; render(); }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.id === "word") addWord();
+});
+
+$("sample").onclick = () => {
+  stopTimer();
+  timer.sec = 300;
+  S = Object.assign(blank(), { theme: SAMPLE.theme, scene: SAMPLE.scene, step: 2 });
+  S.words = [...SAMPLE.words];
+  S.rephr = Object.assign({}, SAMPLE.rephr);
+  S.ans = Object.assign({}, SAMPLE.ans);
+  render();
+};
+$("reset").onclick = () => { stopTimer(); timer.sec = 300; S = blank(); render(); };
+
+render();
+</script>
+</body>
+</html>

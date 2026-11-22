@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>提案ビルダー A3xB1-1</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #6b7280;
+  --line: #d9dde3; --accent: #2b6cb0; --accent-bg: #e6f0fa; --warn: #b45309; --warn-bg: #fdf3e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6e9ed; --sub: #9aa4b0;
+    --line: #36404a; --accent: #6aa9e9; --accent-bg: #1f3347; --warn: #f0b266; --warn-bg: #3a2d1a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 14px; margin: 0; }
+header small { color: var(--sub); }
+main { max-width: 480px; margin: 0 auto; padding: 12px 16px 40px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+h2 { font-size: 15px; margin: 0 0 6px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+textarea, input[type=text] { width: 100%; padding: 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+textarea { min-height: 60px; }
+button { font: inherit; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.chip { font-size: 13px; padding: 4px 10px; border-radius: 14px; }
+.chip.on, .opt.on { background: var(--accent-bg); border-color: var(--accent); }
+.opt { display: block; width: 100%; text-align: left; margin-top: 6px; }
+.opt small { display: block; color: var(--sub); }
+.goal { background: var(--accent-bg); border-radius: 8px; padding: 8px 12px; font-size: 13px; position: sticky; top: 0; }
+.note { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 8px; }
+.tabs { display: flex; gap: 4px; margin: 10px 0; }
+.tabs button { flex: 1; padding: 6px 2px; font-size: 12px; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.hint { font-size: 12px; color: var(--sub); }
+</style>
+</head>
+<body>
+<header>
+  <h1>やりたいことを提案に組み立てる</h1>
+  <small>PRD A3xB1-1 / モック（送信・保存・文書の自動作成はしません）</small>
+</header>
+<main>
+  <div class="row">
+    <button id="roleA" class="chip">Aさんとして</button>
+    <button id="roleB" class="chip">Bさんとして</button>
+    <button id="sample" class="chip primary">サンプルを読み込む</button>
+  </div>
+  <div class="goal" id="goal"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</main>
+<script>
+const SAMPLES = {
+  A: {
+    wish: "評価治具を自作したい",
+    problem: "製品評価のたびに手作業の測定が多く、工数がかかっている",
+    action: "評価治具を自分で設計・試作する",
+    benefit: "評価の工数が減り、課の負担が軽くなる",
+    time: "週に半日を2か月",
+    who: ["係長", "課長"], when: "oneonone"
+  },
+  B: {
+    wish: "もっと手を動かす仕事がしたい",
+    problem: "試作を外注していて、待ち時間と外注費がかかっている",
+    action: "簡単な試作基板を自分で作る",
+    benefit: "試作の待ち時間が短くなり、外注費も減る",
+    time: "月に2日程度",
+    who: ["係長", "課長"], when: "oneonone"
+  }
+};
+const CANDIDATES = ["評価の工数が多い", "試作の待ち時間が長い", "外注費がかさんでいる"];
+const WHO = [
+  ["係長", "日常の仕事を見ている。先に相談すると、課長への出し方を一緒に考えてもらえることがある"],
+  ["課長", "決める立場。直接出すと早いが、背景を知らない状態で聞くことになる"],
+  ["関係する他部署", "利点が他部署にも及ぶ場合。先に味方ができることがある"]
+];
+const WHEN = {
+  oneonone: ["1on1・面談で出す", "落ち着いて聞いてもらえる。時間が決まっているので、返事（可否・条件・時期）をもらいやすい"],
+  busy: ["繁忙期のさなかに出す", "内容に関係なく「今はちょっと」になりやすい。利点が忙しさに隠れる"],
+  chat: ["雑談・忘年会で出す", "場は和やか。ただ個人的な希望として聞かれ、「考えておくよ」で終わりやすい"],
+  after: ["繁忙期が終わった直後に出す", "余裕が戻っている。ただ次の予定が入る前に、早めに出す必要がある"]
+};
+const STEPS = ["1 やりたいこと", "2 業務とのつながり", "3 相手と時期", "4 最初の一言"];
+let S = { role: "B", step: 0, wish: "", problem: "", action: "", benefit: "", time: "", who: [], when: "", pick: -1, mine: "" };
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function render() {
+  $("roleA").classList.toggle("on", S.role === "A");
+  $("roleB").classList.toggle("on", S.role === "B");
+  $("goal").innerHTML = S.wish
+    ? "あなたのやりたいこと: <b>" + esc(S.wish) + "</b><br><span class='hint'>業務に寄せすぎて、ここから離れていないか確かめてください</span>"
+    : "まず「やりたいこと」を書いてください";
+  $("tabs").innerHTML = STEPS.map((t, i) =>
+    "<button class='" + (i === S.step ? "on" : "") + "' data-s='" + i + "'>" + t + "</button>").join("");
+  [step1, step2, step3, step4][S.step]();
+}
+
+function nav(back, next) {
+  return "<div class='row'>" +
+    (back ? "<button data-go='-1'>戻る</button>" : "") +
+    (next ? "<button class='primary' data-go='1'>次へ</button>" : "") + "</div>";
+}
+
+function step1() {
+  $("view").innerHTML = "<div class='card'><h2>手を動かしてやりたいこと</h2>" +
+    "<label>一行で</label><input type='text' id='wish' value='" + esc(S.wish) + "'>" + nav(false, true) + "</div>";
+  $("wish").oninput = e => { S.wish = e.target.value; render0goal(); };
+}
+function render0goal() {
+  $("goal").innerHTML = S.wish ? "あなたのやりたいこと: <b>" + esc(S.wish) + "</b>" : "まず「やりたいこと」を書いてください";
+}
+
+function field(key, label) {
+  return "<label>" + label + "</label><textarea data-f='" + key + "'>" + esc(S[key]) + "</textarea>";
+}
+function step2() {
+  $("view").innerHTML = "<div class='card'><h2>4つに分けて組み立てる</h2>" +
+    field("problem", "① 業務の課題：いま課で困っていることは？") +
+    "<div class='hint'>詰まったら候補から（そのまま使わず、自分の職場に合わせて書き直してください）</div>" +
+    "<div class='row'>" + CANDIDATES.map((c, i) => "<button class='chip' data-c='" + i + "'>" + c + "</button>").join("") + "</div>" +
+    field("action", "② 自分がやること：何を手がける？") +
+    field("benefit", "③ 課にとっての利点：解決するとどうなる？") +
+    field("time", "④ 必要な時間：どれくらい？") +
+    "<div class='note'>つながりが見つからなくても、それは提案にならないという意味ではありません。空欄のまま進めて、1on1で「何に困っているか」を聞く形も選べます。</div>" +
+    nav(true, true) + "</div>";
+}
+
+function step3() {
+  const whoHtml = WHO.map(w => "<button class='opt " + (S.who.includes(w[0]) ? "on" : "") + "' data-w='" + w[0] + "'>" +
+    esc(w[0]) + "<small>" + esc(w[1]) + "</small></button>").join("");
+  const whenHtml = Object.keys(WHEN).map(k => "<button class='opt " + (S.when === k ? "on" : "") + "' data-t='" + k + "'>" +
+    esc(WHEN[k][0]) + "<small>" + esc(WHEN[k][1]) + "</small></button>").join("");
+  const order = S.who.length ? "話す順: " + S.who.join(" → ") : "（相手を選ぶと順序が出ます。選んだ順に話します）";
+  $("view").innerHTML = "<div class='card'><h2>誰に、どの順で</h2>" + whoHtml +
+    "<div class='hint' style='margin-top:8px'>" + esc(order) + "</div>" +
+    "<label>あなたの職場の様子（メモ）</label><input type='text' placeholder='例: 課長は係長の意見をよく聞く' id='memo'>" +
+    "<div class='hint'>順序は職場ごとに違います。どれが正解というわけではありません。</div></div>" +
+    "<div class='card'><h2>いつ、どの場で</h2>" + whenHtml + nav(true, true) + "</div>";
+}
+
+function drafts() {
+  const first = S.who[0] || "課長";
+  const place = S.when === "chat" ? "" : "お時間をいただけますか。";
+  return [
+    first + "、課で困っている「" + (S.problem || "業務の課題") + "」について、解決の案があります。" + place,
+    "「" + (S.wish || "やりたいこと") + "」を、" + (S.benefit || "課の利点") + "という形で進められないか、相談させてください。",
+    "実は" + (S.time || "少しの時間") + "で、" + (S.action || "やりたいこと") + "ことを試したいです。返事は「可否・条件・時期」のどれかで十分です。"
+  ];
+}
+function step4() {
+  const d = drafts();
+  const sel = S.when ? WHEN[S.when][0] : "場は未選択";
+  $("view").innerHTML = "<div class='card'><h2>最初の一言の候補</h2>" +
+    "<div class='hint'>組み立て: " + esc(S.who.join(" → ") || "相手未選択") + " / " + esc(sel) + "</div>" +
+    d.map((t, i) => "<button class='opt " + (S.pick === i ? "on" : "") + "' data-d='" + i + "'>" + esc(t) + "</button>").join("") +
+    "<label>選んだ候補を、自分の言葉に直す</label><textarea id='mine'>" + esc(S.mine) + "</textarea>" +
+    "<div class='note'>下書きは候補です。送信や保存はされません。自分の言葉に直して、自分で伝えてください。</div>" +
+    nav(true, false) + "</div>";
+  $("mine").oninput = e => { S.mine = e.target.value; };
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.s) S.step = +b.dataset.s;
+  else if (b.dataset.go) S.step = Math.max(0, Math.min(3, S.step + +b.dataset.go));
+  else if (b.dataset.c) { S.problem = CANDIDATES[+b.dataset.c]; }
+  else if (b.dataset.w) {
+    const i = S.who.indexOf(b.dataset.w);
+    if (i >= 0) S.who.splice(i, 1); else S.who.push(b.dataset.w);
+  }
+  else if (b.dataset.t) S.when = b.dataset.t;
+  else if (b.dataset.d) { S.pick = +b.dataset.d; S.mine = drafts()[S.pick]; }
+  else if (b.id === "roleA") { S.role = "A"; }
+  else if (b.id === "roleB") { S.role = "B"; }
+  else if (b.id === "sample") { Object.assign(S, JSON.parse(JSON.stringify(SAMPLES[S.role])), { step: 0, pick: -1, mine: "" }); }
+  else return;
+  render();
+});
+document.addEventListener("input", e => {
+  if (e.target.dataset.f) S[e.target.dataset.f] = e.target.value;
+});
+render();
+</script>
+</body>
+</html>

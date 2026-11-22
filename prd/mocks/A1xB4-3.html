@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>制約カレンダー (A1xB4-3)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1d2330; --sub: #5d6676; --line: #d9dde5;
+  --accent: #2b5fd9; --past: #e7e9ee; --hard: #c2410c; --cost: #a16207;
+  --ok: #15803d; --warn-bg: #fff4e5; --mech: #0e7490; --elec: #7c3aed;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --card: #1e232c; --text: #e8ebf1; --sub: #9aa3b2; --line: #333a47;
+    --accent: #7ba2ff; --past: #2a303b; --hard: #fb923c; --cost: #facc15;
+    --ok: #4ade80; --warn-bg: #3a2c18; --mech: #22d3ee; --elec: #a78bfa;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.6 system-ui, sans-serif; }
+header { padding: 12px 16px 8px; }
+h1 { font-size: 16px; margin: 0; }
+.id { color: var(--sub); font-size: 12px; }
+main { padding: 0 16px 32px; max-width: 480px; margin: 0 auto; }
+.bar { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+button, select, input {
+  font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
+}
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.item { display: flex; gap: 8px; align-items: flex-start; }
+.item.past { background: var(--past); }
+.item .d { min-width: 52px; font-weight: 600; }
+.badge { font-size: 11px; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; }
+.mech { color: var(--mech); } .elec { color: var(--elec); }
+.hard { color: var(--hard); } .cost { color: var(--cost); } .okc { color: var(--ok); }
+.small { font-size: 12px; color: var(--sub); }
+.today { display: flex; align-items: center; gap: 8px; color: var(--accent); font-weight: 600; margin: 10px 0; }
+.today::before, .today::after { content: ""; flex: 1; border-top: 2px solid var(--accent); }
+.warn { background: var(--warn-bg); }
+label { display: block; margin: 8px 0 2px; font-size: 12px; color: var(--sub); }
+input, select { width: 100%; }
+h2 { font-size: 14px; margin: 14px 0 4px; }
+.result { border-left: 4px solid var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>設計レビューの変更期限・制約カレンダー</h1>
+  <div class="id">A1xB4-3 ／ モック</div>
+</header>
+<main>
+  <div class="bar" id="roles"></div>
+  <div class="bar" id="tabs"></div>
+  <div class="bar">
+    <button id="sample">サンプルを読み込む</button>
+    <button id="clear">空にする</button>
+  </div>
+  <div class="small">今日の日付（デモ用に変更可）</div>
+  <input type="date" id="today">
+  <div id="view"></div>
+</main>
+<script>
+const ROLES = {
+  mech: { label: "担当者（機械）", field: "機械", tabs: ["cal", "reg"] },
+  elec: { label: "担当者（電気）", field: "電気", tabs: ["cal", "reg"] },
+  chair: { label: "司会者", tabs: ["open", "cal"] },
+  prop: { label: "提案者（Bさん）", tabs: ["check", "cal"] }
+};
+const TABS = { cal: "制約カレンダー", reg: "期限の登録", open: "レビュー冒頭", check: "提案時の照合" };
+const SAMPLE = [
+  { id: 1, field: "機械", name: "組立治具の設計", date: "2026-11-10", reason: "治具の製作開始", kind: "hard", updated: "2026-10-20", next: "" },
+  { id: 2, field: "機械", name: "筐体金型の発注", date: "2026-11-15", reason: "金型を発注済み", kind: "hard", updated: "2026-11-15", next: "2027-01-20（次の金型改修枠）" },
+  { id: 3, field: "電気", name: "長納期部品の手配", date: "2026-11-20", reason: "部品を手配済み", kind: "hard", updated: "2026-11-20", next: "2026-12-18（次回の手配日）" },
+  { id: 4, field: "電気", name: "試作基板の改版", date: "2026-11-27", reason: "改版データの締切", kind: "cost", updated: "2026-11-19", next: "" },
+  { id: 5, field: "機械", name: "外装部品の色変更", date: "2026-12-02", reason: "塗装の手配", kind: "cost", updated: "2026-11-18", next: "" },
+  { id: 6, field: "電気", name: "評価試験の開始", date: "2026-12-10", reason: "試験開始後は仕様を固定", kind: "hard", updated: "2026-11-21", next: "2027-02-01（試験の次の周期）" }
+];
+let state = { role: "chair", tab: "open", items: [], proposal: null };
+const $ = id => document.getElementById(id);
+const todayStr = () => $("today").value;
+const dayDiff = d => Math.round((new Date(d) - new Date(todayStr())) / 86400000);
+const md = d => d.slice(5).replace("-", "/");
+const fcls = f => (f === "機械" ? "mech" : "elec");
+const kindLabel = k => (k === "hard" ? "絶対に変えられない" : "費用をかければ変更可");
+const isStale = it => -dayDiff(it.updated) > 14;
+
+function badge(it) {
+  return `<span class="badge ${fcls(it.field)}">${it.field}</span> ` +
+    `<span class="badge ${it.kind}">${kindLabel(it.kind)}</span>`;
+}
+function stale(it) {
+  return isStale(it) ? `<div class="small warn">最終更新 ${md(it.updated)}。古い情報かもしれません。担当者の確認が必要です</div>` : "";
+}
+function row(it) {
+  const past = dayDiff(it.date) <= 0;
+  return `<div class="card item ${past ? "past" : ""}"><div class="d">${md(it.date)}</div><div>
+    <div><b>${it.name}</b> ${past ? "（変更不可）" : ""}</div>
+    <div>${badge(it)}</div><div class="small">${it.reason} ／ 最終更新 ${md(it.updated)}</div>${stale(it)}</div></div>`;
+}
+function sorted() { return [...state.items].sort((a, b) => a.date.localeCompare(b.date)); }
+
+function viewCal() {
+  if (!state.items.length) return `<div class="card small">登録がありません。「サンプルを読み込む」を押してください。</div>`;
+  let html = "", placed = false;
+  for (const it of sorted()) {
+    if (!placed && dayDiff(it.date) > 0) { html += `<div class="today">今日 ${md(todayStr())}</div>`; placed = true; }
+    html += row(it);
+  }
+  if (!placed) html += `<div class="today">今日 ${md(todayStr())}</div>`;
+  return `<div class="small">灰色は、すでに変更できない項目です。</div>` + html;
+}
+
+function viewOpen() {
+  const last = sorted().filter(it => dayDiff(it.date) <= 0 && dayDiff(it.date) >= -7);
+  const soon = sorted().filter(it => dayDiff(it.date) > 0 && dayDiff(it.date) <= 7);
+  const list = arr => arr.length ? arr.map(row).join("") : `<div class="card small">該当なし</div>`;
+  return `<div class="small">司会者はこの一覧を読み上げてから議題に入ります（目安 3分）。</div>
+    <h2>先週から変更できなくなった項目</h2>${list(last)}
+    <h2>今週中に変更できなくなる項目</h2>${list(soon)}
+    <div class="card small">全分野で「ここまでで認識が違う項目はありますか」と確かめます。</div>`;
+}
+
+function viewCheck() {
+  const opts = sorted().map(it => `<option value="${it.id}" ${state.proposal == it.id ? "selected" : ""}>${it.field}：${it.name}</option>`).join("");
+  let res = "";
+  const it = state.items.find(x => x.id == state.proposal);
+  if (it) {
+    const n = dayDiff(it.date);
+    if (n > 0) {
+      res = `<b class="okc">いまは変更を受けられます</b><div>${md(it.date)} まであと ${n} 日です。早めに ${it.field}分野へ相談できます。</div>`;
+    } else if (it.kind === "cost") {
+      res = `<b class="cost">期限後ですが、費用をかければ変更できます</b>
+        <div>${it.field}分野と、費用と時期を一緒に確かめましょう。</div>`;
+    } else {
+      res = `<b class="hard">次の機会のご案内</b><div>この項目は ${md(it.date)} から変更できません（${it.reason}）。
+        次に変更できる時期：${it.next || "未登録（担当者に確認してください）"}</div>
+        <div class="small">この案は今回の対象外ですが、他の分野側の対策を先に検討できます。</div>`;
+    }
+    res = `<div class="card result">${res}${stale(it)}</div>`;
+  }
+  return `<div class="small">変更を提案する前に、影響する項目を選びます。</div>
+    <label>影響する項目</label>
+    <select id="prop"><option value="">選んでください</option>${opts}</select>${res}`;
+}
+
+function viewReg() {
+  const f = ROLES[state.role].field;
+  const mine = sorted().filter(it => it.field === f);
+  return `<div class="small">${f}分野の変更期限を登録します。日付が変わったら更新してください。</div>
+    <div class="card">
+      <label>項目</label><input id="rn" placeholder="例：筐体金型の発注">
+      <label>変更できなくなる日</label><input id="rd" type="date">
+      <label>理由</label><input id="rr" placeholder="例：発注、改版、試験開始">
+      <label>区分</label><select id="rk"><option value="hard">絶対に変えられない</option><option value="cost">費用をかければ変更可</option></select>
+      <label>次に変更できる時期（任意）</label><input id="rx">
+      <div class="bar"><button id="add">登録する</button></div>
+    </div>
+    <h2>${f}分野の登録（${mine.length}件）</h2>
+    ${mine.map(it => row(it) + `<div class="bar"><button data-touch="${it.id}">更新した（今日付け）</button></div>`).join("")}`;
+}
+
+function render() {
+  const r = ROLES[state.role];
+  $("roles").innerHTML = Object.keys(ROLES).map(k => `<button data-role="${k}" class="${k === state.role ? "on" : ""}">${ROLES[k].label}</button>`).join("");
+  $("tabs").innerHTML = r.tabs.map(t => `<button data-tab="${t}" class="${t === state.tab ? "on" : ""}">${TABS[t]}</button>`).join("");
+  const views = { cal: viewCal, reg: viewReg, open: viewOpen, check: viewCheck };
+  $("view").innerHTML = views[state.tab]();
+  bind();
+}
+
+function bind() {
+  document.querySelectorAll("[data-role]").forEach(b => b.onclick = () => {
+    state.role = b.dataset.role; state.tab = ROLES[state.role].tabs[0]; render();
+  });
+  document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { state.tab = b.dataset.tab; render(); });
+  const p = $("prop");
+  if (p) p.onchange = () => { state.proposal = p.value; render(); };
+  const add = $("add");
+  if (add) add.onclick = () => {
+    if (!$("rn").value || !$("rd").value) return;
+    state.items.push({
+      id: Date.now(), field: ROLES[state.role].field, name: $("rn").value, date: $("rd").value,
+      reason: $("rr").value || "（理由未記入）", kind: $("rk").value, updated: todayStr(), next: $("rx").value
+    });
+    render();
+  };
+  document.querySelectorAll("[data-touch]").forEach(b => b.onclick = () => {
+    state.items.find(x => x.id == b.dataset.touch).updated = todayStr(); render();
+  });
+}
+
+$("today").value = "2026-11-22";
+$("today").onchange = render;
+$("sample").onclick = () => { state.items = SAMPLE.map(x => ({ ...x })); render(); };
+$("clear").onclick = () => { state.items = []; state.proposal = null; render(); };
+render();
+</script>
+</body>
+</html>

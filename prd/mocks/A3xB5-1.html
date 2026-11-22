@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>失敗報告トレーナー (A3xB5-1)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #62707d;
+  --line: #d8dee4; --accent: #2f6f8f; --accent-bg: #e3f0f6;
+  --warn: #b3261e; --warn-bg: #fdecea; --ok-bg: #e8f4ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #7fbad6; --accent-bg: #1f3441;
+    --warn: #f2928b; --warn-bg: #3a2220; --ok-bg: #1f3324;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 16px; }
+header small { color: var(--sub); }
+main { padding: 16px; max-width: 420px; margin: 0 auto; }
+nav { display: flex; gap: 4px; margin-bottom: 12px; }
+nav button {
+  flex: 1; padding: 8px 2px; font-size: 12px; border: 1px solid var(--line);
+  background: var(--card); color: var(--sub); border-radius: 6px;
+}
+nav button.on { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); font-weight: bold; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+.sub { color: var(--sub); font-size: 13px; }
+.alert { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+button.main {
+  width: 100%; padding: 10px; border: 0; border-radius: 6px; font-size: 15px;
+  background: var(--accent); color: var(--bg); margin-top: 8px;
+}
+button.ghost {
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--text); font-size: 13px;
+}
+label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+input[type=text], textarea, select {
+  width: 100%; padding: 8px; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+}
+textarea { min-height: 110px; resize: vertical; }
+.scene { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
+.scene.on { border-color: var(--accent); background: var(--accent-bg); }
+.pair { display: grid; gap: 8px; }
+.box { border-radius: 6px; padding: 8px; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+.mine { background: var(--bg); border: 1px dashed var(--line); }
+.tmpl { background: var(--accent-bg); }
+.ok { background: var(--ok-bg); }
+.row { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; }
+.row input { flex: none; }
+.tabs2 { display: flex; gap: 6px; margin-bottom: 8px; }
+.tabs2 button { flex: 1; }
+.tabs2 button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.note { font-size: 12px; color: var(--sub); margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>失敗報告トレーナー</h1>
+  <small>PRD A3xB5-1 ／ 練習の場です。報告するのは本人です。</small>
+</header>
+<main>
+  <nav id="nav"></nav>
+  <div id="view"></div>
+</main>
+
+<script>
+const SCENES = [
+  { id: 1, title: "評価ボードの電源を逆につなぎ、部品から煙が出た", danger: true },
+  { id: 2, title: "試作ボードを机から落とした（動作は未確認）", danger: false },
+  { id: 3, title: "測定器の設定を変えてしまい、元に戻せない", danger: false }
+];
+const PARTS = [
+  ["すぐに", "気づいた時点で、その場で伝える"],
+  ["何が起きたか", "事実だけを短く（例: 電源を逆につなぎ、部品が焼けた）"],
+  ["いまの状態", "電源は切ったか、他に影響はないか"],
+  ["自分がしたこと", "確認・対応したこと"],
+  ["相談したいこと", "次にどうしたらよいか"]
+];
+const REACTIONS = {
+  now: "「教えてくれてありがとう。まず電源は切れてるね。部品は予備があるから、次は接続前に一緒に確認しよう。」\n（すぐに伝えた場合に出やすい、穏やかな反応の例）",
+  later: "「どうして昨日のうちに言わなかったの？ 他の人が触っていたら危なかったよ。」\n（翌日に伝えた場合に出やすい反応の例。壊したことより、遅れが話題になりやすい）"
+};
+const SAMPLE = {
+  who: "直属の先輩", when: "気づいた直後",
+  text: "昨日、評価ボードの電源を逆につないでしまいました。たぶん部品が一つ焼けています。申し訳ありません。どうしたらよいでしょうか。"
+};
+const state = {
+  tab: "scene", scene: SCENES[0], draft: { who: "", when: "", text: "" },
+  checks: [false, false, false, false, false], rx: "now",
+  saved: [], workplace: "", compared: false
+};
+const TABS = [["scene", "場面"], ["write", "書く"], ["compare", "型と比べる"], ["react", "反応の例"], ["mine", "自分の型"]];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function go(tab) { state.tab = tab; render(); }
+
+function renderNav() {
+  $("nav").innerHTML = TABS.map(([k, v]) =>
+    `<button class="${state.tab === k ? "on" : ""}" onclick="go('${k}')">${v}</button>`).join("");
+}
+
+function safetyAlert() {
+  if (!state.scene.danger) return "";
+  return `<div class="alert"><b>煙・発火など安全に関わる場面です。</b><br>
+    まず既存の安全手順（電源遮断・退避・安全担当への連絡）に従ってください。報告の練習はそのあとです。</div>`;
+}
+
+function viewScene() {
+  return `<div class="card"><h2>失敗の場面を選ぶ</h2>
+    <p class="sub">職場に近い場面を選んでください。</p>
+    ${SCENES.map((s) => `<button class="scene ${s.id === state.scene.id ? "on" : ""}" onclick="pick(${s.id})">${esc(s.title)}</button>`).join("")}
+    <button class="main" onclick="go('write')">この場面で書いてみる</button>
+    <button class="ghost" style="margin-top:8px" onclick="loadSample()">サンプルを読み込む</button></div>`;
+}
+
+function viewWrite() {
+  const d = state.draft;
+  return `${safetyAlert()}<div class="card"><h2>場面: ${esc(state.scene.title)}</h2>
+    <p class="sub">型を見る前に、いつもの自分の言葉で書いてみてください。正解はありません。</p>
+    <label>誰に伝える？</label>
+    <input type="text" id="who" value="${esc(d.who)}" placeholder="例: 直属の先輩">
+    <label>いつ伝える？</label>
+    <input type="text" id="when" value="${esc(d.when)}" placeholder="例: 気づいた直後">
+    <label>どう伝える？（報告の言葉）</label>
+    <textarea id="text">${esc(d.text)}</textarea>
+    <button class="main" onclick="submitDraft()">書いた。型と並べて見る</button>
+    <p class="note">この内容は送信されません。端末内で表示するだけです。</p></div>`;
+}
+
+function viewCompare() {
+  if (!state.compared) return `<div class="card"><p>先に「書く」で自分の報告を書いてください。</p>
+    <button class="main" onclick="go('write')">書きにいく</button></div>`;
+  const d = state.draft;
+  return `${safetyAlert()}<div class="card"><h2>並べて比べる</h2>
+    <div class="pair">
+      <div><div class="sub">あなたの報告（${esc(d.who || "宛先未記入")} ／ ${esc(d.when || "時期未記入")}）</div>
+        <div class="box mine">${esc(d.text)}</div></div>
+      <div><div class="sub">伝わりやすい型</div>
+        <div class="box tmpl">${PARTS.map(([a, b], i) => `${i + 1}. ${a}: ${b}`).join("\n")}</div></div>
+    </div></div>
+    <div class="card"><h2>自分の報告を見返す</h2>
+    <p class="sub">入っていた項目にチェックしてください（自分で気づくためのもので、点数にはなりません）。</p>
+    ${PARTS.map(([a], i) => `<div class="row"><input type="checkbox" id="c${i}" ${state.checks[i] ? "checked" : ""} onchange="state.checks[${i}]=this.checked;render()">
+      <label for="c${i}" style="margin:0;color:var(--text)">${a}</label></div>`).join("")}
+    <div class="box ok">${habitNote()}</div>
+    <button class="main" onclick="saveMine()">型を自分の言葉で書き直して保存</button></div>`;
+}
+
+function habitNote() {
+  const miss = PARTS.filter((_, i) => !state.checks[i]).map((p) => p[0]);
+  if (!miss.length) return "5つの項目がそろっています。";
+  return "入っていなかった項目: " + miss.join("、") + "。\nこれは「あなたの癖」のヒントです。良し悪しの判定ではありません。";
+}
+
+function viewReact() {
+  const ws = state.workplace;
+  return `<div class="card"><h2>相手の反応の例</h2>
+    <div class="tabs2">
+      <button class="ghost ${state.rx === "now" ? "on" : ""}" onclick="state.rx='now';render()">すぐに伝えた</button>
+      <button class="ghost ${state.rx === "later" ? "on" : ""}" onclick="state.rx='later';render()">翌日に伝えた</button>
+    </div>
+    <div class="box ${state.rx === "now" ? "ok" : "mine"}">${esc(REACTIONS[state.rx])}</div>
+    <p class="note">反応は職場や人によって違います。あくまで例です。</p></div>
+    <div class="card"><h2>自分の職場の様子を書き足す</h2>
+    <textarea id="ws" placeholder="例: うちの先輩は、まず状態を聞いてくる">${esc(ws)}</textarea>
+    <button class="ghost" style="margin-top:8px" onclick="state.workplace=$('ws').value;render()">書き足しを保存</button></div>`;
+}
+
+function viewMine() {
+  const items = state.saved.map((s, i) => `<div class="card"><div class="sub">${esc(s.scene)}</div>
+    <div class="box tmpl">${esc(s.text)}</div>
+    <button class="ghost" style="margin-top:8px" onclick="state.saved.splice(${i},1);render()">削除</button></div>`).join("");
+  return `<div class="card"><h2>自分の報告の型</h2>
+    <p class="sub">実際に失敗したとき、ここをすぐ見返せます。</p></div>
+    ${items || `<p class="sub">まだ保存がありません。</p>`}`;
+}
+
+function pick(id) { state.scene = SCENES.find((s) => s.id === id); render(); }
+
+function loadSample() {
+  state.scene = SCENES[0];
+  state.draft = { ...SAMPLE };
+  state.checks = [false, true, false, false, true];
+  state.compared = true;
+  state.workplace = "うちの先輩は、まず「いまの状態」を聞いてくる。";
+  state.saved = [{
+    scene: SCENES[1].title,
+    text: "すぐ言います。ボードを落としました。電源は入れていません。見た目の傷はなし。動作確認の仕方を教えてください。"
+  }];
+  go("compare");
+}
+
+function submitDraft() {
+  state.draft = { who: $("who").value, when: $("when").value, text: $("text").value };
+  if (!state.draft.text.trim()) { alert("報告の言葉を書いてみてください。"); return; }
+  state.compared = true;
+  go("compare");
+}
+
+function saveMine() {
+  const t = prompt("自分の言葉で書いた報告の型", PARTS.map(([a]) => a).join("・"));
+  if (t) { state.saved.push({ scene: state.scene.title, text: t }); go("mine"); }
+}
+
+function render() {
+  renderNav();
+  const v = { scene: viewScene, write: viewWrite, compare: viewCompare, react: viewReact, mine: viewMine };
+  $("view").innerHTML = v[state.tab]();
+}
+render();
+</script>
+</body>
+</html>

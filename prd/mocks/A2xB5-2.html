@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>試作室の付き添い予約（A2xB5-2）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #62707d;
+  --line: #d8dde3; --accent: #2b6cb0; --accent-text: #ffffff;
+  --ok: #2f855a; --warn: #b7791f; --warn-bg: #fdf6e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #35404a; --accent: #63a4e8; --accent-text: #0e1318;
+    --ok: #6fcf97; --warn: #e0b04a; --warn-bg: #2b2616;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 12px 16px 8px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.roles, .tabs { display: flex; gap: 6px; margin: 8px 0; }
+.roles button, .tabs button { flex: 1; padding: 8px 4px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); border-radius: 8px; font-size: 13px; }
+.roles button.on, .tabs button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+.card h2 { font-size: 14px; margin: 0 0 6px; }
+.sub { color: var(--sub); font-size: 13px; }
+label { display: block; font-size: 13px; margin: 8px 0 4px; color: var(--sub); }
+select, input[type=text], textarea { width: 100%; padding: 8px; font-size: 15px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+button.primary { width: 100%; margin-top: 10px; padding: 10px; border: 0; border-radius: 8px;
+  background: var(--accent); color: var(--accent-text); font-size: 15px; }
+button.ghost { padding: 6px 10px; border: 1px solid var(--line); background: transparent;
+  color: var(--text); border-radius: 6px; font-size: 13px; }
+.slot { display: block; width: 100%; text-align: left; padding: 8px 10px; margin: 6px 0;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 14px; }
+.slot.on { border-color: var(--accent); outline: 2px solid var(--accent); }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--sub); }
+.tag.ok { color: var(--ok); border-color: var(--ok); }
+.tag.warn { color: var(--warn); border-color: var(--warn); background: var(--warn-bg); }
+.hint li { margin: 4px 0; }
+.note { background: var(--warn-bg); border-left: 3px solid var(--warn); padding: 8px 10px; font-size: 13px; border-radius: 4px; }
+.empty { text-align: center; color: var(--sub); padding: 16px 0; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.row select { flex: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>試作室の付き添い予約</h1>
+  <small>A2xB5-2 ／ 初回だけ一緒に使い、暗黙のルールをその場で伝える</small>
+</header>
+<main>
+  <div class="top">
+    <span class="sub">役割を切り替えて試せます</span>
+    <button class="ghost" id="sample">サンプルを読み込む</button>
+  </div>
+  <div class="roles" id="roles"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</main>
+<script>
+const ROLES = { junior: "若手（Bさん）", senior: "先輩", chief: "部門長" };
+const TABS = {
+  junior: [["ask", "付き添いを頼む"], ["after", "付き添いのあと"]],
+  senior: [["slots", "付き添える設備"], ["guide", "伝えることの目安"], ["after", "付き添いのあと"]],
+  chief: [["list", "付き添える人の一覧"]]
+};
+const GUIDE = {
+  "恒温槽": ["予約：使う日の前に予約表へ書く", "事前の一声：長期試験の担当（品質）へ前日までに一声かける",
+    "片付け：扉を閉め、設定温度を元に戻す", "混む時間帯：月末の午後は試験が集中する"],
+  "オシロスコープ": ["予約：予約表に使う時間を書く", "事前の一声：隣の席の人に借りることを伝える",
+    "片付け：設定を初期化してから戻る", "混む時間帯：午前の早い時間は空きやすい"],
+  "はんだ付け設備": ["予約：予約表に書く", "事前の一声：換気の使用を周りに伝える",
+    "片付け：こて先を拭き、電源を切って冷めるのを確認", "混む時間帯：昼前は混みやすい"]
+};
+const EQUIP = ["恒温槽", "オシロスコープ", "はんだ付け設備", "3Dプリンタ"];
+const LIMIT = 2; // 一人あたりの付き添い上限（受付中の依頼）
+const SAMPLE = {
+  slots: [
+    { id: 1, who: "田中さん", equip: "恒温槽", time: "火 15:00〜15:30" },
+    { id: 2, who: "田中さん", equip: "オシロスコープ", time: "木 10:00〜10:30" },
+    { id: 3, who: "佐藤さん", equip: "オシロスコープ", time: "水 14:00〜14:30" },
+    { id: 4, who: "鈴木さん", equip: "はんだ付け設備", time: "金 11:00〜11:30" }
+  ],
+  requests: [], afters: []
+};
+let state = JSON.parse(localStorage.getItem("a2xb52") || "null") || { slots: [], requests: [], afters: [] };
+let role = "junior", tab = "ask", pick = null, equipSel = "";
+const save = () => localStorage.setItem("a2xb52", JSON.stringify(state));
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const nextId = (a) => a.reduce((m, x) => Math.max(m, x.id), 0) + 1;
+
+function renderNav() {
+  $("#roles").innerHTML = Object.keys(ROLES).map((r) =>
+    `<button class="${r === role ? "on" : ""}" data-role="${r}">${ROLES[r]}</button>`).join("");
+  $("#tabs").innerHTML = TABS[role].map(([k, n]) =>
+    `<button class="${k === tab ? "on" : ""}" data-tab="${k}">${n}</button>`).join("");
+}
+function render() {
+  renderNav();
+  const v = { ask: viewAsk, after: viewAfter, slots: viewSlots, guide: viewGuide, list: viewList }[tab];
+  $("#view").innerHTML = v();
+}
+
+function viewAsk() {
+  const opts = EQUIP.map((e) => `<option ${e === equipSel ? "selected" : ""}>${e}</option>`).join("");
+  const free = state.slots.filter((s) => s.equip === equipSel && !s.taken);
+  let slots = "";
+  if (equipSel) {
+    slots = free.length ? free.map((s) =>
+      `<button class="slot ${pick === s.id ? "on" : ""}" data-pick="${s.id}">${esc(s.who)}　${esc(s.time)}</button>`).join("")
+      : `<div class="empty">この設備で付き添える人はまだいません</div>`;
+  }
+  const mine = state.requests.map((r) =>
+    `<div class="card"><b>${esc(r.equip)}</b> ／ ${esc(r.who)} ${esc(r.time)}<br>
+     <span class="sub">したいこと：${esc(r.purpose)}</span><br><span class="tag ok">依頼済み</span></div>`).join("");
+  return `<div class="card"><h2>初めて使う設備を、慣れた人と一度だけ</h2>
+    <p class="sub">30分ほど。作業は自分で行い、先輩は予約や片付けの作法を隣で伝えます。</p>
+    <label>使いたい設備</label>
+    <select id="equip"><option value="">選んでください</option>${opts}</select>
+    ${equipSel ? `<label>付き添える先輩の時間帯（一つ選ぶ）</label>${slots}` : ""}
+    <label>何をしたいか（一行）</label>
+    <input type="text" id="purpose" maxlength="60" placeholder="例：基板の温度試験を一度やってみたい">
+    <button class="primary" id="send">付き添いを頼む</button>
+    <p class="sub" id="msg"></p></div>
+    ${mine ? `<h2 class="sub">あなたの依頼</h2>${mine}` : ""}`;
+}
+
+function viewSlots() {
+  const mine = state.slots.filter((s) => s.who === "あなた");
+  const list = mine.map((s) => `<div class="row"><span style="flex:1">${esc(s.equip)} ／ ${esc(s.time)}</span>
+    <button class="ghost" data-del="${s.id}">取り消す</button></div>`).join("") || `<div class="empty">まだ登録がありません</div>`;
+  const opts = EQUIP.map((e) => `<option>${e}</option>`).join("");
+  const reqs = state.requests.filter((r) => r.who === "あなた");
+  return `<div class="card"><h2>付き添える設備と時間帯を登録</h2>
+    <p class="sub">週に1〜2回、30分ほどで大丈夫です。受付中の依頼は${LIMIT}件までです。</p>
+    <label>設備</label><select id="s-equip">${opts}</select>
+    <label>時間帯</label><input type="text" id="s-time" placeholder="例：火 15:00〜15:30">
+    <button class="primary" id="add-slot">登録する</button></div>
+    <div class="card"><h2>登録済み</h2>${list}</div>
+    ${reqs.length ? `<div class="card"><h2>届いている依頼</h2>${reqs.map((r) =>
+      `<div class="row"><span>${esc(r.equip)}：${esc(r.purpose)}</span></div>`).join("")}</div>` : ""}`;
+}
+
+function viewGuide() {
+  const items = state.requests.filter((r) => r.who === "あなた");
+  const eq = items.length ? items[0].equip : "恒温槽";
+  const g = (GUIDE[eq] || ["予約", "事前の一声", "片付け", "混む時間帯"]).map((x) => `<li>${esc(x)}</li>`).join("");
+  const sel = Object.keys(GUIDE).map((e) => `<option ${e === eq ? "selected" : ""}>${e}</option>`).join("");
+  return `<div class="card"><h2>この設備で伝えるとよいこと</h2>
+    <label>設備を切り替えて見る</label><select id="g-equip">${sel}</select>
+    <ul class="hint">${g}</ul>
+    <div class="note">作業は若手が自分で行います。手伝わずに、見守りながら自分の言葉で伝えてください。操作の研修は別の場です。</div></div>`;
+}
+
+function viewAfter() {
+  if (role === "junior") {
+    const done = state.requests.filter((r) => !r.done);
+    const opts = done.map((r) => `<option value="${r.id}">${esc(r.equip)}（${esc(r.who)} ${esc(r.time)}）</option>`).join("");
+    const old = state.afters.filter((a) => a.note).map((a) =>
+      `<div class="card">${esc(a.equip)}：${esc(a.note)}${a.verdict ? `<br><span class="tag ok">${esc(a.verdict)}</span>` : ""}</div>`).join("");
+    return `<div class="card"><h2>付き添いのあとの一言</h2>
+      ${done.length ? `<label>付き添ってもらった設備</label><select id="a-req">${opts}</select>
+      <label>わかったこと（一行）</label><input type="text" id="a-note" maxlength="60" placeholder="例：使う前日に品質へ一声かける">
+      <button class="primary" id="send-note">書く</button>` : `<div class="empty">一言を書く付き添いはありません</div>`}</div>${old}`;
+  }
+  const open = state.afters.filter((a) => a.note && !a.verdict);
+  return open.length ? open.map((a) => `<div class="card"><b>${esc(a.equip)}</b><br>
+    <span class="sub">若手の一言：</span>${esc(a.note)}
+    <div class="row"><button class="ghost" data-v="次は一人で大丈夫" data-id="${a.id}" style="flex:1">次は一人で大丈夫</button>
+    <button class="ghost" data-v="もう一度一緒に" data-id="${a.id}" style="flex:1">もう一度一緒に</button></div></div>`).join("")
+    : `<div class="card empty">若手の一言はまだありません</div>`;
+}
+
+function viewList() {
+  const rows = EQUIP.map((e) => {
+    const names = [...new Set(state.slots.filter((s) => s.equip === e).map((s) => s.who))];
+    return `<div class="card"><div class="top"><b>${e}</b>
+      ${names.length ? `<span class="tag ok">${names.length}人</span>` : `<span class="tag warn">付き添える人がいません</span>`}</div>
+      <div class="sub">${names.length ? esc(names.join("、")) : "声かけが必要です"}</div></div>`;
+  }).join("");
+  return `${rows}<p class="sub">個人ごとの付き添い回数は集計しません。評価には使いません。</p>`;
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  if (t.dataset.role) { role = t.dataset.role; tab = TABS[role][0][0]; render(); }
+  else if (t.dataset.tab) { tab = t.dataset.tab; render(); }
+  else if (t.dataset.pick) { pick = +t.dataset.pick; render(); }
+  else if (t.dataset.del) { state.slots = state.slots.filter((s) => s.id !== +t.dataset.del); save(); render(); }
+  else if (t.dataset.v) { state.afters.find((a) => a.id === +t.dataset.id).verdict = t.dataset.v; save(); render(); }
+  else if (t.id === "sample") { state = JSON.parse(JSON.stringify(SAMPLE)); save(); pick = null; equipSel = ""; render(); }
+  else if (t.id === "send") sendRequest();
+  else if (t.id === "add-slot") addSlot();
+  else if (t.id === "send-note") sendNote();
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "equip") { equipSel = e.target.value; pick = null; render(); }
+  if (e.target.id === "g-equip") {
+    const g = GUIDE[e.target.value].map((x) => `<li>${esc(x)}</li>`).join("");
+    document.querySelector(".hint").innerHTML = g;
+  }
+});
+
+function sendRequest() {
+  const purpose = $("#purpose").value.trim();
+  const s = state.slots.find((x) => x.id === pick);
+  if (!s || !purpose) { $("#msg").textContent = "時間帯と、したいことを一行入力してください。"; return; }
+  const load = state.requests.filter((r) => r.who === s.who && !r.done).length;
+  if (load >= LIMIT) { $("#msg").textContent = `${s.who}は受付がいっぱいです。他の先輩を選んでください。`; return; }
+  state.requests.push({ id: nextId(state.requests), who: s.who, equip: s.equip, time: s.time, purpose, done: false });
+  save(); pick = null; render();
+}
+function addSlot() {
+  const time = $("#s-time").value.trim();
+  if (!time) return;
+  state.slots.push({ id: nextId(state.slots), who: "あなた", equip: $("#s-equip").value, time });
+  save(); render();
+}
+function sendNote() {
+  const note = $("#a-note").value.trim();
+  if (!note) return;
+  const r = state.requests.find((x) => x.id === +$("#a-req").value);
+  r.done = true;
+  state.afters.push({ id: nextId(state.afters), equip: r.equip, note, verdict: "" });
+  save(); render();
+}
+render();
+</script>
+</body>
+</html>

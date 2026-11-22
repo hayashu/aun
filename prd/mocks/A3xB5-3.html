@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>失敗共有会 モック (A3xB5-3)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #616e7c;
+  --line: #d9dee3; --accent: #2f6f6a; --accent-bg: #e3f1ef; --warn: #fff4d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #6cc2ba; --accent-bg: #1f3532; --warn: #3a3217;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+button, select, input, textarea { font: inherit; color: var(--text); }
+button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+button.on { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+label { display: block; font-weight: bold; margin: 10px 0 2px; font-size: 14px; }
+textarea, input[type=text], select { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 6px; background: var(--bg); }
+textarea { min-height: 52px; }
+.note { color: var(--sub); font-size: 13px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); margin-right: 4px; }
+.banner { background: var(--accent-bg); border-radius: 8px; padding: 8px 10px; font-size: 14px; margin-bottom: 10px; }
+.rule { background: var(--warn); border-radius: 8px; padding: 8px 10px; font-size: 14px; margin-bottom: 10px; }
+.timer { font-size: 40px; text-align: center; font-weight: bold; }
+.timer.over { color: #c0392b; }
+dl { margin: 6px 0 0; }
+dt { font-weight: bold; font-size: 13px; color: var(--sub); }
+dd { margin: 0 0 4px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>月例・失敗共有会</h1>
+  <small>誰の責任かを問わない / PRD A3xB5-3</small>
+</header>
+<main>
+  <div class="row" id="roles"></div>
+  <div class="row" id="tabs"></div>
+  <div class="row">
+    <button id="sample">サンプルを読み込む</button>
+    <button id="clear">全消去</button>
+  </div>
+  <div id="view"></div>
+</main>
+<script>
+var TYPES = ['電源', '取り扱い', '設定', '測定'];
+var ROLES = ['Bさん（若手）', 'ベテラン', '進行役（リーダー）'];
+var TABS = ['登録', '一覧', '共有会'];
+var state = { role: 0, tab: 1, items: [], cur: 0, left: 300, timer: null, filter: '' };
+var nextId = 1;
+
+var SAMPLE = [
+  { type: '電源', veteran: true, anon: false, who: 'Cさん（入社15年）',
+    what: '入社2年目に評価ボードの電源を逆につなぎ、部品を焼いた。',
+    why: '端子の極性表示を確認せずにつないだ。',
+    how: 'その場で先輩に伝え、部品を交換した。',
+    next: '通電前にテスターで極性を確認する。' },
+  { type: '電源', veteran: true, anon: false, who: 'Dさん（入社10年）',
+    what: '試作機の電源を逆接続して、基板の一部が焼けた。',
+    why: 'ケーブルの色が前の機種と逆だった。',
+    how: '当日中にチームに共有し、基板を作り直した。',
+    next: 'ケーブルに極性ラベルを貼る。' },
+  { type: '電源', veteran: false, anon: true, who: '',
+    what: '評価ボードに規定より高い電圧をかけた。',
+    why: '電源の出力設定を前回のままにしていた。',
+    how: 'すぐ電源を切り、ボードを点検した。',
+    next: '通電前に設定電圧を声に出して確認する。' },
+  { type: '設定', veteran: false, anon: true, who: '',
+    what: '測定器の設定を戻さず、次の人が間違ったデータを取った。',
+    why: '使い終わりの手順が決まっていなかった。',
+    how: '測定をやり直した。',
+    next: '使用後に初期設定へ戻すチェック表を置く。' },
+  { type: '取り扱い', veteran: false, anon: false, who: 'Eさん',
+    what: '静電気対策をせずに基板を触った。',
+    why: 'リストストラップが手元になかった。',
+    how: '基板を動作確認し、問題なかった。',
+    next: '作業台にストラップを常備する。' }
+];
+
+var SUMMARY = {
+  '電源': '通電前に極性と設定電圧を確認し、ケーブルに極性ラベルを貼る。'
+};
+
+function el(tag, attrs, text) {
+  var e = document.createElement(tag);
+  for (var k in attrs || {}) { e[k] = attrs[k]; }
+  if (text !== undefined) { e.textContent = text; }
+  return e;
+}
+
+function count(type) {
+  return state.items.filter(function (i) { return i.type === type; }).length;
+}
+
+function renderNav() {
+  var r = document.getElementById('roles');
+  r.innerHTML = '';
+  ROLES.forEach(function (name, i) {
+    var b = el('button', { className: state.role === i ? 'on' : '' }, name);
+    b.onclick = function () { state.role = i; render(); };
+    r.appendChild(b);
+  });
+  var t = document.getElementById('tabs');
+  t.innerHTML = '';
+  TABS.forEach(function (name, i) {
+    var b = el('button', { className: state.tab === i ? 'on' : '' }, name);
+    b.onclick = function () { state.tab = i; render(); };
+    t.appendChild(b);
+  });
+}
+
+function field(form, id, label, ph) {
+  form.appendChild(el('label', { htmlFor: id }, label));
+  var ta = el('textarea', { id: id, placeholder: ph });
+  form.appendChild(ta);
+}
+
+function renderRegister(v) {
+  v.appendChild(el('div', { className: 'banner' },
+    '書くのは4項目だけです。「誰の責任か」を書く欄はありません。共有された失敗は評価に使いません。'));
+  var f = el('div', { className: 'card' });
+  f.appendChild(el('label', { htmlFor: 'f-type' }, '失敗の種類'));
+  var sel = el('select', { id: 'f-type' });
+  TYPES.forEach(function (t) { sel.appendChild(el('option', { value: t }, t)); });
+  f.appendChild(sel);
+  field(f, 'f-what', '何が起きたか', '例: 評価ボードの電源を逆につないだ');
+  field(f, 'f-why', 'なぜ起きたか', '例: 極性を確認しなかった');
+  field(f, 'f-how', 'どう対応したか', '例: すぐ先輩に伝えた');
+  field(f, 'f-next', '次にどうするか', '例: 通電前に確認する');
+  f.appendChild(el('label', { htmlFor: 'f-anon' }, '登録の仕方'));
+  var an = el('select', { id: 'f-anon' });
+  an.appendChild(el('option', { value: '1' }, '匿名で登録'));
+  an.appendChild(el('option', { value: '0' }, '名前付きで登録（あとから匿名に変えられます）'));
+  f.appendChild(an);
+  f.appendChild(el('p', { className: 'note' },
+    '少人数で誰かわかりそうなときは、細部を伏せて、種類と防ぎ方を中心に書けます。'));
+  var save = el('button', { className: 'primary' }, '登録する');
+  save.onclick = function () {
+    var what = document.getElementById('f-what').value.trim();
+    var next = document.getElementById('f-next').value.trim();
+    if (!what || !next) { alert('「何が起きたか」と「次にどうするか」は入力してください。'); return; }
+    var anon = document.getElementById('f-anon').value === '1';
+    state.items.push({
+      type: document.getElementById('f-type').value,
+      veteran: state.role === 1,
+      anon: anon,
+      who: anon ? '' : ROLES[state.role].replace(/（.*）/, ''),
+      what: what,
+      why: document.getElementById('f-why').value.trim(),
+      how: document.getElementById('f-how').value.trim(),
+      next: next
+    });
+    state.tab = 1;
+    render();
+  };
+  f.appendChild(save);
+  v.appendChild(f);
+}
+
+function itemCard(it, idx) {
+  var c = el('div', { className: 'card' });
+  var head = el('div');
+  head.appendChild(el('span', { className: 'tag' }, it.type));
+  if (it.veteran) { head.appendChild(el('span', { className: 'tag' }, 'ベテランの失敗談')); }
+  head.appendChild(el('span', { className: 'note' }, it.anon ? '匿名' : it.who));
+  c.appendChild(head);
+  var dl = el('dl');
+  [['何が起きたか', it.what], ['なぜ起きたか', it.why], ['どう対応したか', it.how], ['次にどうするか', it.next]]
+    .forEach(function (p) {
+      if (!p[1]) { return; }
+      dl.appendChild(el('dt', {}, p[0]));
+      dl.appendChild(el('dd', {}, p[1]));
+    });
+  c.appendChild(dl);
+  if (!it.anon) {
+    var b = el('button', {}, '匿名に変える');
+    b.onclick = function () { it.anon = true; render(); };
+    c.appendChild(b);
+  }
+  return c;
+}
+
+function renderList(v) {
+  if (!state.items.length) {
+    v.appendChild(el('p', { className: 'note' }, 'まだ登録がありません。「サンプルを読み込む」を押してください。'));
+    return;
+  }
+  var chips = el('div', { className: 'row' });
+  var all = el('button', { className: state.filter === '' ? 'on' : '' }, 'すべて ' + state.items.length);
+  all.onclick = function () { state.filter = ''; render(); };
+  chips.appendChild(all);
+  TYPES.forEach(function (t) {
+    var n = count(t);
+    if (!n) { return; }
+    var b = el('button', { className: state.filter === t ? 'on' : '' }, t + ' ' + n + '回');
+    b.onclick = function () { state.filter = t; render(); };
+    chips.appendChild(b);
+  });
+  v.appendChild(chips);
+  if (state.filter) {
+    var n = count(state.filter);
+    var msg = n >= 2
+      ? '「' + state.filter + '」の失敗は、これまでに ' + n + ' 回共有されています。'
+      : '「' + state.filter + '」の失敗は、まだ ' + n + ' 回です。';
+    v.appendChild(el('div', { className: 'banner' }, msg));
+    if (n >= 2) {
+      var s = el('div', { className: 'card' });
+      s.appendChild(el('strong', {}, '防ぎ方のまとめ（' + state.filter + '）'));
+      var txt = SUMMARY[state.filter] || '複数回共有されました。防ぎ方をチームで話し合って残しましょう。';
+      var p = el('p', { id: 'sum' }, txt);
+      s.appendChild(p);
+      if (state.role === 2) {
+        var ed = el('button', {}, 'まとめを編集');
+        ed.onclick = function () {
+          var nv = prompt('防ぎ方のまとめ', txt);
+          if (nv) { SUMMARY[state.filter] = nv; render(); }
+        };
+        s.appendChild(ed);
+      }
+      v.appendChild(s);
+    }
+  }
+  state.items.forEach(function (it, i) {
+    if (!state.filter || it.type === state.filter) { v.appendChild(itemCard(it, i)); }
+  });
+}
+
+function fmt(sec) {
+  var m = Math.floor(Math.abs(sec) / 60);
+  var s = Math.abs(sec) % 60;
+  return (sec < 0 ? '-' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function stopTimer() { clearInterval(state.timer); state.timer = null; }
+
+function tick() {
+  state.left -= 1;
+  var t = document.getElementById('timer');
+  if (t) { t.textContent = fmt(state.left); t.className = 'timer' + (state.left < 0 ? ' over' : ''); }
+}
+
+function renderSession(v) {
+  v.appendChild(el('div', { className: 'rule' },
+    '進行のルール: 質問は「次にどうするか」に関することだけ。原因の追及や、誰の失敗かを問うことはしません。'));
+  if (!state.items.length) {
+    v.appendChild(el('p', { className: 'note' }, '登録された失敗がありません。'));
+    return;
+  }
+  if (state.role !== 2) {
+    v.appendChild(el('p', { className: 'note' }, '進行役（リーダー）の画面で操作します。ここでは今の順番だけ見られます。'));
+  }
+  var it = state.items[state.cur];
+  var c = el('div', { className: 'card' });
+  c.appendChild(el('div', { className: 'note' }, (state.cur + 1) + ' / ' + state.items.length + '件目（1件5分）'));
+  c.appendChild(el('div', { id: 'timer', className: 'timer' + (state.left < 0 ? ' over' : '') }, fmt(state.left)));
+  if (state.role === 2) {
+    var r = el('div', { className: 'row' });
+    var go = el('button', { className: 'primary' }, state.timer ? '一時停止' : '開始');
+    go.onclick = function () {
+      if (state.timer) { stopTimer(); } else { state.timer = setInterval(tick, 1000); }
+      render();
+    };
+    var nx = el('button', {}, '次の失敗へ');
+    nx.onclick = function () {
+      stopTimer();
+      state.cur = (state.cur + 1) % state.items.length;
+      state.left = 300;
+      render();
+    };
+    r.appendChild(go);
+    r.appendChild(nx);
+    c.appendChild(r);
+  }
+  v.appendChild(c);
+  v.appendChild(itemCard(it, state.cur));
+  v.appendChild(el('strong', {}, '本日の一覧'));
+  var ul = el('ul');
+  state.items.forEach(function (x, i) {
+    ul.appendChild(el('li', {}, (i === state.cur ? '▶ ' : '') + x.type + '：' + x.what));
+  });
+  v.appendChild(ul);
+}
+
+function render() {
+  if (state.tab !== 2) { stopTimer(); }
+  renderNav();
+  var v = document.getElementById('view');
+  v.innerHTML = '';
+  if (state.tab === 0) { renderRegister(v); }
+  else if (state.tab === 1) { renderList(v); }
+  else { renderSession(v); }
+}
+
+document.getElementById('sample').onclick = function () {
+  state.items = JSON.parse(JSON.stringify(SAMPLE));
+  state.cur = 0; state.left = 300; state.filter = '';
+  render();
+};
+document.getElementById('clear').onclick = function () {
+  state.items = []; state.cur = 0; state.left = 300; state.filter = '';
+  render();
+};
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原因切り分けノート（A4xB2-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #66707c;
+  --line: #d9dee4; --accent: #2f6f9f; --accent-bg: #e3eef6;
+  --k: #b4691f; --t: #2f7d5b; --c: #6a4fa3; --d: #b0446a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1d2227; --text: #e6e9ec; --sub: #98a2ad;
+    --line: #333b43; --accent: #6fb0dc; --accent-bg: #1f3242;
+    --k: #e0a05a; --t: #6cc49a; --c: #a994dd; --d: #e382a6;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { max-width: 420px; margin: 0 auto; padding: 12px 16px 48px; }
+nav { display: flex; gap: 8px; margin-bottom: 12px; }
+nav button, .btn { flex: 1; padding: 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); color: var(--text); font-size: 14px; cursor: pointer; }
+nav button.on, .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.sub { color: var(--sub); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.card h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 8px 0 4px; }
+input, textarea, select { width: 100%; padding: 8px; font-size: 15px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.row { display: flex; gap: 8px; margin-top: 10px; }
+.opt { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+  color: var(--text); font-size: 15px; cursor: pointer; }
+.opt.on { border-color: var(--accent); background: var(--accent-bg); }
+.note { font-size: 13px; color: var(--sub); }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px;
+  border: 1px solid currentColor; margin-right: 4px; }
+.k { color: var(--k); } .t { color: var(--t); } .c { color: var(--c); } .d { color: var(--d); }
+.bar { height: 14px; border-radius: 7px; background: currentColor; min-width: 4px; }
+.barrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+.barrow span:first-child { width: 36px; } .barrow div { flex: 1; }
+.rec { border-top: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
+.hint { background: var(--accent-bg); border-radius: 8px; padding: 10px; font-size: 14px; margin: 8px 0; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header><h1>原因切り分けノート</h1><small>A4xB2-1 ／ ミスの原因を切り分けて、学ぶ範囲を絞る</small></header>
+<main>
+  <nav>
+    <button id="tab-new" class="on">記録する</button>
+    <button id="tab-trend">ミスの傾向</button>
+  </nav>
+  <div id="view"></div>
+  <div class="row"><button class="btn sub" id="sample">サンプルを読み込む</button></div>
+  <p class="note">このツールは原因を切り分けるだけです。設計の技術的な正解は示しません。答えはあなたの回答だけで決まります。</p>
+</main>
+<script>
+// 原因の定義。質問の順は「知識」を最後にする（決めつけ防止）
+const CAUSES = {
+  proc: { name: "手順", cls: "t", measures: ["最新データの確認を手順に入れる", "作業前に最新版かどうか見る習慣をつける"] },
+  check: { name: "確認", cls: "c", measures: ["チェックリストを作る", "確認の方法と時点を先に決めておく"] },
+  comm: { name: "伝達", cls: "d", measures: ["受け渡しの形を相手と決める", "受け取った内容を自分から復唱して確かめる"] },
+  know: { name: "知識", cls: "k", measures: [] }
+};
+const QUESTIONS = [
+  { q: "必要な情報（最新の図面など）は手元にあった？", cause: "proc", yesMeans: false },
+  { q: "手順のどこかを飛ばした？", cause: "proc", yesMeans: true },
+  { q: "確認の方法を決めていた？", cause: "check", yesMeans: false },
+  { q: "受け渡しで情報が欠けた？", cause: "comm", yesMeans: true },
+  { q: "そもそも知らなかった？", cause: "know", yesMeans: true }
+];
+const SCOPES = {
+  "筐体・機構": "リブの配置と基板の取り付け穴の関係",
+  "材料": "評価条件に書くべき荷重と温度の項目",
+  "電気回路": "電源ラインの余裕度の見方",
+  "その他": "今回のミスに直接関わる部分だけ（範囲を一つに絞って書き出す）"
+};
+const SAMPLE = [
+  { title: "基板の取り付け穴がリブと干渉", scene: "設計レビュー", field: "筐体・機構", causes: ["proc"], measure: "最新データの確認を手順に入れる" },
+  { title: "別の基板でも同じ干渉", scene: "設計レビュー", field: "筐体・機構", causes: ["proc"], measure: "作業前に最新版かどうか見る習慣をつける" },
+  { title: "評価条件の書き漏れ", scene: "試験計画の確認", field: "材料", causes: ["check"], measure: "チェックリストを作る" },
+  { title: "公差の前提が伝わっていなかった", scene: "機械担当との打合せ", field: "筐体・機構", causes: ["comm"], measure: "受け渡しの形を相手と決める" },
+  { title: "熱膨張の影響を見落とした", scene: "設計レビュー", field: "材料", causes: ["know"], measure: "" }
+];
+let records = [];
+let draft = null; // 記録中のミス
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const tag = k => `<span class="tag ${CAUSES[k].cls}">${CAUSES[k].name}</span>`;
+
+function startDraft() { draft = { step: 0, title: "", scene: "", field: "筐体・機構", answers: [], picks: [], measure: {} }; }
+
+function renderNew() {
+  if (!draft) startDraft();
+  const d = draft;
+  if (d.step === 0) {
+    $("view").innerHTML = `<div class="card"><h2>1. 指摘されたミスを書く</h2>
+      <label>ミスの内容</label><input id="f-title" value="${esc(d.title)}" placeholder="例：基板の取り付け穴がリブと干渉">
+      <label>指摘された場面</label><input id="f-scene" value="${esc(d.scene)}" placeholder="例：設計レビュー">
+      <label>関わる分野</label><select id="f-field">${Object.keys(SCOPES).map(k => `<option ${k === d.field ? "selected" : ""}>${k}</option>`).join("")}</select>
+      <div class="row"><button class="btn primary" id="go1">切り分けを始める</button></div>
+      <p class="note">質問は5つ、選ぶだけです。3分ほどで終わります。</p></div>`;
+    $("go1").onclick = () => {
+      d.title = $("f-title").value.trim(); d.scene = $("f-scene").value.trim(); d.field = $("f-field").value;
+      if (!d.title) { alert("ミスの内容を書いてください"); return; }
+      d.step = 1; renderNew();
+    };
+  } else if (d.step <= QUESTIONS.length) {
+    const i = d.step - 1;
+    $("view").innerHTML = `<div class="card"><h2>2. 切り分けの質問（${d.step}/${QUESTIONS.length}）</h2>
+      <p class="note">「${esc(d.title)}」について</p><p><b>${QUESTIONS[i].q}</b></p>
+      <button class="opt" data-a="yes">はい</button><button class="opt" data-a="no">いいえ</button>
+      <button class="opt" data-a="unk">よくわからない</button>
+      <p class="note">どれを選んでも評価はされません。思い出せる範囲で大丈夫です。</p></div>`;
+    document.querySelectorAll(".opt").forEach(b => b.onclick = () => { d.answers[i] = b.dataset.a; d.step++; renderNew(); });
+  } else if (d.step === QUESTIONS.length + 1) {
+    renderResult();
+  }
+}
+
+function causesFromAnswers(ans) {
+  const found = [];
+  QUESTIONS.forEach((q, i) => {
+    const hit = ans[i] === (q.yesMeans ? "yes" : "no");
+    if (hit && !found.includes(q.cause)) found.push(q.cause);
+  });
+  return found;
+}
+
+function renderResult() {
+  const d = draft;
+  const found = causesFromAnswers(d.answers);
+  const nonKnow = found.filter(c => c !== "know");
+  let html = `<div class="card"><h2>3. 切り分けの結果</h2>`;
+  if (!found.length) html += `<div class="hint">どの質問にも当てはまりませんでした。原因が見えにくいミスです。下の「その他」として記録し、あとで見直せます。</div>`;
+  if (nonKnow.length) html += `<div class="hint">知識以外にも原因がありそうです：${nonKnow.map(tag).join("")}<br>勉強を始める前に、まず仕組みで防げる点を見てみましょう。</div>`;
+  if (found.includes("know") && !nonKnow.length) html += `<div class="hint">知識が原因のようです。広く学び直さず、範囲を絞りましょう。</div>`;
+  html += `<p class="note">対策にしたい原因を選び（複数可）、対策を選んでください。</p>`;
+  found.forEach(c => {
+    if (c === "know") {
+      html += `<p>${tag(c)} 学ぶ範囲</p><div class="hint">${esc(SCOPES[d.field])}<br><span class="note">「${esc(d.field)}全般」ではなく、ここだけで足ります。</span></div>`;
+      return;
+    }
+    html += `<p>${tag(c)} 対策の候補</p>`;
+    CAUSES[c].measures.forEach(m => {
+      html += `<button class="opt ${d.measure[c] === m ? "on" : ""}" data-c="${c}" data-m="${esc(m)}">${esc(m)}</button>`;
+    });
+  });
+  html += `<div class="row"><button class="btn sub" id="back">やり直す</button><button class="btn primary" id="save">記録する</button></div></div>`;
+  $("view").innerHTML = html;
+  document.querySelectorAll(".opt").forEach(b => b.onclick = () => { d.measure[b.dataset.c] = b.dataset.m; renderResult(); });
+  $("back").onclick = () => { d.step = 1; d.answers = []; renderNew(); };
+  $("save").onclick = () => {
+    records.push({ title: d.title, scene: d.scene, field: d.field, causes: found.length ? found : [],
+      measure: Object.values(d.measure).join(" / ") });
+    draft = null; show("trend");
+  };
+}
+
+function renderTrend() {
+  if (!records.length) { $("view").innerHTML = `<div class="card">まだ記録がありません。「サンプルを読み込む」を試せます。</div>`; return; }
+  const count = { proc: 0, check: 0, comm: 0, know: 0 };
+  records.forEach(r => r.causes.forEach(c => count[c]++));
+  const max = Math.max(...Object.values(count), 1);
+  const top = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+  const nonKnow = records.filter(r => r.causes.length && !r.causes.includes("know")).length;
+  let html = `<div class="card"><h2>原因ごとの件数（${records.length}件）</h2>`;
+  Object.keys(count).forEach(c => {
+    html += `<div class="barrow ${CAUSES[c].cls}"><span>${CAUSES[c].name}</span><div><div class="bar" style="width:${count[c] / max * 100}%"></div></div><span style="color:var(--text)">${count[c]}</span></div>`;
+  });
+  html += `</div><div class="card"><h2>見えてきたこと</h2>`;
+  if (top === "know") html += `<div class="hint">知識が原因のミスが多めです。記録ごとの「学ぶ範囲」を一つずつ進めれば足ります。</div>`;
+  else html += `<div class="hint">「${CAUSES[top].name}」が原因のミスが多めです。ここを変えれば減らせそうです：<br><b>${esc(CAUSES[top].measures[0])}</b></div>`;
+  html += `<p class="note">${records.length}件中${nonKnow}件は、知識以外が原因でした。原因は個人の力不足ではなく、仕組みで防げる点として見られます。</p></div>`;
+  html += `<div class="card"><h2>記録</h2>` + records.slice().reverse().map(r =>
+    `<div class="rec"><b>${esc(r.title)}</b><br>${r.causes.map(tag).join("") || "<span class='note'>原因未確定</span>"}
+     <span class="note">${esc(r.scene)} ／ ${esc(r.field)}</span>${r.measure ? `<br><span class="note">対策：${esc(r.measure)}</span>` : ""}</div>`).join("") + `</div>`;
+  $("view").innerHTML = html;
+}
+
+function show(tab) {
+  $("tab-new").classList.toggle("on", tab === "new");
+  $("tab-trend").classList.toggle("on", tab === "trend");
+  tab === "new" ? renderNew() : renderTrend();
+}
+$("tab-new").onclick = () => show("new");
+$("tab-trend").onclick = () => show("trend");
+$("sample").onclick = () => { records = SAMPLE.map(r => Object.assign({}, r)); show("trend"); };
+show("new");
+</script>
+</body>
+</html>

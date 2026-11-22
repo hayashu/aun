@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>依頼の復唱シート（A1xB3-2）モック</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #667085;
+  --line: #d9dde3; --accent: #2f6fdb; --accent-bg: #e8f0fd;
+  --ok: #1f8a5b; --ok-bg: #e5f5ec; --warn: #b26a00; --warn-bg: #fff3dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --card: #1e232b; --text: #e6e9ee; --sub: #9aa4b2;
+    --line: #333b47; --accent: #6b9bf0; --accent-bg: #223250;
+    --ok: #5fcf9a; --ok-bg: #1b3a2c; --warn: #f0b255; --warn-bg: #3b2f17;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 0 16px 40px; max-width: 480px; margin: 0 auto; }
+.tabs { display: flex; gap: 6px; margin: 4px 0 12px; }
+.tabs button, .nav button { flex: 1; padding: 9px 4px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); border-radius: 8px; font-size: 14px; }
+.tabs button.on, .nav button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.nav { display: flex; gap: 6px; margin-bottom: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.card h2 { font-size: 14px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+input, textarea, select { width: 100%; padding: 8px; font-size: 15px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+textarea { min-height: 64px; }
+.seg { display: flex; gap: 6px; }
+.seg button { flex: 1; padding: 8px 2px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font-size: 14px; }
+.seg button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.btn { width: 100%; padding: 11px; border: 0; border-radius: 8px; background: var(--accent);
+  color: #fff; font-size: 15px; margin-top: 12px; }
+.btn.ghost { background: var(--card); color: var(--accent); border: 1px solid var(--accent); }
+.btn:disabled { opacity: .4; }
+.quote { background: var(--bg); border-left: 3px solid var(--line); padding: 6px 10px;
+  color: var(--sub); font-size: 14px; }
+.row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.row:first-of-type { border-top: 0; }
+.row .k { width: 76px; color: var(--sub); font-size: 13px; flex: none; }
+.row .v { flex: 1; }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 10px; }
+.tag.ok { background: var(--ok-bg); color: var(--ok); }
+.tag.fix { background: var(--warn-bg); color: var(--warn); }
+.note { font-size: 13px; color: var(--sub); margin: 6px 0 0; }
+.timer { font-size: 13px; color: var(--sub); text-align: right; }
+.banner { background: var(--ok-bg); color: var(--ok); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+.empty { color: var(--sub); text-align: center; padding: 24px 0; }
+.hist { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>依頼を「いつ・何を・どこまで」で復唱する 依頼の復唱シート</h1>
+  <small>A1xB3-2 ／ モック（ダミーデータ）</small>
+</header>
+<main>
+  <div class="tabs" id="roles"></div>
+  <div class="nav" id="nav"></div>
+  <div id="view"></div>
+  <button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button>
+  <button class="btn ghost" onclick="resetAll()">空に戻す</button>
+</main>
+<script>
+const LEVELS = ['たたき台', '一次案', 'ほぼ完成'];
+const ROLE_NAME = { recv: '受け手（Bさん）', req: '依頼者（課長）' };
+const TODAY = '2026-11-22';
+let S = { role: 'recv', tab: 'sheet', draft: blank(), cur: null, history: [], t: {} };
+
+function blank() { return { request: '', due: '', what: '', level: '', mid: '' }; }
+function fmt(d) { return d ? d.replace(/^\d+-0?(\d+)-0?(\d+)$/, '$1月$2日') : '未入力'; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function addDays(n) { const d = new Date(TODAY); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+
+// 経過時間: 受け手は書き始めから送信まで、依頼者は表示から確認まで
+function startTimer(k) { if (!S.t[k]) S.t[k] = Date.now(); }
+function stopTimer(k) { const s = Math.round((Date.now() - (S.t[k] || Date.now())) / 1000); delete S.t[k]; return s; }
+function mmss(s) { return Math.floor(s / 60) + '分' + (s % 60) + '秒'; }
+
+function setRole(r) { S.role = r; S.tab = r === 'recv' ? 'sheet' : 'confirm'; render(); }
+function setTab(t) { S.tab = t; render(); }
+
+function render() {
+  document.getElementById('roles').innerHTML = Object.keys(ROLE_NAME).map(r =>
+    `<button class="${S.role === r ? 'on' : ''}" onclick="setRole('${r}')">${ROLE_NAME[r]}</button>`).join('');
+  const tabs = S.role === 'recv'
+    ? [['sheet', '復唱シート'], ['result', '結果'], ['hist', '履歴']]
+    : [['confirm', '依頼者の確認'], ['hist', '履歴']];
+  document.getElementById('nav').innerHTML = tabs.map(([k, l]) =>
+    `<button class="${S.tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('');
+  const v = { sheet: viewSheet, result: viewResult, confirm: viewConfirm, hist: viewHist }[S.tab];
+  document.getElementById('view').innerHTML = v();
+}
+
+// ---- 受け手: 復唱シート ----
+function viewSheet() {
+  const d = S.draft;
+  if (S.cur && S.cur.status === 'pending') {
+    return `<div class="card"><h2>送信済み</h2>依頼者の確認を待っています。<p class="note">依頼者の画面に切り替えて確認してください。</p></div>`;
+  }
+  const ready = d.due && d.what && d.level;
+  return `<div class="card"><h2>1. 依頼の言葉を書き写す</h2>
+    <textarea placeholder="例: 急ぎじゃないから、ノイズ対策の案をまとめておいて" oninput="onRequest(this.value)">${esc(d.request)}</textarea>
+    <p class="note">書き写すと「何を」の初期値が入ります。期限と完成度は推測せず、必ず自分で選びます。</p></div>
+  <div class="card"><h2>2. 4項目を復唱する</h2>
+    <label>いつまでに</label><input type="date" value="${d.due}" onchange="setF('due', this.value)">
+    <label>何を（一行）</label><input value="${esc(d.what)}" oninput="setF('what', this.value, true)">
+    <label>どの程度の完成度で</label>
+    <div class="seg">${LEVELS.map(l => `<button class="${d.level === l ? 'on' : ''}" onclick="setF('level','${l}')">${l}</button>`).join('')}</div>
+    <label>途中確認はいつ（1回だけ・任意）</label><input type="date" value="${d.mid}" onchange="setF('mid', this.value)">
+    <p class="note">途中確認は合意した1回に限ります。日々の進捗は追いません。</p></div>
+  <div class="timer" id="tm"></div>
+  <button class="btn" ${ready ? '' : 'disabled'} onclick="send()">依頼者に送る</button>`;
+}
+function onRequest(v) {
+  startTimer('recv'); S.draft.request = v;
+  if (!S.draft.what || S.draft.what === S.draft._auto) {
+    S.draft._auto = v.replace(/^.*?(から|ので)[、,]/, '').replace(/て?おいて$/, 'る');
+    S.draft.what = S.draft._auto;
+  }
+  render();
+}
+function setF(k, v, quiet) { startTimer('recv'); S.draft[k] = v; if (!quiet) render(); else document.querySelector('.btn:not(.ghost)').disabled = !(S.draft.due && S.draft.what && S.draft.level); }
+function send() {
+  const secs = stopTimer('recv');
+  S.cur = { ...S.draft, orig: { ...S.draft }, use: '', status: 'pending', recvSecs: secs, fixes: [] };
+  S.draft = blank(); S.tab = 'sheet'; render();
+}
+
+// ---- 依頼者: 確認 ----
+function viewConfirm() {
+  const c = S.cur;
+  if (!c || c.status !== 'pending') return `<div class="empty">確認待ちの復唱シートはありません。<br>受け手の画面で送るか、サンプルを読み込んでください。</div>`;
+  startTimer('req');
+  const f = c.edit || (c.edit = { due: c.due, what: c.what, level: c.level, mid: c.mid, use: c.use });
+  const open = c.openFix;
+  const rows = [['due', 'いつまでに', fmt(f.due)], ['what', '何を', esc(f.what)], ['level', '完成度', f.level], ['mid', '途中確認', fmt(f.mid)]];
+  return `<div class="card"><h2>受け手の復唱（4項目）</h2>
+    <div class="quote">依頼の言葉: ${esc(c.request)}</div>
+    ${rows.map(([k, l, val]) => `<div class="row"><span class="k">${l}</span><span class="v">${val}</span>
+      <button class="tag ${f[k] !== c.orig[k] ? 'fix' : 'ok'}" style="border:0" onclick="toggleFix('${k}')">${f[k] !== c.orig[k] ? '直した' : 'ここが違う'}</button></div>
+      ${open === k ? editor(k, f) : ''}`).join('')}
+    <p class="note">違う項目だけ直してください。全部合っていれば下のボタンだけで終わります。</p></div>
+  <div class="card"><h2>何に使いますか（任意）</h2>
+    <input placeholder="例: 12/6 部長報告の資料" value="${esc(f.use)}" oninput="S.cur.edit.use=this.value">
+    <p class="note">使い道が分かると、受け手は優先度を判断できます。</p></div>
+  <div class="timer">表示から ${mmss(Math.round((Date.now() - S.t.req) / 1000))} 経過（目標 1分以内）</div>
+  <button class="btn" onclick="confirmSheet()">${Object.keys(c.orig).some(k => k !== 'request' && f[k] !== c.orig[k]) ? 'この内容でそろえる' : 'このとおり'}</button>`;
+}
+function editor(k, f) {
+  if (k === 'level') return `<div class="seg">${LEVELS.map(l => `<button class="${f.level === l ? 'on' : ''}" onclick="editF('level','${l}')">${l}</button>`).join('')}</div>`;
+  if (k === 'what') return `<input value="${esc(f.what)}" oninput="S.cur.edit.what=this.value">`;
+  return `<input type="date" value="${f[k]}" onchange="editF('${k}', this.value)">`;
+}
+function toggleFix(k) { S.cur.openFix = S.cur.openFix === k ? null : k; render(); }
+function editF(k, v) { S.cur.edit[k] = v; render(); }
+function confirmSheet() {
+  const c = S.cur, f = c.edit;
+  const secs = stopTimer('req');
+  c.fixes = ['due', 'what', 'level', 'mid'].filter(k => f[k] !== c.orig[k]);
+  Object.assign(c, f, { status: 'agreed', reqSecs: secs, openFix: null });
+  S.history.unshift(JSON.parse(JSON.stringify(c)));
+  S.role = 'recv'; S.tab = 'result'; render();
+}
+
+// ---- 受け手: 結果 ----
+const LABEL = { due: '期限', what: '内容', level: '完成度', mid: '途中確認' };
+function viewResult() {
+  const c = S.cur;
+  if (!c || c.status !== 'agreed') return `<div class="empty">依頼者の確認が終わると、ここに表示されます。</div>`;
+  const fixed = c.fixes.length;
+  const banner = fixed
+    ? `<div class="banner">期待がそろいました。依頼者のイメージと${fixed}項目が重なり、早い段階でわかりました。</div>`
+    : `<div class="banner">期待がそろいました。復唱は依頼者のイメージと一致していました。</div>`;
+  return banner + `<div class="card"><h2>そろった内容</h2>
+    ${[['due', '期限', fmt(c.due)], ['what', '内容', esc(c.what)], ['level', '完成度', c.level], ['mid', '途中確認', fmt(c.mid)]]
+      .map(([k, l, v]) => `<div class="row"><span class="k">${l}</span><span class="v">${v}</span>
+      ${c.fixes.includes(k) ? '<span class="tag fix">依頼者と調整してそろった</span>' : '<span class="tag ok">一致</span>'}</div>`).join('')}
+    <div class="row"><span class="k">使い道</span><span class="v">${c.use ? esc(c.use) : '（記入なし）'}</span></div>
+    ${c.fixes.length ? `<p class="note">調整前: ${c.fixes.map(k => `${LABEL[k]}「${k === 'due' || k === 'mid' ? fmt(c.orig[k]) : esc(c.orig[k])}」`).join('、')}</p>` : ''}</div>
+  <div class="card"><h2>途中確認の通知（予定）</h2>
+    ${c.mid ? `${fmt(c.mid)}に双方へ知らせます。受け手は一次案を見せ、依頼者は方向だけを確認します。` : '途中確認の日は未設定です。'}</div>
+  <div class="card"><h2>かかった時間（試す指標）</h2>
+    受け手の記入: ${mmss(c.recvSecs)}（目標 2分以内）<br>依頼者の確認: ${mmss(c.reqSecs)}（目標 1分以内）</div>`;
+}
+
+// ---- 履歴（2人だけ・集計なし） ----
+function viewHist() {
+  if (!S.history.length) return `<div class="empty">履歴はまだありません。</div>`;
+  return `<div class="card"><h2>この2人の復唱の履歴</h2>
+    ${S.history.map(h => `<div class="hist"><b>${esc(h.what)}</b><br>期限 ${fmt(h.due)} ／ ${h.level}<br>
+      ${h.fixes.length ? `調整した項目: ${h.fixes.map(k => LABEL[k]).join('、')}` : '調整なし'}</div>`).join('')}
+    <p class="note">この履歴は依頼者と受け手の2人だけが見られます。チームの集計や遅れの記録には使いません。</p></div>`;
+}
+
+// ---- サンプル ----
+function loadSample() {
+  S = { role: 'req', tab: 'confirm', draft: blank(), history: [], t: {}, cur: {
+    request: '急ぎじゃないから、ノイズ対策の案をまとめておいて',
+    due: addDays(14), what: 'ノイズ対策の案をまとめる', level: '一次案', mid: addDays(10),
+    use: '', status: 'pending', recvSecs: 96, fixes: []
+  } };
+  S.cur.orig = { request: S.cur.request, due: S.cur.due, what: S.cur.what, level: S.cur.level, mid: S.cur.mid };
+  S.history = [{ what: '試験治具の校正手順の整理', due: '2026-10-30', level: 'ほぼ完成', fixes: ['mid'] }];
+  render();
+}
+function resetAll() { S = { role: 'recv', tab: 'sheet', draft: blank(), cur: null, history: [], t: {} }; render(); }
+setInterval(() => { const e = document.querySelector('.timer'); if (e && S.t.req && S.tab === 'confirm') e.textContent = '表示から ' + mmss(Math.round((Date.now() - S.t.req) / 1000)) + ' 経過（目標 1分以内）'; }, 1000);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設計判断ドリル（A5xB2-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2b6cb0; --accent-bg: #e6eef8;
+  --ok: #2f855a; --ok-bg: #e5f4ec; --mid: #b7791f; --mid-bg: #fbf1dc;
+  --risk: #c05621; --risk-bg: #fbe9df;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #78aee8; --accent-bg: #223244;
+    --ok: #6fcf97; --ok-bg: #1d3328; --mid: #e8b75a; --mid-bg: #3a2f17;
+    --risk: #f0a070; --risk-bg: #3c261a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 12px 16px 8px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); font-size: 12px; }
+main { padding: 12px 16px 32px; max-width: 480px; margin: 0 auto; }
+nav { display: flex; gap: 8px; margin-bottom: 12px; }
+button { font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+nav button { flex: 1; }
+button.sel { border-color: var(--accent); background: var(--accent-bg); }
+nav button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px;
+  background: var(--accent-bg); color: var(--accent); }
+.cond { color: var(--sub); font-size: 13px; margin: 4px 0; padding-left: 18px; }
+.fig { font-family: monospace; font-size: 12px; background: var(--bg); border: 1px dashed var(--line);
+  border-radius: 6px; padding: 8px; white-space: pre; overflow-x: auto; }
+.opt { display: block; width: 100%; text-align: left; margin: 6px 0; }
+.opt.sel { border-color: var(--accent); background: var(--accent-bg); }
+textarea, input[type=text] { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.res { border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 14px; }
+.res.ok { background: var(--ok-bg); } .res.mid { background: var(--mid-bg); } .res.risk { background: var(--risk-bg); }
+.res b.ok { color: var(--ok); } .res b.mid { color: var(--mid); } .res b.risk { color: var(--risk); }
+.res.mine { outline: 2px solid var(--accent); }
+.note { color: var(--sub); font-size: 13px; }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 4px 0; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+h2 { font-size: 15px; margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>設計判断ドリル</h1>
+  <small>A5xB2-1 ／ 外しても困らない場所で設計判断を練習する</small>
+</header>
+<main>
+  <nav>
+    <button id="tabPractice" class="on">練習</button>
+    <button id="tabStatus">分野ごとの練習状況</button>
+  </nav>
+  <div id="view"></div>
+  <div class="row" style="margin-top:16px">
+    <button id="sample">サンプルを読み込む</button>
+    <button id="reset">最初から</button>
+  </div>
+  <p class="note">条件が変われば妥当な判断も変わります。点数・順位はつけません。</p>
+</main>
+<script>
+const FIELDS = ["筐体設計", "熱設計", "基板配置", "材料選定"];
+const Q = [
+  { id: "q1", field: "筐体設計", title: "基板を固定するボスの太さ",
+    scene: "樹脂筐体(ABS)に基板を4点ネジ止めする。基板は約120g。",
+    conds: ["落下試験 1.2m(コンクリート)あり", "ボスの高さ 8mm、M2.6セルフタッピング", "肉厚は2.0mm"],
+    fig: "  [基板]\n ──┬──┬──\n   ▓▓  ▓▓  ← ボス(外径?)\n ═══════════ 筐体底面",
+    opts: [
+      { t: "外径 5mm、根元のリブなし", lv: "risk", kind: "ボス強度",
+        r: "ネジ締結と落下の衝撃で根元から割れやすい。レビューで指摘されがちな形。" },
+      { t: "外径 6mm、根元に三角リブを追加", lv: "ok", kind: "ボス強度",
+        r: "根元の応力が分散し、落下条件でも持ちやすい。成形のヒケは肉厚比で要注意。" },
+      { t: "外径 8mm、リブなし", lv: "mid", kind: "ボス強度",
+        r: "強度は足りるが、肉厚2.0mmに対して太く、表面にヒケが出る可能性がある。外観面の条件次第。" }
+    ],
+    know: "曲げ応力(断面係数)と応力集中。ボス根元の応力はR/リブで下がる。",
+    book: "材料力学 第3章「はりの曲げ」、樹脂設計の章「ボス設計」" },
+  { id: "q2", field: "熱設計", title: "発熱部品の置き場所",
+    scene: "密閉筐体内に3Wの電源ICと温度に敏感なセンサを置く。ファンは付けられない。",
+    conds: ["周囲温度 最大40℃", "筐体は樹脂で、側面にだけ金属板あり", "センサの上限は70℃"],
+    fig: " ┌──────────────┐\n │ [IC]   [SEN] │\n └──金属板──────┘",
+    opts: [
+      { t: "電源ICを金属板側に置き、センサは反対端に離す", lv: "ok", kind: "放熱経路",
+        r: "熱が金属板へ逃げ、センサへの熱流も小さい。配線が長くなる点は条件次第。" },
+      { t: "電源ICとセンサを隣に置き、間にヒートシンクを入れる", lv: "mid", kind: "放熱経路",
+        r: "密閉内ではヒートシンクの熱の行き先がなく、庫内温度が上がる。金属板に熱的に接続すれば成立する。" },
+      { t: "電源ICを筐体中央に置く", lv: "risk", kind: "放熱経路",
+        r: "熱がこもり、センサ周囲が上限に近づく。" }
+    ],
+    know: "熱抵抗の考え方(部品→基板→筐体→外気)と、熱の逃げ道の確保。",
+    book: "伝熱工学 第1章「熱抵抗回路」" },
+  { id: "q3", field: "基板配置", title: "コネクタの位置",
+    scene: "ケーブルを頻繁に抜き差しするUSBコネクタを基板に実装する。",
+    conds: ["筐体の穴は側面", "抜き差しは月に数十回", "基板は4点固定"],
+    fig: " 基板端 ┤コネクタ├ 筐体側面\n  固定ネジ ○        ○",
+    opts: [
+      { t: "コネクタを基板端に置き、近くに固定ネジを配置", lv: "ok", kind: "機械的負荷",
+        r: "抜き差しの力をネジ近傍で受けられ、はんだ割れが起きにくい。" },
+      { t: "コネクタを基板中央寄りに置く", lv: "risk", kind: "機械的負荷",
+        r: "筐体の穴とずれて組み立てにくく、抜き差しの力で基板がたわむ。" },
+      { t: "コネクタを端に置き、固定は基板の反対側だけ", lv: "mid", kind: "機械的負荷",
+        r: "寸法は合うが、基板がたわみやすい。補強があれば許容できる。" }
+    ],
+    know: "基板のたわみと実装部品へのせん断力、固定点とのスパン。",
+    book: "実装技術の章「機械的ストレスと部品配置」" },
+  { id: "q4", field: "材料選定", title: "屋外ケースの樹脂",
+    scene: "屋外に置く小型センサのケースの樹脂を選ぶ。",
+    conds: ["直射日光あり、温度 -10〜60℃", "寿命 5年", "コスト優先度は中"],
+    fig: "  ☀\n ┌─────┐\n │ケース│ ← 樹脂?\n └─────┘",
+    opts: [
+      { t: "ABS(無塗装)", lv: "risk", kind: "耐候性",
+        r: "紫外線で変色・脆化が進み、5年では割れる可能性がある。屋内なら妥当。" },
+      { t: "ASA", lv: "ok", kind: "耐候性",
+        r: "耐候性が高く、5年の屋外条件に合う。コストはABSより高め。" },
+      { t: "ABS+耐候塗装", lv: "mid", kind: "耐候性",
+        r: "コストを抑えられるが、塗装の傷から劣化する。メンテナンス条件次第。" }
+    ],
+    know: "樹脂の耐候性(紫外線・温度)と寿命の考え方。",
+    book: "材料の章「高分子材料の劣化」" }
+];
+const LV = { ok: "妥当", mid: "条件次第", risk: "起きやすい問題あり" };
+const SAMPLE_LOG = [
+  { q: "q1", pick: 0, reason: "5mmで足りると思った", clear: true },
+  { q: "q1", pick: 1, reason: "リブで応力を逃がす", clear: true },
+  { q: "q2", pick: 2, reason: "中央なら均等かと", clear: false },
+  { q: "q3", pick: 1, reason: "穴の位置は気にしなかった", clear: true },
+  { q: "q3", pick: 0, reason: "端なら力を受けやすい", clear: true }
+];
+let log = [], cur = null, pick = null, revealed = false, tab = "practice";
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const qById = id => Q.find(q => q.id === id);
+
+function startQuestion(q) {
+  cur = q; pick = null; revealed = false; tab = "practice"; render();
+}
+function nextQuestion(field) {
+  const pool = Q.filter(q => !field || q.field === field);
+  const unseen = pool.filter(q => !log.some(l => l.q === q.id));
+  const list = unseen.length ? unseen : pool;
+  startQuestion(list[Math.floor(Math.random() * list.length)]);
+}
+function renderQuestion() {
+  if (!cur) return `<div class="card"><h2>問題を選んで練習</h2>
+    <p class="note">先に判断を選び、理由を一行書いてから結果を見ます。</p>
+    <button class="primary" onclick="nextQuestion()">問題を始める</button></div>`;
+  const q = cur;
+  let h = `<div class="card"><span class="tag">${q.field}</span> <b>${q.title}</b>
+    <p>${q.scene}</p>${q.conds.map(c => `<div class="cond">・${c}</div>`).join("")}
+    <div class="fig">${esc(q.fig)}</div></div>`;
+  h += `<div class="card"><h2>どう判断しますか</h2>`;
+  q.opts.forEach((o, i) => {
+    h += `<button class="opt ${pick === i ? "sel" : ""}" ${revealed ? "disabled" : ""}
+      onclick="choose(${i})">${String.fromCharCode(65 + i)}. ${o.t}</button>`;
+  });
+  if (!revealed) {
+    h += `<p class="note" style="margin-bottom:4px">理由を一行(必須)</p>
+      <input type="text" id="reason" placeholder="例: 落下の衝撃を考えたから" oninput="checkReady()">
+      <p><button class="primary" id="go" disabled onclick="reveal()">結果を見る</button></p>`;
+  }
+  return h + `</div>` + (revealed ? renderResult() : "");
+}
+function renderResult() {
+  const q = cur, last = log[log.length - 1];
+  let h = `<div class="card"><h2>選択肢ごとの結果</h2>
+    <p class="note">あなたの理由: 「${esc(last.reason)}」</p>`;
+  q.opts.forEach((o, i) => {
+    h += `<div class="res ${o.lv} ${i === last.pick ? "mine" : ""}">
+      <b class="${o.lv}">${String.fromCharCode(65 + i)}. ${LV[o.lv]}</b>${i === last.pick ? "(あなたの選択)" : ""}<br>${o.r}</div>`;
+  });
+  h += `<p class="note">複数の判断が成り立ちます。条件が変われば結果も変わります。</p></div>
+    <div class="card"><h2>使った知識</h2><p>${q.know}</p>
+    <p class="note">読む場所: ${q.book}</p></div>
+    <div class="card"><h2>理由は腑に落ちましたか</h2><div class="row">
+    <button onclick="clearFlag(true)" ${last.clear === true ? 'class="sel"' : ""}>理由がわかった</button>
+    <button onclick="clearFlag(false)">まだ腑に落ちない</button></div>
+    ${last.clear === null ? "" : `<p class="note">記録しました(自分用のメモで、他の人には見えません)</p>`}
+    <p><button class="primary" onclick="nextQuestion()">次の問題</button>
+    <button onclick="startQuestion(cur)">同じ問題をもう一度</button></p></div>`;
+  return h;
+}
+function choose(i) { pick = i; render(); }
+function checkReady() { $("go").disabled = pick === null || !$("reason").value.trim(); }
+function reveal() {
+  const r = $("reason").value.trim();
+  if (pick === null || !r) return;
+  log.push({ q: cur.id, pick, reason: r, clear: null });
+  revealed = true; render();
+}
+function clearFlag(v) { log[log.length - 1].clear = v; render(); }
+
+function renderStatus() {
+  if (!log.length) return `<div class="card"><p class="note">まだ練習の記録がありません。「サンプルを読み込む」か、練習から始めてください。</p></div>`;
+  let h = "";
+  FIELDS.forEach(f => {
+    const items = log.filter(l => qById(l.q).field === f);
+    const risky = items.filter(l => qById(l.q).opts[l.pick].lv === "risk");
+    const kinds = [...new Set(risky.map(l => qById(l.q).opts[l.pick].kind))];
+    const total = Q.filter(q => q.field === f).length;
+    const done = new Set(items.map(l => l.q)).size;
+    h += `<div class="card"><b>${f}</b> <span class="note">練習 ${items.length}回 ／ ${done}/${total}問に挑戦</span>
+      <div class="bar"><i style="width:${done / total * 100}%"></i></div>
+      ${kinds.length ? `<p class="note">起きやすい問題があった判断の種類: ${kinds.join("、")}</p>
+        <button class="primary" onclick="nextQuestion('${f}')">次に練習する範囲: ${f}</button>`
+        : `<p class="note">${items.length ? "今のところ、問題の起きやすい判断はありません" : "まだ練習していません"}</p>
+        <button onclick="nextQuestion('${f}')">${f}を練習する</button>`}</div>`;
+  });
+  const cl = log.filter(l => l.clear === true).length;
+  return h + `<p class="note">「理由がわかった」と記録した回数: ${cl} / ${log.length}</p>`;
+}
+function render() {
+  $("tabPractice").className = tab === "practice" ? "on" : "";
+  $("tabStatus").className = tab === "status" ? "on" : "";
+  $("view").innerHTML = tab === "practice" ? renderQuestion() : renderStatus();
+}
+$("tabPractice").onclick = () => { tab = "practice"; render(); };
+$("tabStatus").onclick = () => { tab = "status"; render(); };
+$("sample").onclick = () => { log = SAMPLE_LOG.map(l => ({ ...l })); cur = null; tab = "status"; render(); };
+$("reset").onclick = () => { log = []; cur = null; pick = null; revealed = false; tab = "practice"; render(); };
+render();
+</script>
+</body>
+</html>

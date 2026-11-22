@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>試作室 初回利用ナビ（A2xB5-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #6b7785;
+  --line: #d9dee5; --accent: #2b6cb0; --accent-bg: #e6f0fa;
+  --ok: #2f855a; --ok-bg: #e3f4ea; --warn: #b7791f; --warn-bg: #fdf3dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171b; --card: #1e2329; --text: #e6e9ed; --sub: #9aa5b1;
+    --line: #333b44; --accent: #63a4e6; --accent-bg: #1c2f45;
+    --ok: #68d391; --ok-bg: #1b3326; --warn: #ecc26a; --warn-bg: #3a2f17;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 16px; max-width: 480px; margin: 0 auto; }
+h2 { font-size: 15px; margin: 20px 0 8px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.link { border: none; background: none; color: var(--accent); padding: 4px 0; }
+input[type=text] { font: inherit; width: 100%; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--text); margin-bottom: 8px; }
+.item { display: flex; gap: 10px; align-items: flex-start; }
+.item input { margin-top: 5px; width: 20px; height: 20px; flex: none; }
+.item.done .t { text-decoration: line-through; color: var(--sub); }
+.tag { display: inline-block; font-size: 12px; padding: 0 8px; border-radius: 10px;
+  background: var(--accent-bg); color: var(--accent); margin-right: 6px; }
+.tag.mine { background: var(--warn-bg); color: var(--warn); }
+.who { font-size: 13px; color: var(--sub); margin: 4px 0 0 30px; }
+.say { font-size: 13px; margin: 2px 0 0 30px; padding: 6px 8px; background: var(--bg);
+  border-radius: 6px; }
+.safety { background: var(--warn-bg); color: var(--warn); border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; margin-top: 12px; }
+.ready { background: var(--ok-bg); color: var(--ok); border-radius: 10px;
+  padding: 14px; text-align: center; font-weight: bold; margin-top: 12px; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.bar i { display: block; height: 100%; background: var(--ok); width: 0; }
+.muted { color: var(--sub); font-size: 13px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>試作室の初回利用ナビ</h1>
+  <small>PRD A2xB5-1 ／ モック（ダミーデータ）</small>
+</header>
+<main>
+  <button id="sample">サンプルを読み込む</button>
+
+  <h2>1. 使いたい設備と目的</h2>
+  <div class="card">
+    <div class="muted">設備</div>
+    <div class="row" id="equipBtns"></div>
+    <div class="muted" style="margin-top:10px">目的</div>
+    <div class="row" id="purposeBtns"></div>
+  </div>
+
+  <section id="listArea" class="hidden">
+    <h2>2. 使う前に確かめること</h2>
+    <div class="muted" id="timer"></div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="muted" id="progress"></div>
+    <div id="items" style="margin-top:8px"></div>
+    <div id="readyBox"></div>
+    <div class="safety">安全上の注意は、既存の操作手順書と研修に従ってください。この一覧は作法の確認用で、安全情報は含みません。</div>
+  </section>
+
+  <h2>3. 自分のルール帳</h2>
+  <div class="card">
+    <div class="muted">実際に使って知ったことや、注意されたことを書き足せます。同じ設備を次に選ぶと、一覧に出ます。</div>
+    <div style="margin-top:8px">
+      <input type="text" id="ruleText" placeholder="例：使用後は電源を落とす">
+      <input type="text" id="ruleWho" placeholder="聞く相手（任意）">
+      <button id="addRule" class="primary">選択中の設備に書き足す</button>
+    </div>
+    <div id="myRules" style="margin-top:10px"></div>
+  </div>
+</main>
+
+<script>
+// 一般的な候補（担当者の確認前を想定）。target: 対象の目的（all は共通）
+const EQUIP = ["恒温槽", "オシロスコープ", "はんだ付け設備"];
+const PURPOSE = ["短時間の測定", "長時間の試験"];
+const BASE = {
+  "恒温槽": [
+    { t: "紙の予約表に名前と時間を書く", who: "設備の担当者（品質 佐藤さん）", say: "恒温槽を明日使いたいのですが、予約表の書き方を教えてください。", target: "all" },
+    { t: "前日までに担当者へ一声かける", who: "設備の担当者（品質 佐藤さん）", say: "明日、恒温槽を測定で使いたいです。ほかの試験と重なりませんか。", target: "all" },
+    { t: "使用後は設定を初期値に戻す", who: "よく使う先輩（田中さん）", say: "使い終わったとき、設定は初期値に戻すものですか。", target: "all" },
+    { t: "長期試験の予定とぶつからないか確認する", who: "設備の担当者（品質 佐藤さん）", say: "長期試験の予定がある日を教えてもらえますか。", target: "長時間の試験" }
+  ],
+  "オシロスコープ": [
+    { t: "紙の予約表に名前と時間を書く", who: "よく使う先輩（田中さん）", say: "オシロスコープの予約は、紙の表に書けばよいですか。", target: "all" },
+    { t: "昼休みは常連の先輩が使うので避ける", who: "よく使う先輩（田中さん）", say: "昼休みに使ってもよい時間帯はありますか。", target: "all" },
+    { t: "使用後は測定器の設定を初期値に戻す", who: "よく使う先輩（田中さん）", say: "使い終わったら、初期化はどのボタンでしますか。", target: "all" }
+  ],
+  "はんだ付け設備": [
+    { t: "紙の予約表に名前と時間を書く", who: "よく使う先輩（田中さん）", say: "はんだ付け設備の予約の仕方を教えてください。", target: "all" },
+    { t: "混む時間帯（夕方）を避ける", who: "よく使う先輩（田中さん）", say: "空いている時間帯はいつ頃ですか。", target: "all" },
+    { t: "使用後はこて先と作業台を片付ける", who: "設備の担当者（製造 鈴木さん）", say: "片付けの手順で決まりごとはありますか。", target: "all" }
+  ]
+};
+
+let state = { equip: null, purpose: null, checked: {}, mine: {}, start: null };
+let timerId = null;
+const $ = id => document.getElementById(id);
+
+try {
+  const saved = JSON.parse(localStorage.getItem("a2xb5-1"));
+  if (saved && saved.mine) state.mine = saved.mine;
+} catch (e) {}
+
+function save() {
+  try { localStorage.setItem("a2xb5-1", JSON.stringify({ mine: state.mine })); } catch (e) {}
+}
+
+function currentItems() {
+  if (!state.equip || !state.purpose) return [];
+  const base = BASE[state.equip].filter(i => i.target === "all" || i.target === state.purpose);
+  const mine = (state.mine[state.equip] || []).map(i => ({ ...i, mine: true }));
+  return base.concat(mine);
+}
+
+function renderButtons() {
+  $("equipBtns").innerHTML = "";
+  EQUIP.forEach(name => {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.className = state.equip === name ? "on" : "";
+    b.onclick = () => select("equip", name);
+    $("equipBtns").appendChild(b);
+  });
+  $("purposeBtns").innerHTML = "";
+  PURPOSE.forEach(name => {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.className = state.purpose === name ? "on" : "";
+    b.onclick = () => select("purpose", name);
+    $("purposeBtns").appendChild(b);
+  });
+}
+
+function select(kind, name) {
+  state[kind] = name;
+  state.checked = {};
+  state.start = null;
+  renderAll();
+}
+
+function renderItems() {
+  const items = currentItems();
+  $("listArea").classList.toggle("hidden", items.length === 0);
+  const box = $("items");
+  box.innerHTML = "";
+  items.forEach((it, idx) => {
+    const key = state.equip + "|" + state.purpose + "|" + idx;
+    const card = document.createElement("div");
+    card.className = "card";
+    const row = document.createElement("label");
+    row.className = "item" + (state.checked[key] ? " done" : "");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!state.checked[key];
+    cb.onchange = () => {
+      if (!state.start) startTimer();
+      state.checked[key] = cb.checked;
+      renderItems();
+    };
+    const t = document.createElement("span");
+    t.className = "t";
+    t.innerHTML = (it.mine ? '<span class="tag mine">自分のルール</span>' : '<span class="tag">一般</span>');
+    t.appendChild(document.createTextNode(it.t));
+    row.append(cb, t);
+    card.appendChild(row);
+    if (it.who) {
+      const w = document.createElement("div");
+      w.className = "who";
+      w.textContent = "聞く相手：" + it.who;
+      card.appendChild(w);
+    }
+    if (it.say) {
+      const s = document.createElement("div");
+      s.className = "say";
+      s.textContent = "聞く一言の例：「" + it.say + "」";
+      card.appendChild(s);
+    }
+    box.appendChild(card);
+  });
+  const done = items.filter((_, i) => state.checked[state.equip + "|" + state.purpose + "|" + i]).length;
+  $("progress").textContent = done + " / " + items.length + " 確かめました";
+  $("barFill").style.width = items.length ? (done / items.length * 100) + "%" : "0";
+  renderReady(items.length > 0 && done === items.length);
+}
+
+function renderReady(allDone) {
+  const r = $("readyBox");
+  r.innerHTML = "";
+  if (!allDone) return;
+  stopTimer();
+  const d = document.createElement("div");
+  d.className = "ready";
+  d.textContent = "使う準備ができました";
+  const sec = state.elapsed || 0;
+  const p = document.createElement("div");
+  p.className = "muted";
+  p.style.fontWeight = "normal";
+  p.textContent = "確かめるのにかかった時間：" + Math.floor(sec / 60) + "分" + (sec % 60) + "秒（目安は5分）";
+  d.appendChild(p);
+  r.appendChild(d);
+  const q = document.createElement("div");
+  q.className = "card";
+  q.style.marginTop = "10px";
+  q.innerHTML = '<div class="muted">試作室に入る不安は、いまどうですか（自分用のメモ。保存・送信されません）</div>';
+  const row = document.createElement("div");
+  row.className = "row";
+  ["和らいだ", "あまり変わらない", "まだ不安"].forEach(label => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.onclick = () => {
+      row.querySelectorAll("button").forEach(x => x.className = "");
+      b.className = "on";
+    };
+    row.appendChild(b);
+  });
+  q.appendChild(row);
+  r.appendChild(q);
+}
+
+function startTimer() {
+  state.start = Date.now();
+  state.elapsed = 0;
+  timerId = setInterval(() => {
+    state.elapsed = Math.floor((Date.now() - state.start) / 1000);
+    $("timer").textContent = "確認を始めてから " + Math.floor(state.elapsed / 60) + "分" + (state.elapsed % 60) + "秒";
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerId) clearInterval(timerId);
+  timerId = null;
+}
+
+function renderRules() {
+  const box = $("myRules");
+  box.innerHTML = "";
+  Object.keys(state.mine).forEach(eq => {
+    state.mine[eq].forEach((r, i) => {
+      const d = document.createElement("div");
+      d.className = "card";
+      d.innerHTML = '<span class="tag mine"></span><span class="n"></span> ';
+      d.querySelector(".tag").textContent = eq;
+      d.querySelector(".n").textContent = r.t + (r.who ? "（聞く相手：" + r.who + "）" : "");
+      const del = document.createElement("button");
+      del.className = "link";
+      del.textContent = "削除";
+      del.onclick = () => {
+        state.mine[eq].splice(i, 1);
+        save();
+        renderAll();
+      };
+      d.appendChild(del);
+      box.appendChild(d);
+    });
+  });
+  if (!box.children.length) box.innerHTML = '<div class="muted">まだありません。</div>';
+}
+
+function renderAll() {
+  stopTimer();
+  $("timer").textContent = "";
+  renderButtons();
+  renderItems();
+  renderRules();
+}
+
+$("addRule").onclick = () => {
+  const t = $("ruleText").value.trim();
+  if (!state.equip) { alert("先に設備を選んでください。"); return; }
+  if (!t) return;
+  (state.mine[state.equip] = state.mine[state.equip] || []).push({ t, who: $("ruleWho").value.trim(), target: "all" });
+  $("ruleText").value = "";
+  $("ruleWho").value = "";
+  save();
+  state.checked = {};
+  renderAll();
+};
+
+$("sample").onclick = () => {
+  state.mine = {
+    "オシロスコープ": [{ t: "設定を初期値に戻し忘れて苦情が出た。必ず戻す", who: "田中さん", target: "all" }]
+  };
+  state.equip = "恒温槽";
+  state.purpose = "長時間の試験";
+  state.checked = {};
+  state.start = null;
+  save();
+  renderAll();
+};
+
+renderAll();
+</script>
+</body>
+</html>

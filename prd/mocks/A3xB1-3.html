@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ものづくり提案会 A3xB1-3</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2b6cb0; --ok: #2f855a; --cond: #b7791f; --ng: #c05656;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #63a4e8; --ok: #5cc38a; --cond: #e0b05a; --ng: #e08a8a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 420px; margin: 0 auto; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs button { flex: 1; padding: 8px 4px; border: 1px solid var(--line); background: var(--card);
+  color: var(--text); border-radius: 8px; font-size: 13px; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 3px; }
+input, textarea, select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--text); font: inherit; }
+textarea { min-height: 60px; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+.chk { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 14px; color: var(--text); }
+.chk input { width: auto; }
+button.main { width: 100%; padding: 10px; margin-top: 12px; border: 0; border-radius: 8px;
+  background: var(--accent); color: #fff; font-size: 15px; }
+button.ghost { padding: 8px 12px; border: 1px solid var(--line); background: var(--card);
+  color: var(--text); border-radius: 8px; font-size: 13px; }
+.hint { font-size: 12px; color: var(--sub); }
+.err { color: var(--ng); font-size: 13px; margin-top: 6px; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; border: 1px solid; }
+.tag.ok { color: var(--ok); } .tag.cond { color: var(--cond); } .tag.ng { color: var(--ng); }
+.tag.wait { color: var(--sub); }
+.timer { font-size: 40px; text-align: center; font-variant-numeric: tabular-nums; margin: 4px 0; }
+.timer.over { color: var(--ng); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); }
+.dec { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.dec button { padding: 10px; border-radius: 8px; border: 2px solid; background: var(--card);
+  font-size: 15px; color: var(--text); }
+.dec .a { border-color: var(--ok); } .dec .b { border-color: var(--cond); } .dec .c { border-color: var(--ng); }
+.dec button.sel { background: var(--bg); font-weight: bold; }
+.item { border-top: 1px solid var(--line); padding: 8px 0; }
+.item:first-child { border-top: 0; }
+.qs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.qs button { font-size: 12px; padding: 4px 8px; border: 1px solid var(--line); background: var(--bg);
+  color: var(--text); border-radius: 12px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>根回し不要で誰でも5分で「作ってみたいもの」を出せる月例ものづくり提案会</h1>
+  <small>PRD ID: A3xB1-3 / モック</small>
+</header>
+<main>
+  <div class="tabs" id="roleTabs">
+    <button data-v="reg" class="on">提案者</button>
+    <button data-v="run">進行役（課長・係長）</button>
+    <button data-v="list">提案の一覧</button>
+  </div>
+  <button class="ghost" id="sample" style="margin-bottom:12px">サンプルを読み込む</button>
+
+  <section id="reg">
+    <div class="card">
+      <h2>提案の登録（1枚）</h2>
+      <p class="hint">課長・係長への事前相談は不要です。登録は提案会の3日前まで。</p>
+      <label>提案会の日</label>
+      <input type="date" id="meetDate">
+      <div id="deadline" class="hint"></div>
+      <label>作ってみたいもの（タイトル）</label>
+      <input id="title" placeholder="例：基板評価用の簡易治具">
+      <label>作ってみたいものの説明</label>
+      <textarea id="what"></textarea>
+      <label>業務とのつながり（誰の、どの作業が、どう楽になるか）</label>
+      <textarea id="link"></textarea>
+      <div class="qs" id="starters"></div>
+      <div class="row">
+        <div><label>必要な時間（月h）</label><input type="number" id="hours" min="1" value="4"></div>
+        <div><label>必要な材料（費用目安）</label><input id="mat" placeholder="例：アルミ板 約3千円"></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="anon">一覧で名前を伏せる</label>
+      <div class="err" id="regErr"></div>
+      <button class="main" id="regBtn">登録する</button>
+    </div>
+    <div class="card"><h2>登録済みの提案</h2><div id="regList"></div></div>
+  </section>
+
+  <section id="run" class="hidden">
+    <div class="card">
+      <h2>提案会の進行</h2>
+      <div class="hint" id="agenda"></div>
+      <div class="bar"><div id="totalBar" style="width:0"></div></div>
+      <div class="hint" id="totalTxt"></div>
+    </div>
+    <div class="card" id="runCard"></div>
+  </section>
+
+  <section id="list" class="hidden">
+    <div class="card"><h2>提案の一覧（過去の提案と判断）</h2><div id="allList"></div></div>
+  </section>
+</main>
+<script>
+var KEY = "A3xB1-3";
+var TOTAL_SEC = 30 * 60, TALK_SEC = 5 * 60;
+var state = load() || { props: [], cur: 0, used: 0 };
+var timerId = null, left = TALK_SEC, picked = null;
+var STARTERS = [
+  "いま、〇〇の評価で手作業が多く、",
+  "この作業に毎回〇分かかっており、",
+  "試作で〇〇が確認できれば、会議資料の根拠になる"
+];
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
+  return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function who(p) { return p.anon ? "（名前は非公開）" : p.name; }
+function fmt(s) { var m = Math.floor(Math.abs(s) / 60), r = Math.abs(s) % 60;
+  return (s < 0 ? "+" : "") + m + ":" + String(r).padStart(2, "0"); }
+
+function tag(p) {
+  if (!p.dec) return '<span class="tag wait">審議待ち</span>';
+  var cls = { ok: "ok", cond: "cond", ng: "ng" }[p.dec.kind];
+  var name = { ok: "やってみよう", cond: "条件付き", ng: "見送り" }[p.dec.kind];
+  return '<span class="tag ' + cls + '">' + name + "</span>";
+}
+function decLine(p) {
+  if (!p.dec) return "";
+  var d = p.dec;
+  if (d.kind === "ok") return "試作時間：月" + p.hours + "時間（業務時間）";
+  if (d.kind === "cond") return "条件：" + esc(d.text) + "／試作時間：月" + d.hours + "時間";
+  return "理由：" + esc(d.text) + "<br>出し直し：" + esc(d.retry);
+}
+function itemHtml(p, detail) {
+  return '<div class="item"><b>' + esc(p.title) + "</b> " + tag(p) +
+    '<div class="hint">' + who(p) + "・月" + p.hours + "h・" + esc(p.mat || "材料未記入") + "</div>" +
+    (detail ? "<div>" + esc(p.link) + "</div>" : "") +
+    '<div class="hint">' + decLine(p) + "</div></div>";
+}
+
+function renderReg() {
+  $("regList").innerHTML = state.props.filter(function (p) { return !p.past; }).map(function (p, i) {
+    return itemHtml(p, true);
+  }).join("") || '<div class="hint">まだありません</div>';
+}
+function renderAll() {
+  $("allList").innerHTML = state.props.map(function (p) { return itemHtml(p, false); }).join("") ||
+    '<div class="hint">まだありません</div>';
+}
+function pending() { return state.props.filter(function (p) { return !p.past; }); }
+
+function renderRun() {
+  var ps = pending();
+  var c = ps[state.cur];
+  $("agenda").textContent = "今回の提案 " + ps.length + " 件（登録順）。1件5分、その場で判断。";
+  var pct = Math.min(100, state.used / TOTAL_SEC * 100);
+  $("totalBar").style.width = pct + "%";
+  $("totalTxt").textContent = "経過 " + fmt(state.used) + " / 30:00　残り " + fmt(TOTAL_SEC - state.used);
+  if (!c) { $("runCard").innerHTML = '<div class="hint">提案がありません。サンプルを読み込むか、提案者で登録してください。</div>'; return; }
+  var decided = !!c.dec;
+  $("runCard").innerHTML =
+    '<div class="hint">' + (state.cur + 1) + " / " + ps.length + "件目</div>" +
+    "<h2>" + esc(c.title) + " " + tag(c) + "</h2>" +
+    '<div class="hint">' + who(c) + "・月" + c.hours + "h・" + esc(c.mat || "材料未記入") + "</div>" +
+    "<p>" + esc(c.what) + "</p><p><b>業務とのつながり</b><br>" + esc(c.link) + "</p>" +
+    '<div class="timer" id="timer">' + fmt(left) + "</div>" +
+    '<div class="row"><button class="ghost" id="tgl">' + (timerId ? "一時停止" : "説明を始める") + "</button>" +
+    '<button class="ghost" id="rst">5分に戻す</button></div>' +
+    '<div class="dec"><button class="a" data-k="ok">やってみよう</button>' +
+    '<button class="b" data-k="cond">条件付きでやってみよう</button>' +
+    '<button class="c" data-k="ng">今回は見送り（理由を一行）</button></div>' +
+    '<div class="hint">「持ち帰って検討」は選べません。</div>' +
+    '<div id="decForm"></div>' +
+    (decided ? '<button class="main" id="next">次の提案へ</button>' : "");
+  $("tgl").onclick = toggleTimer;
+  $("rst").onclick = function () { stopTimer(); left = TALK_SEC; renderRun(); };
+  Array.prototype.forEach.call(document.querySelectorAll(".dec button"), function (b) {
+    b.onclick = function () { picked = b.dataset.k; showForm(c); };
+  });
+  if (decided) $("next").onclick = nextProp;
+  if (picked) showForm(c);
+}
+function toggleTimer() {
+  if (timerId) { stopTimer(); renderRun(); return; }
+  timerId = setInterval(function () {
+    left--; state.used++;
+    $("timer").textContent = fmt(left);
+    $("timer").className = "timer" + (left < 0 ? " over" : "");
+    $("totalTxt").textContent = "経過 " + fmt(state.used) + " / 30:00　残り " + fmt(TOTAL_SEC - state.used);
+    $("totalBar").style.width = Math.min(100, state.used / TOTAL_SEC * 100) + "%";
+  }, 1000);
+  renderRun();
+}
+function stopTimer() { clearInterval(timerId); timerId = null; save(); }
+
+function showForm(c) {
+  var f = $("decForm"), h = "";
+  if (picked === "ok") h = '<div class="hint">月' + c.hours + "時間を試作の業務時間として割り当てます。</div>";
+  if (picked === "cond") {
+    h = "<label>条件</label><select id=\"cnd\"><option>予算の確認後</option>" +
+      "<option>試作時間を減らして</option><option>関係部署に共有してから</option></select>" +
+      '<label>試作の時間（月h）</label><input type="number" id="ch" min="1" value="' + c.hours + '">' +
+      '<div class="hint">判断の期限：次回の提案会まで</div>';
+  }
+  if (picked === "ng") {
+    h = "<label>見送りの理由（一行）</label><input id=\"why\" maxlength=\"60\">" +
+      "<label>出し直す方法</label><select id=\"rt\"><option>条件を整えて次回に再提案</option>" +
+      "<option>試作範囲を小さくして再提案</option><option>業務改善提案制度で扱う</option></select>";
+  }
+  f.innerHTML = h + '<div class="err" id="decErr"></div><button class="main" id="ok">この判断で確定</button>';
+  Array.prototype.forEach.call(document.querySelectorAll(".dec button"), function (b) {
+    b.className = b.className.replace(" sel", "") + (b.dataset.k === picked ? " sel" : "");
+  });
+  $("ok").onclick = function () { decide(c); };
+}
+function decide(c) {
+  var d = { kind: picked };
+  if (picked === "cond") { d.text = $("cnd").value; d.hours = $("ch").value; }
+  if (picked === "ng") {
+    d.text = $("why").value.trim(); d.retry = $("rt").value;
+    if (!d.text) { $("decErr").textContent = "見送りの理由を一行入力してください。"; return; }
+  }
+  c.dec = d; picked = null; stopTimer(); save(); renderRun();
+}
+function nextProp() {
+  if (state.cur < pending().length - 1) state.cur++;
+  left = TALK_SEC; picked = null; save(); renderRun();
+}
+
+function renderStarters() {
+  $("starters").innerHTML = STARTERS.map(function (s, i) {
+    return '<button data-i="' + i + '">' + esc(s) + "</button>";
+  }).join("");
+  Array.prototype.forEach.call(document.querySelectorAll("#starters button"), function (b) {
+    b.onclick = function () { $("link").value += STARTERS[b.dataset.i]; $("link").focus(); };
+  });
+}
+function deadlineNote() {
+  var v = $("meetDate").value;
+  if (!v) { $("deadline").textContent = ""; return true; }
+  var diff = (new Date(v) - new Date(new Date().toDateString())) / 86400000;
+  var ok = diff >= 3;
+  $("deadline").textContent = ok ? "登録の締切まであと" + (diff - 3) + "日" : "この日の締切（3日前）を過ぎています。";
+  return ok;
+}
+$("meetDate").onchange = deadlineNote;
+$("regBtn").onclick = function () {
+  var t = $("title").value.trim(), w = $("what").value.trim(), l = $("link").value.trim();
+  if (!t || !w || !l) { $("regErr").textContent = "タイトル・説明・業務とのつながりは必須です。"; return; }
+  if (!deadlineNote()) { $("regErr").textContent = "締切（3日前）を過ぎているため、次回に登録してください。"; return; }
+  state.props.push({ title: t, what: w, link: l, hours: $("hours").value, mat: $("mat").value,
+    anon: $("anon").checked, name: "あなた" });
+  $("regErr").textContent = ""; save(); ["title", "what", "link", "mat"].forEach(function (k) { $(k).value = ""; });
+  renderAll2();
+};
+
+function loadSample() {
+  stopTimer(); left = TALK_SEC; picked = null;
+  state = { cur: 0, used: 0, props: [
+    { title: "基板評価用の簡易治具", name: "Bさん", anon: false, hours: 6, mat: "アルミ板ほか 約4千円",
+      what: "評価時にプローブを固定する治具を自作する。",
+      link: "いま評価で手持ちのため1回20分余分にかかっており、治具で測定のばらつきも減らせる。" },
+    { title: "試験データ記録用の小型ロガー", name: "Aさん", anon: false, hours: 8, mat: "マイコン基板 約3千円",
+      what: "温度と電圧を自動で記録する小型の装置を作る。",
+      link: "試験結果を手で書き写しているため、会議資料の数値の確認作業が減る。" },
+    { title: "配線チェック用の導通テスタ", name: "", anon: true, hours: 4, mat: "既存部品のみ",
+      what: "試作品の配線ミスを確認するテスタを作る。",
+      link: "試作のたびに目視で確認しており、手戻りの原因になっている。" },
+    { title: "治具収納の棚の改良", name: "Cさん", anon: false, hours: 3, mat: "木材 約2千円",
+      what: "共用の治具を探しやすくする棚を作る。", link: "治具を探す時間が毎回5分ほどある。",
+      dec: { kind: "ng", text: "今期は置き場の工事が予定されているため", retry: "条件を整えて次回に再提案" }, past: true }
+  ] };
+  save(); renderAll2();
+}
+function renderAll2() { renderReg(); renderAll(); renderRun(); }
+$("sample").onclick = loadSample;
+$("roleTabs").onclick = function (e) {
+  var v = e.target.dataset && e.target.dataset.v;
+  if (!v) return;
+  ["reg", "run", "list"].forEach(function (k) { $(k).classList.toggle("hidden", k !== v); });
+  Array.prototype.forEach.call(this.children, function (b) { b.classList.toggle("on", b.dataset.v === v); });
+  renderAll2();
+};
+renderStarters(); renderAll2();
+</script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>質問チケット モック A1xB2-2</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2937; --sub: #6b7280;
+  --line: #e0e3e8; --accent: #2563eb; --accent-text: #ffffff;
+  --ok: #15803d; --warn: #b45309; --soft: #eef2ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --card: #1e2127; --text: #e8eaed; --sub: #9aa0aa;
+    --line: #333842; --accent: #6b97f5; --accent-text: #0b1220;
+    --ok: #4ade80; --warn: #fbbf24; --soft: #252b3d;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 16px 48px; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  max-width: 480px; margin-inline: auto; overflow-x: hidden;
+}
+header { padding: 14px 0 8px; }
+header h1 { font-size: 15px; margin: 0; line-height: 1.4; }
+header small { color: var(--sub); }
+.roles { display: flex; gap: 8px; margin: 8px 0; }
+.roles button { flex: 1; }
+button, input, select, textarea {
+  font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+}
+button { cursor: pointer; }
+button.on, button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+input, textarea, select { width: 100%; }
+label { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--sub); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+.card h3 { margin: 0 0 4px; font-size: 15px; }
+.meta { color: var(--sub); font-size: 13px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--soft); margin-right: 4px; }
+.reply { background: var(--soft); border-radius: 8px; padding: 10px; margin-top: 8px; }
+.reply b { display: block; }
+.opt { margin: 8px 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.opt button { width: 100%; text-align: left; font-weight: 600; }
+.opt .detail { margin-top: 6px; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+.top { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+.top h2 { font-size: 16px; margin: 0; }
+.link { background: none; border: none; color: var(--accent); padding: 4px; }
+.note { font-size: 12px; color: var(--sub); }
+.ok { color: var(--ok); } .warn { color: var(--warn); }
+.probe { border-style: dashed; margin-top: 8px; }
+.empty { color: var(--sub); text-align: center; padding: 24px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>答える側が「今いい／あとで／この資料を見て」をワンタップで返せる質問チケット<br><small>PRD A1xB2-2 ／ モック（ダミーデータ）</small></h1>
+</header>
+<div class="roles">
+  <button id="r-asker">Bさん（質問者）</button>
+  <button id="r-answerer">機械の先輩（回答者）</button>
+</div>
+<div class="top">
+  <h2 id="title"></h2>
+  <button class="link" id="sample">サンプルを読み込む</button>
+</div>
+<main id="main"></main>
+<p class="note">このモックは自動回答・回答者の評価・回答数の表示・記録の集計を行いません。返事は必ず人が選んで送ります。</p>
+
+<script>
+const OPTS = [
+  { key: 'now', label: '今すぐ話せる', hint: '対面かチャットで話してください', chips: ['対面で', 'チャットで'] },
+  { key: 'later', label: 'あとで（いつ頃）', hint: '', chips: ['今日の午後', '明日の午前', '今週中'] },
+  { key: 'doc', label: 'この資料を見て', hint: '', chips: [] },
+  { key: 'skip', label: '今は知らなくて大丈夫', hint: '', chips: ['来月頃', '3か月後頃', '半年後頃', '当面不要'] }
+];
+let role = 'asker';
+let tickets = [];
+let nextId = 1;
+const picked = {}; // 返事の詳細の選択状態 {ticketId: {key: detail}}
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    if (k === 'class') e.className = attrs[k];
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  kids.flat().forEach(c => e.append(c));
+  return e;
+}
+const byId = id => tickets.find(t => t.id === id);
+
+function loadSample() {
+  tickets = [
+    { id: 1, want: '筐体の板厚はどう決めるのですか', due: '来週月曜の設計レビューまで',
+      tried: '社内Wikiの筐体の項目は読みましたが、板厚の根拠は見つかりませんでした',
+      to: '機械の先輩（Cさん）', reply: null, ack: null },
+    { id: 2, want: '樹脂筐体の締結にはどのネジ構造が使われますか', due: '再来週まで',
+      tried: '部品表を確認しました', to: '機械の先輩（Cさん）',
+      reply: { key: 'later', detail: '明日の午前' }, ack: null },
+    { id: 3, want: '放熱の考え方（筐体の材料選び）', due: '特になし',
+      tried: '基板側の熱設計は理解しています', to: '機械の先輩（Cさん）',
+      reply: { key: 'skip', detail: '3か月後頃' }, ack: null }
+  ];
+  nextId = 4;
+  render();
+}
+
+function render() {
+  document.getElementById('r-asker').className = role === 'asker' ? 'on' : '';
+  document.getElementById('r-answerer').className = role === 'answerer' ? 'on' : '';
+  document.getElementById('title').textContent = role === 'asker' ? 'Bさんの質問' : '届いている質問';
+  const main = document.getElementById('main');
+  main.replaceChildren();
+  if (role === 'asker') main.append(askForm());
+  const list = tickets.filter(t => role === 'asker' || !t.reply || t.ack === 'again');
+  if (!tickets.length) main.append(el('div', { class: 'empty' }, 'チケットはまだありません。「サンプルを読み込む」を押してください。'));
+  else if (role === 'answerer' && !list.length) main.append(el('div', { class: 'empty' }, '返事待ちの質問はありません。'));
+  list.forEach(t => main.append(role === 'asker' ? askerCard(t) : answererCard(t)));
+}
+
+function askForm() {
+  const f = { want: el('input', { placeholder: '例: 板厚の決め方' }),
+    due: el('input', { placeholder: '例: 来週月曜まで' }),
+    tried: el('textarea', { rows: '2', placeholder: '例: 社内Wikiを読んだ' }) };
+  const send = el('button', { class: 'primary', onclick: () => {
+    if (!f.want.value.trim()) return;
+    tickets.unshift({ id: nextId++, want: f.want.value, due: f.due.value || '特になし',
+      tried: f.tried.value || '（未記入）', to: '機械の先輩（Cさん）', reply: null, ack: null });
+    render();
+  } }, 'チケットを送る');
+  return el('details', { class: 'card' }, el('summary', {}, '新しい質問チケットを書く'),
+    el('label', {}, '何を知りたいか'), f.want,
+    el('label', {}, 'いつまでに必要か'), f.due,
+    el('label', {}, '自分でどこまで調べたか'), f.tried,
+    el('label', {}, '宛先候補（登録に同意した人から表示）'),
+    el('select', {}, el('option', {}, '機械の先輩（Cさん）'), el('option', {}, '機械の先輩（Dさん）'), el('option', {}, '構造設計の先輩（Eさん）')),
+    el('p', {}), send);
+}
+
+function ticketHead(t) {
+  return [el('h3', {}, t.want),
+    el('div', { class: 'meta' }, '期限: ' + t.due + ' ／ 宛先: ' + t.to),
+    el('div', { class: 'meta' }, '調べたこと: ' + t.tried)];
+}
+
+function replyText(r) {
+  const o = OPTS.find(x => x.key === r.key);
+  const base = r.key === 'skip' ? '今は知らなくて大丈夫（' + r.detail + '必要）'
+    : r.key === 'later' ? 'あとで（' + r.detail + '）'
+    : r.key === 'doc' ? 'この資料を見て（' + r.detail + '）'
+    : o.label + '（' + r.detail + '）';
+  return base;
+}
+
+function askerCard(t) {
+  const c = el('div', { class: 'card' }, ticketHead(t));
+  if (!t.reply) {
+    c.append(el('div', { class: 'tag' }, '返事待ち'));
+    return c;
+  }
+  c.append(el('div', { class: 'reply' }, el('b', {}, '返事: ' + replyText(t.reply)),
+    t.reply.key === 'now' ? el('span', { class: 'meta' }, 'チケットは入口です。対面かチャットで話してみましょう。') : ''));
+  if (t.ack === 'ok') {
+    c.append(el('p', { class: 'ok' }, '「わかった」を返しました。'));
+    c.append(probeAsker(t));
+  } else if (t.ack === 'again') {
+    c.append(el('p', { class: 'warn' }, '「まだわからない」を返しました。チケットは回答者に戻っています。'));
+  } else {
+    c.append(el('div', { class: 'row' },
+      el('button', { class: 'primary', onclick: () => { t.ack = 'ok'; render(); } }, 'わかった'),
+      el('button', { onclick: () => { t.ack = 'again'; render(); } }, 'まだわからない')));
+  }
+  return c;
+}
+
+function probeAsker(t) {
+  const p = el('div', { class: 'card probe' });
+  if (t.reply.key !== 'skip') return p;
+  p.append(el('div', { class: 'note' }, '【モックの確認】この返事を受け取って、他の学習に移れそうですか。'));
+  if (t.calm) { p.append(el('b', {}, '回答: ' + t.calm)); return p; }
+  p.append(el('div', { class: 'row' },
+    ['安心して移れる', '少し不安が残る', '理由が知りたい'].map(v =>
+      el('button', { onclick: () => { t.calm = v; render(); } }, v))));
+  return p;
+}
+
+function answererCard(t) {
+  const c = el('div', { class: 'card' }, ticketHead(t));
+  if (t.ack === 'again') c.append(el('p', { class: 'warn' }, '質問者が「まだわからない」と返しました。返事を選び直せます。'));
+  c.append(el('div', { class: 'note' }, 'どれか1つをタップするだけで送信されます（詳細は初期値のまま送れます）。'));
+  OPTS.forEach(o => c.append(optBlock(t, o)));
+  return c;
+}
+
+function optBlock(t, o) {
+  const st = picked[t.id] = picked[t.id] || {};
+  let detail;
+  if (o.key === 'doc') {
+    detail = el('input', { value: '設計基準書「筐体の板厚」の章' });
+    st[o.key] = () => detail.value;
+  } else {
+    st[o.key] = o.chips[0];
+    detail = el('div', { class: 'row' }, o.chips.map((ch, i) => {
+      const b = el('button', { class: i === 0 ? 'on' : '' }, ch);
+      b.addEventListener('click', () => {
+        st[o.key] = ch;
+        b.parentNode.querySelectorAll('button').forEach(x => x.className = '');
+        b.className = 'on';
+      });
+      return b;
+    }));
+  }
+  const send = el('button', { onclick: () => {
+    const d = typeof st[o.key] === 'function' ? st[o.key]() : st[o.key];
+    t.reply = { key: o.key, detail: d };
+    t.ack = null; t.calm = null; t.burden = null;
+    lastSent = t.id;
+    render();
+  } }, o.label);
+  return el('div', { class: 'opt' }, send, el('div', { class: 'detail' }, detail));
+}
+
+let lastSent = null;
+function answererDone() {
+  const t = byId(lastSent);
+  if (!t || role !== 'answerer' || !t.reply || t.ack === 'again') return;
+  const box = el('div', { class: 'card probe' },
+    el('b', { class: 'ok' }, '返事を送りました: ' + replyText(t.reply)),
+    el('div', { class: 'note' }, '【モックの確認】この返事は、負担に感じましたか。'));
+  if (t.burden) box.append(el('b', {}, '回答: ' + t.burden));
+  else box.append(el('div', { class: 'row' }, ['負担なし', '少し手間', '重い'].map(v =>
+    el('button', { onclick: () => { t.burden = v; render(); } }, v))));
+  document.getElementById('main').prepend(box);
+}
+
+const origRender = render;
+render = function () { origRender(); answererDone(); };
+
+document.getElementById('r-asker').onclick = () => { role = 'asker'; lastSent = null; render(); };
+document.getElementById('r-answerer').onclick = () => { role = 'answerer'; lastSent = null; render(); };
+document.getElementById('sample').onclick = loadSample;
+render();
+</script>
+</body>
+</html>

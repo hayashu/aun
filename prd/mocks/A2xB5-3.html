@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A2xB5-3 試作室の入口タブレット</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2b6cb0; --ok: #2f855a; --warn: #b7791f; --ng: #c53030;
+  --okbg: #e6f4ec; --warnbg: #fbf1dc; --ngbg: #fbe4e4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #6aa6e8; --ok: #6fcf97; --warn: #e5b45a; --ng: #f08a8a;
+    --okbg: #1b2e24; --warnbg: #33290f; --ngbg: #3a1f1f;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 14px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 420px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+button, select, input { font: inherit; color: var(--text); }
+button { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; min-height: 40px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.row > * { flex: 1 1 auto; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sub { color: var(--sub); font-size: 13px; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+.ok { background: var(--okbg); color: var(--ok); }
+.warn { background: var(--warnbg); color: var(--warn); }
+.ng { background: var(--ngbg); color: var(--ng); }
+.slot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.banner { border-radius: 10px; padding: 12px; margin: 10px 0; font-weight: 600; }
+dl { margin: 0; } dt { font-weight: 600; margin-top: 8px; } dd { margin: 0; }
+.big { font-size: 24px; font-weight: 700; }
+.stats { display: flex; gap: 8px; } .stats > div { flex: 1; text-align: center; }
+input[type=range] { width: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>試作室 入口タブレット <small>PRD A2xB5-3</small></h1>
+</header>
+<main>
+  <div class="card">
+    <div class="row tabs" id="roles"></div>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="load">サンプルを読み込む</button>
+    </div>
+    <div class="sub" style="margin-top:8px">モックの現在時刻を動かして、解放やお試し枠の表示を試せます。</div>
+    <div class="row" style="margin-top:6px">
+      <select id="day"></select>
+      <button id="plus5">+5分</button>
+      <button id="plus15">+15分</button>
+    </div>
+    <input type="range" id="clock" min="480" max="1080" step="5">
+    <div id="clockLabel" class="sub"></div>
+  </div>
+  <div id="view"></div>
+</main>
+<script>
+const DAYS = ["月", "火", "水", "木", "金"];
+const TRIAL = { "水": [900, 1020], "金": [600, 720] };
+const TRIAL_LIMIT = 30;
+const RELEASE_AFTER = 15;
+const EQUIPMENT = [
+  { id: "solder", name: "はんだ付け台",
+    book: "紙の予約表の代わりに、この画面かWebから予約", call: "不要",
+    after: "コテの電源を切り、フラックスの残りを拭く", why: "換気と火災防止のため", updated: "2026-11-10" },
+  { id: "scope", name: "オシロスコープ",
+    book: "この画面かWebから予約", call: "不要",
+    after: "設定を「初期化」ボタンで戻し、プローブを巻いて戻す", why: "次の人が波形を見誤らないため", updated: "2026-11-10" },
+  { id: "chamber", name: "恒温槽",
+    book: "この画面かWebから予約", call: "前日までに一声（部門チャットで可）",
+    after: "庫内を常温に戻し、扉を少し開けておく", why: "前日から温度を安定させる必要があるため", updated: "2026-11-05" }
+];
+const state = { role: "B", loaded: false, day: "水", t: 760, bookings: [], trials: [], sel: null, notices: 7, flash: "" };
+const el = id => document.getElementById(id);
+const hm = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+const eqName = id => EQUIPMENT.find(e => e.id === id).name;
+const ROLES = { B: "Bさん（若手）", A: "Aさん", D: "部門長" };
+
+function sampleBookings() {
+  return [
+    { id: 1, eq: "scope", start: 720, end: 780, who: "常連", status: "done" },
+    { id: 2, eq: "solder", start: 750, end: 840, who: "常連", status: "using" },
+    { id: 3, eq: "scope", start: 780, end: 900, who: "常連", status: "reserved" },
+    { id: 4, eq: "chamber", start: 780, end: 960, who: "常連", status: "reserved" },
+    { id: 5, eq: "solder", start: 870, end: 960, who: "常連", status: "reserved" }
+  ];
+}
+
+function tick() {
+  state.bookings.forEach(b => {
+    if (b.status === "reserved" && state.day === "水" && state.t >= b.start + RELEASE_AFTER) {
+      b.status = "released";
+    }
+  });
+  state.trials = state.trials.filter(x => state.t < x.at + TRIAL_LIMIT || x.day !== state.day);
+}
+
+function inTrial() {
+  const w = TRIAL[state.day];
+  return !!w && state.t >= w[0] && state.t < w[1];
+}
+
+function statusOf(eq) {
+  const list = state.bookings.filter(b => b.eq === eq && state.day === "水");
+  const now = list.find(b => b.status === "using");
+  const upcoming = list.filter(b => b.status === "reserved").sort((a, b) => a.start - b.start);
+  return { now, upcoming, released: list.filter(b => b.status === "released") };
+}
+
+function renderEntrance() {
+  let h = "";
+  const w = TRIAL[state.day];
+  h += inTrial()
+    ? `<div class="banner ok">今はお試し枠です（${hm(w[0])}〜${hm(w[1])}）。予約なしで、${TRIAL_LIMIT}分以内なら誰でも使えます。</div>`
+    : `<div class="banner warn">今はお試し枠ではありません。` +
+      (w ? `この日のお試し枠は ${hm(w[0])}〜${hm(w[1])} です。` : `この曜日にお試し枠はありません。`) + `</div>`;
+  h += `<div class="card"><h2>設備を選ぶ</h2><div class="row">` +
+    EQUIPMENT.map(e => `<button data-eq="${e.id}" class="${state.sel === e.id ? "primary" : ""}">${e.name}</button>`).join("") +
+    `</div></div>`;
+  if (state.sel) h += renderEquip(EQUIPMENT.find(e => e.id === state.sel));
+  return h;
+}
+
+function renderEquip(e) {
+  const s = statusOf(e.id);
+  let h = `<div class="card"><h2>${e.name}</h2>`;
+  if (state.day !== "水") {
+    h += `<div class="sub">このモックの予約サンプルは水曜のみです。</div>`;
+  } else if (s.now) {
+    h += `<span class="badge ng">使用中</span> ${hm(s.now.start)}〜${hm(s.now.end)}`;
+  } else {
+    h += `<span class="badge ok">今は空いています</span>`;
+  }
+  const slots = state.day === "水" ? state.bookings.filter(b => b.eq === e.id && b.status !== "done") : [];
+  h += slots.map(b => slotRow(b)).join("");
+  h += `<dl><dt>予約の方法</dt><dd>${e.book}</dd>
+    <dt>事前の一声</dt><dd>${e.call}</dd>
+    <dt>使ったあとの片付け</dt><dd>${e.after}</dd>
+    <dt>理由</dt><dd>${e.why}</dd></dl>
+    <div class="sub" style="margin-top:8px">ルール最終更新日 ${e.updated} ／ 予約は開始から${RELEASE_AFTER}分で自動解放</div>`;
+  h += `<div style="margin-top:10px"><button class="primary" data-trial="${e.id}" ${inTrial() ? "" : "disabled"}>お試し枠で使う（${TRIAL_LIMIT}分）</button></div>`;
+  return h + `</div>`;
+}
+
+function slotRow(b) {
+  const label = { using: ["使用中", "ng"], reserved: ["予約済み", "warn"], released: ["自動解放", "ok"] }[b.status];
+  let extra = "";
+  if (b.status === "reserved" && state.t >= b.start) {
+    extra = `<span class="sub">あと${b.start + RELEASE_AFTER - state.t}分で解放</span>`;
+  }
+  const btn = b.status === "reserved" ? `<button data-start="${b.id}">使い始め</button>` : "";
+  return `<div class="slot"><span>${hm(b.start)}〜${hm(b.end)} <span class="badge ${label[1]}">${label[0]}</span> ${extra}</span>${btn}</div>`;
+}
+
+function renderTrialCard() {
+  const mine = state.trials.filter(x => x.day === state.day);
+  if (!mine.length) return "";
+  return `<div class="card"><h2>お試し枠で使用中</h2>` +
+    mine.map(x => `<div class="slot"><span>${eqName(x.eq)}</span><span class="sub">${hm(x.at)}〜${hm(x.at + TRIAL_LIMIT)}</span></div>`).join("") +
+    `<div class="sub">個人名は記録しません。件数だけが数えられます。</div></div>`;
+}
+
+function renderReview() {
+  const total = state.bookings.length;
+  const used = state.bookings.filter(b => b.status === "using" || b.status === "done").length;
+  const rate = total ? Math.round(used / total * 100) : 0;
+  const trialCount = state.trialLog || 0;
+  return `<div class="card"><h2>今月の運用の振り返り（部門全体）</h2>
+    <div class="stats">
+      <div><div class="big">${rate}%</div><div class="sub">予約の使用率</div></div>
+      <div><div class="big">${trialCount}</div><div class="sub">お試し枠の利用</div></div>
+      <div><div class="big">${state.notices}</div><div class="sub">注意の件数</div></div>
+    </div>
+    <div class="sub" style="margin-top:8px">予約 ${total}件のうち使用 ${used}件・自動解放 ${state.bookings.filter(b => b.status === "released").length}件。個人別の集計は表示しません。</div>
+    <div class="row" style="margin-top:8px"><button id="addNotice">注意が1件あった（記録）</button></div></div>`;
+}
+
+function render() {
+  tick();
+  el("roles").innerHTML = Object.keys(ROLES).map(k => `<button data-role="${k}" class="${state.role === k ? "on" : ""}">${ROLES[k]}</button>`).join("");
+  el("day").innerHTML = DAYS.map(d => `<option ${d === state.day ? "selected" : ""}>${d}</option>`).join("");
+  el("clock").value = state.t;
+  el("clockLabel").textContent = `現在（モック）: ${state.day}曜 ${hm(state.t)}`;
+  let h = "";
+  if (!state.loaded) {
+    h = `<div class="card sub">「サンプルを読み込む」を押すと、設備・ルール・予約の例が入ります。</div>`;
+  } else if (state.role === "D") {
+    h = renderReview();
+  } else {
+    h = renderEntrance() + renderTrialCard();
+  }
+  if (state.flash) h = `<div class="banner ok">${state.flash}</div>` + h;
+  el("view").innerHTML = h;
+}
+
+document.addEventListener("click", ev => {
+  const t = ev.target.closest("button");
+  if (!t) return;
+  state.flash = "";
+  if (t.id === "load") {
+    Object.assign(state, { loaded: true, bookings: sampleBookings(), trials: [], trialLog: 3, sel: "scope", day: "水", t: 790 });
+  } else if (t.dataset.role) {
+    state.role = t.dataset.role;
+  } else if (t.id === "plus5") {
+    state.t = Math.min(1080, state.t + 5);
+  } else if (t.id === "plus15") {
+    state.t = Math.min(1080, state.t + 15);
+  } else if (t.dataset.eq) {
+    state.sel = t.dataset.eq;
+  } else if (t.dataset.start) {
+    const b = state.bookings.find(x => x.id == t.dataset.start);
+    b.status = "using";
+    state.flash = "使い始めを記録しました。予約は解放されません。";
+  } else if (t.dataset.trial) {
+    state.trials.push({ eq: t.dataset.trial, at: state.t, day: state.day });
+    state.trialLog = (state.trialLog || 0) + 1;
+    state.flash = `${eqName(t.dataset.trial)}をお試し枠で使い始めました。${TRIAL_LIMIT}分以内に片付けてください。`;
+  } else if (t.id === "addNotice") {
+    state.notices += 1;
+  }
+  render();
+});
+el("day").addEventListener("change", e => { state.day = e.target.value; render(); });
+el("clock").addEventListener("input", e => { state.t = +e.target.value; render(); });
+render();
+</script>
+</body>
+</html>

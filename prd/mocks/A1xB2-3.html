@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教える時間と知識の地図 モック（A1xB2-3）</title>
+<style>
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --text: #22282a; --sub: #5d6a6e;
+  --line: #dde2dd; --accent: #2f6f62; --accent-bg: #e3f0ec; --warn-bg: #fdf3dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161a1b; --card: #20272a; --text: #e8ecea; --sub: #9aa8ac;
+    --line: #333d40; --accent: #6cc2ae; --accent-bg: #1f3a35; --warn-bg: #3a3320;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  padding: 0 16px 48px; max-width: 480px; margin: 0 auto; overflow-x: hidden;
+}
+header { padding: 12px 0 8px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 14px; margin: 0; line-height: 1.4; }
+header small { color: var(--sub); font-size: 11px; }
+.bar { display: flex; gap: 8px; margin: 12px 0; }
+.bar select, .bar button { flex: 1; min-width: 0; }
+select, button, input, textarea {
+  font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+button { cursor: pointer; }
+button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+nav { display: flex; gap: 6px; margin-bottom: 12px; }
+nav button { flex: 1; padding: 8px 4px; font-size: 13px; }
+nav button.on { background: var(--accent-bg); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.card h3 { margin: 0 0 6px; font-size: 15px; }
+.note { background: var(--warn-bg); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
+.sub { color: var(--sub); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.chip { padding: 4px 10px; border-radius: 16px; font-size: 13px; border: 1px solid var(--line); background: var(--card); }
+.chip.on { background: var(--accent-bg); border-color: var(--accent); }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+label { display: block; font-size: 13px; margin: 8px 0 4px; }
+input, textarea { width: 100%; }
+.steps { padding-left: 0; list-style: none; margin: 0; }
+.steps li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-top: 1px solid var(--line); }
+.steps li:first-child { border-top: 0; }
+.next { background: var(--accent-bg); border-radius: 8px; padding: 8px 10px; }
+.fb { display: flex; gap: 6px; margin-top: 6px; }
+.fb button { flex: 1; font-size: 13px; padding: 6px 4px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>「教える時間」と「誰が何を知っているか」を部署で見える化するOJT設計キット</h1>
+  <small>A1xB2-3 ／ モック（ダミーデータ・画面内のみで保存）</small>
+</header>
+
+<div class="bar">
+  <select id="role" aria-label="役割の切り替え">
+    <option value="B">若手：Bさん（入社3年目）</option>
+    <option value="A">若手：Aさん（外国籍社員）</option>
+    <option value="S">先輩（機械系）</option>
+  </select>
+  <button id="load" class="primary">サンプルを読み込む</button>
+</div>
+
+<nav id="tabs"></nav>
+<main id="view"></main>
+
+<script>
+const SAMPLE = {
+  people: [
+    { id: "t1", name: "田中さん（先輩）", fields: ["筐体設計", "材料"] },
+    { id: "t2", name: "鈴木さん（先輩）", fields: ["熱", "筐体設計"] },
+    { id: "t3", name: "高橋さん（先輩）", fields: ["回路", "熱"] }
+  ],
+  slots: [
+    { id: "s1", teacher: "t1", when: "火 15:00-15:30", booked: null },
+    { id: "s2", teacher: "t2", when: "水 11:00-11:30", booked: null },
+    { id: "s3", teacher: "t1", when: "木 16:00-16:30", booked: null },
+    { id: "s4", teacher: "t3", when: "金 10:00-10:30", booked: null }
+  ],
+  guide: [
+    { term: "3か月", items: [
+      { id: "g1", text: "筐体の板厚の決め方（制約と公差）" },
+      { id: "g2", text: "主な材料と加工方法の違い" },
+      { id: "g3", text: "設計レビューの見方と指摘の読み方" } ] },
+    { term: "6か月", items: [
+      { id: "g4", text: "放熱設計の基本" },
+      { id: "g5", text: "機構と基板の取り合い" } ] }
+  ],
+  done: { A: ["g3"], B: [] }
+};
+const state = { role: "B", tab: "book", data: null, field: null, slot: null,
+                done: { A: [], B: [] }, feedback: [], mapFb: null };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const name = (id) => state.data.people.find((p) => p.id === id).name;
+
+function tabsFor(role) {
+  if (role === "S") return [["offer", "教える枠"], ["map", "知識の地図"], ["review", "振り返り"]];
+  return [["book", "質問を予約"], ["guide", "立ち上がり目安表"]];
+}
+
+function renderTabs() {
+  const list = tabsFor(state.role);
+  if (!list.some((t) => t[0] === state.tab)) state.tab = list[0][0];
+  $("tabs").innerHTML = list.map((t) =>
+    `<button data-tab="${t[0]}" class="${state.tab === t[0] ? "on" : ""}">${t[1]}</button>`).join("");
+}
+
+function empty() {
+  return `<div class="card sub">データがありません。「サンプルを読み込む」を押してください。</div>`;
+}
+
+function viewBook() {
+  const d = state.data;
+  const fields = [...new Set(d.people.flatMap((p) => p.fields))];
+  const mine = d.slots.filter((s) => s.booked && s.booked.role === state.role);
+  let h = `<div class="note">急ぎの質問は、枠の外で聞いてもかまいません。</div>
+    <div class="card"><h3>1. 聞きたい分野を選ぶ</h3><div class="chips">` +
+    fields.map((f) => `<button class="chip ${state.field === f ? "on" : ""}" data-field="${f}">${f}</button>`).join("") +
+    `</div></div>`;
+  if (state.field) {
+    const who = d.people.filter((p) => p.fields.includes(state.field)).map((p) => p.id);
+    h += `<div class="card"><h3>2. 教える枠を選ぶ</h3><div class="sub">「${esc(state.field)}」を教えられる人の枠です。</div>`;
+    h += d.slots.filter((s) => who.includes(s.teacher)).map((s) =>
+      `<div class="row" style="padding:6px 0"><span>${esc(name(s.teacher))}<br><span class="sub">${s.when}</span></span>` +
+      (s.booked ? `<span class="sub">予約済み</span>`
+        : `<button data-slot="${s.id}" class="${state.slot === s.id ? "primary" : ""}">選ぶ</button>`) + `</div>`).join("");
+    h += `</div>`;
+  }
+  if (state.slot) {
+    h += `<div class="card"><h3>3. 事前に質問を書く</h3>
+      <label for="q">何がわからないか（例：板厚をどう決めるか）</label>
+      <textarea id="q" rows="3"></textarea>
+      <label for="tried">ここまでに試したこと（任意）</label>
+      <input id="tried"><div style="margin-top:10px"><button id="reserve" class="primary">この枠に予約する</button></div></div>`;
+  }
+  if (mine.length) {
+    h += `<div class="card"><h3>予約した質問</h3>` + mine.map((s) =>
+      `<div class="sub">${esc(name(s.teacher))} ／ ${s.when}<br><span style="color:var(--text)">${esc(s.booked.q)}</span></div>`).join("<hr>") +
+      `</div><div class="card"><div class="sub">この「分野を選ぶ→枠を選ぶ→予約」の流れは？</div>${fbButtons("flow", ["自然だった", "迷った"])}</div>`;
+  }
+  return h;
+}
+
+function fbButtons(key, labels) {
+  const cur = state.feedback.find((f) => f.key === key);
+  return `<div class="fb">` + labels.map((l) =>
+    `<button data-fb="${key}|${l}" class="${cur && cur.label === l ? "primary" : ""}">${l}</button>`).join("") + `</div>`;
+}
+
+function viewGuide() {
+  const d = state.data, done = state.done[state.role];
+  const all = d.guide.flatMap((g) => g.items);
+  const next = all.find((i) => !done.includes(i.id));
+  const who = state.role === "A" ? "Aさん" : "Bさん";
+  let h = `<div class="note">この表は本人と教える側だけが見ます。他の人との比較や、点数・達成率の順位は出しません。目安に届かなくても問題ではありません。</div>
+    <div class="card next"><b>${who}の次の一歩</b><br>` +
+    (next ? esc(next.text) + `<br><span class="sub">教える枠で聞いてみましょう。</span>` : "ここまで完了です。") + `</div>`;
+  h += d.guide.map((g) => `<div class="card"><h3>配属後${g.term}の目安</h3><ul class="steps">` +
+    g.items.map((i) => `<li><input type="checkbox" style="width:auto" data-done="${i.id}" ${done.includes(i.id) ? "checked" : ""}>
+      <span>${esc(i.text)}</span></li>`).join("") + `</ul></div>`).join("");
+  h += `<div class="card"><div class="sub">この表を見て、どう感じましたか？</div>${fbButtons("guide", ["次の一歩が見えた", "焦りを感じた"])}</div>`;
+  return h;
+}
+
+function viewOffer() {
+  const d = state.data;
+  let h = `<div class="note">枠の時間は業務時間として計上します。枠の外で無理に答えなくてかまいません。</div>
+    <div class="card"><h3>自分の枠（田中さんとして表示）</h3>`;
+  const mine = d.slots.filter((s) => s.teacher === "t1");
+  h += mine.map((s) => `<div class="row" style="padding:6px 0"><span>${s.when}</span>
+    <span class="sub">${s.booked ? "予約あり" : "空き"}</span></div>` +
+    (s.booked ? `<div class="sub">質問：${esc(s.booked.q)}</div>` : "")).join("");
+  h += `<label for="nw">枠を追加（例：金 14:00-14:30）</label><div class="row"><input id="nw">
+    <button id="addslot">追加</button></div></div>`;
+  return h;
+}
+
+function viewMap() {
+  const d = state.data;
+  return `<div class="card sub">自分が教えられる分野を登録します。</div>` + d.people.map((p) =>
+    `<div class="card"><b>${esc(p.name)}</b><div class="chips">` +
+    p.fields.map((f) => `<span class="chip on">${f}</span>`).join("") + `</div></div>`).join("") +
+    `<div class="card"><label for="nf">田中さんの分野を追加</label><div class="row"><input id="nf" placeholder="例：振動">
+    <button id="addfield">追加</button></div></div>`;
+}
+
+function viewReview() {
+  const d = state.data;
+  const booked = d.slots.filter((s) => s.booked);
+  const by = {};
+  booked.forEach((s) => { by[s.booked.field] = (by[s.booked.field] || 0) + 1; });
+  const cnt = (t) => d.slots.filter((s) => s.teacher === t).length;
+  return `<div class="note">部署全体の集計のみ表示します。個人ごとの質問数や担当数は出しません。</div>
+    <div class="card"><h3>今月の部署のまとめ</h3>
+    <div>枠の数：${d.slots.length} ／ 予約された数：${booked.length}</div>
+    <div class="sub">分野ごとの質問数：${Object.keys(by).length ? Object.entries(by).map((e) => e[0] + " " + e[1]).join("、") : "まだありません"}</div>
+    <div class="sub">担当している人数：${new Set(d.slots.map((s) => s.teacher)).size}人 ／ 枠が特定の人に集まりすぎていないか：
+    ${Math.max(...d.people.map((p) => cnt(p.id))) > d.slots.length / 2 ? "一人に偏り気味です。分担を話し合ってみましょう" : "今のところ分散しています"}</div></div>`;
+}
+
+function render() {
+  renderTabs();
+  const views = { book: viewBook, guide: viewGuide, offer: viewOffer, map: viewMap, review: viewReview };
+  $("view").innerHTML = state.data ? views[state.tab]() : empty();
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target, d = state.data;
+  if (t.dataset.tab) { state.tab = t.dataset.tab; }
+  else if (t.dataset.field) { state.field = t.dataset.field; state.slot = null; }
+  else if (t.dataset.slot) { state.slot = t.dataset.slot; }
+  else if (t.dataset.fb) {
+    const [key, label] = t.dataset.fb.split("|");
+    state.feedback = state.feedback.filter((f) => f.key !== key).concat({ key, label });
+  }
+  else if (t.id === "reserve") {
+    const q = $("q").value.trim();
+    if (!q) { alert("質問内容を書いてください。"); return; }
+    d.slots.find((s) => s.id === state.slot).booked = { role: state.role, q, field: state.field };
+    state.slot = null;
+  }
+  else if (t.id === "addslot") {
+    const v = $("nw").value.trim();
+    if (v) d.slots.push({ id: "s" + Date.now(), teacher: "t1", when: v, booked: null });
+  }
+  else if (t.id === "addfield") {
+    const v = $("nf").value.trim(), p = d.people.find((x) => x.id === "t1");
+    if (v && !p.fields.includes(v)) p.fields.push(v);
+  }
+  else return;
+  render();
+});
+
+document.addEventListener("change", (e) => {
+  if (e.target.dataset.done) {
+    const list = state.done[state.role], id = e.target.dataset.done;
+    state.done[state.role] = e.target.checked ? list.concat(id) : list.filter((x) => x !== id);
+    render();
+  }
+});
+
+$("role").addEventListener("change", (e) => { state.role = e.target.value; state.field = null; state.slot = null; render(); });
+$("load").addEventListener("click", () => {
+  state.data = JSON.parse(JSON.stringify(SAMPLE));
+  state.done = JSON.parse(JSON.stringify(SAMPLE.done));
+  state.field = null; state.slot = null; state.feedback = [];
+  render();
+});
+render();
+</script>
+</body>
+</html>

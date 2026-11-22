@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>進行キット モック A3xB4-3</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2530;--sub:#5d6877;--line:#dde1e7;--accent:#2563eb;--ok:#15803d;--okbg:#e3f4e8;--warn:#b45309;--warnbg:#fdf0d9;--bad:#b91c1c;--badbg:#fbe4e4}
+@media(prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212a;--text:#e6e9ee;--sub:#9aa5b4;--line:#2d3642;--accent:#6ea0ff;--ok:#6fd39a;--okbg:#17301f;--warn:#f0b35a;--warnbg:#3a2b12;--bad:#f28b8b;--badbg:#3c1b1b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;padding:0 16px 40px;max-width:640px;margin-inline:auto}
+header{padding:14px 0 8px}
+header h1{font-size:16px;margin:0}
+header small{color:var(--sub)}
+.cell{display:inline-block;background:var(--line);border-radius:4px;padding:0 6px;font-size:12px;margin-right:6px}
+.note{font-size:12px;color:var(--sub);margin:4px 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.card h2{font-size:15px;margin:0}
+.badge{font-size:12px;border-radius:999px;padding:1px 10px;white-space:nowrap}
+.b-ok{background:var(--okbg);color:var(--ok)}.b-warn{background:var(--warnbg);color:var(--warn)}.b-bad{background:var(--badbg);color:var(--bad)}.b-gray{background:var(--line);color:var(--sub)}
+.sum{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.terms{list-style:none;padding:0;margin:8px 0}
+.terms li{display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid var(--line);padding:6px 0;font-size:14px}
+.terms span.re{color:var(--sub);font-size:13px}
+button{font:inherit;font-size:14px;min-height:40px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
+button.p{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.sm{min-height:32px;padding:0 10px;font-size:13px}
+.cnt{font-weight:700;min-width:1.5em;text-align:center}
+input,textarea{font:inherit;font-size:16px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+label{display:block;font-size:12px;color:var(--sub);margin:8px 0 2px}
+.rs{border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0}
+.seg{display:flex;gap:6px;margin-top:6px}
+.seg button.on-ok{background:var(--okbg);color:var(--ok);border-color:var(--ok)}
+.seg button.on-bad{background:var(--badbg);color:var(--bad);border-color:var(--bad)}
+.panel{border-top:1px dashed var(--line);margin-top:10px;padding-top:8px}
+.hint{font-size:13px;color:var(--warn);margin:6px 0}
+.minutes{background:var(--bg);border-radius:8px;padding:8px;font-size:14px;margin-top:8px}
+.g3{display:grid;grid-template-columns:1fr;gap:6px}
+@media(min-width:420px){.g3{grid-template-columns:1fr 1fr 1fr}}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="cell">A3xB4-3</span>分野をまたぐ会議の進行キット</h1>
+  <small>司会者画面 / 週次 設計会議 / モック（ダミーデータ）</small>
+</header>
+<div class="note">録音・個人別評価・自動議事録はありません。議事録に残るのは構造化した結論のみです。</div>
+
+<div class="card" id="overview"><div class="row"><h2>全議題の状況</h2><span class="note" style="margin:0">議題名をタップで開く</span></div><div id="ov"></div></div>
+<div id="list"></div>
+
+<script>
+const agendas=[
+ {id:0,title:"試作基板の発熱が想定超え",who:"Bさん（電気）",fields:["電気","機械"],shared:false,
+  terms:[["ディレーティング","部品を定格の余裕を残して使うこと"],["熱抵抗","熱の逃げにくさ"],["ジャンクション温度","半導体内部の温度"]],
+  cards:{"ディレーティング":0,"熱抵抗":0,"ジャンクション温度":0}},
+ {id:1,title:"筐体の通気スリット変更案",who:"機械チーム",fields:["機械","電気"],shared:true,
+  terms:[["ドラフト角","金型から抜くための抜き勾配"],["肉厚","壁の厚み"]],cards:{"ドラフト角":0,"肉厚":0}},
+ {id:2,title:"次回試作の日程調整",who:"Aさん（調整役）",fields:["電気","機械"],shared:true,
+  terms:[["リードタイム","発注から納品までの日数"]],cards:{"リードタイム":0}}
+];
+agendas.forEach(a=>{a.open=a.id===0;a.rs=a.fields.map(f=>({f,text:"",res:null}));a.done=null;a.tb={who:"",when:"",what:""};a.urgent=false});
+const $=s=>document.querySelector(s);
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const total=a=>Object.values(a.cards).reduce((x,y)=>x+y,0);
+const mismatch=a=>a.rs.some(r=>r.res==="bad");
+function status(a){
+ if(a.done)return['b-ok','議事録に保存済み'];
+ if(a.rs.every(r=>r.res))return mismatch(a)?['b-bad','食い違い・書き直し待ち']:['b-ok','言い直し一致'];
+ if(a.rs.some(r=>r.res))return['b-warn','言い直し確認中'];
+ return['b-gray','言い直し未実施'];}
+function readyToSave(a){
+ if(!a.rs.every(r=>r.res&&r.text.trim()))return false;
+ if(!mismatch(a))return true;
+ const t=a.tb;return t.who.trim()&&t.when.trim()&&t.what.trim();}
+function render(){
+ $("#ov").innerHTML=agendas.map(a=>{const s=status(a);
+  return `<div class="row" style="padding:6px 0;border-top:1px solid var(--line)"><a href="#a${a.id}" style="color:var(--text);text-decoration:none;font-size:14px" data-open="${a.id}">${a.id+1}. ${esc(a.title)}</a>
+  <span class="sum" style="margin:0">${sharedBadge(a)}<span class="badge b-gray">カード ${total(a)}</span><span class="badge ${s[0]}">${s[1]}</span></span></div>`}).join("");
+ $("#list").innerHTML=agendas.map(card).join("");
+}
+function sharedBadge(a){
+ if(a.shared)return'<span class="badge b-ok">共有済み</span>';
+ return a.urgent?'<span class="badge b-warn">未共有・例外で議論</span>':'<span class="badge b-warn">未共有 → 報告のみ</span>';}
+function card(a){
+ const s=status(a);
+ let h=`<div class="card" id="a${a.id}"><div class="row"><h2>${a.id+1}. ${esc(a.title)}</h2><button class="sm" data-tog="${a.id}">${a.open?"閉じる":"開く"}</button></div>
+ <div class="note" style="margin:2px 0">登録者: ${esc(a.who)} / 関係分野: ${a.fields.join("・")}</div>
+ <div class="sum">${sharedBadge(a)}<span class="badge b-gray">確認カード ${total(a)}件</span><span class="badge ${s[0]}">${s[1]}</span></div>`;
+ if(!a.shared)h+=`<div class="hint">会議前に関係者へ共有されていません。その場で結論は求めません。<br><button class="sm" data-urgent="${a.id}">${a.urgent?"例外を取り消す":"司会者判断で例外にする（件数は振り返りに出ます）"}</button></div>`;
+ if(a.open){
+  h+=`<div class="panel"><b style="font-size:13px">用語の事前登録（最大3つ）</b><ul class="terms">`+a.terms.map(t=>`<li><div>${esc(t[0])}<br><span class="re">＝ ${esc(t[1])}</span></div><div class="row" style="flex-wrap:nowrap"><span class="cnt">${a.cards[t[0]]}</span></div></li>`).join("")+`</ul>
+  <button class="sm" data-demo="${a.id}">参加者からカードを追加（デモ）</button>
+  <div class="note">匿名の件数のみ表示します。誰が出したかは記録しません。議題の区切りで取り上げてください。</div></div>`;
+  h+=`<div class="panel"><b style="font-size:13px">終わりの言い直し確認</b>`;
+  if(!a.shared&&!a.urgent)h+=`<div class="note">報告のみの議題です。結論を求めないため言い直し確認は不要です（確認したい場合は例外にしてください）。</div>`;
+  else{
+   h+=`<div class="note">関係分野から一人ずつ指名し、結論を一文で言い直してもらいます。</div>`;
+   h+=a.rs.map((r,i)=>`<div class="rs"><label>${r.f}分野の代表の言い直し</label><input data-rs="${a.id}.${i}" value="${esc(r.text)}" placeholder="例：機械側が来週金曜までに通気の影響を試算する" ${a.done?"disabled":""}>
+   <div class="seg"><button data-res="${a.id}.${i}.ok" class="${r.res==="ok"?"on-ok":""}" ${a.done?"disabled":""}>一致</button><button data-res="${a.id}.${i}.bad" class="${r.res==="bad"?"on-bad":""}" ${a.done?"disabled":""}>食い違い</button></div></div>`).join("");
+   if(mismatch(a)){
+    h+=`<div class="hint">食い違いがあります。結論を詰め直し、「持ち帰り」を誰が・いつまでに・何をの形に書き直してください。</div>
+    <div class="g3"><div><label>誰が</label><input data-tb="${a.id}.who" value="${esc(a.tb.who)}" placeholder="機械チーム 佐藤さん" ${a.done?"disabled":""}></div>
+    <div><label>いつまでに</label><input data-tb="${a.id}.when" value="${esc(a.tb.when)}" placeholder="来週金曜" ${a.done?"disabled":""}></div>
+    <div><label>何を</label><input data-tb="${a.id}.what" value="${esc(a.tb.what)}" placeholder="通気変更の影響を試算" ${a.done?"disabled":""}></div></div>`;}
+   h+=`<div style="margin-top:10px"><button class="p" data-save="${a.id}" ${readyToSave(a)&&!a.done?"":"disabled"}>${a.done?"保存済み":"議事録に保存"}</button>
+   ${!a.done&&!readyToSave(a)?'<span class="note"> 全員の言い直しと判定'+(mismatch(a)?'、書き直し3項目':'')+'が必要です</span>':""}</div>`;
+   if(a.done)h+=`<div class="minutes"><b>議事録（結論）</b><br>${esc(a.done)}</div>`;
+  }
+  h+=`</div>`;}
+ return h+"</div>";}
+document.addEventListener("click",e=>{
+ const d=e.target.dataset;if(!d)return;
+ if(d.open!==undefined){agendas[d.open].open=true;render();return;}
+ if(d.tog!==undefined){agendas[d.tog].open=!agendas[d.tog].open}
+ else if(d.urgent!==undefined){agendas[d.urgent].urgent=!agendas[d.urgent].urgent}
+ else if(d.demo!==undefined){const a=agendas[d.demo],k=Object.keys(a.cards);a.cards[k[Math.floor(Math.random()*k.length)]]++}
+ else if(d.res){const[i,j,v]=d.res.split(".");agendas[i].rs[j].res=v}
+ else if(d.save!==undefined){const a=agendas[d.save];
+  a.done=mismatch(a)?`持ち帰り（書き直し済み）: ${a.tb.who} が ${a.tb.when} までに ${a.tb.what}`:`結論: ${a.rs.map(r=>r.f+"「"+r.text+"」").join(" / ")}（言い直し一致）`}
+ else return;
+ render();});
+document.addEventListener("input",e=>{
+ const d=e.target.dataset;
+ if(d.rs){const[i,j]=d.rs.split(".");agendas[i].rs[j].text=e.target.value;refreshSave(agendas[i])}
+ if(d.tb){const[i,k]=d.tb.split(".");agendas[i].tb[k]=e.target.value;refreshSave(agendas[i])}});
+function refreshSave(a){const b=document.querySelector(`[data-save="${a.id}"]`);if(b)b.disabled=!readyToSave(a)||!!a.done;}
+render();
+</script>
+</body>
+</html>

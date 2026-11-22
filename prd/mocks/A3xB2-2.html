@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知識交換ペア（A3xB2-2）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2f6fb5; --accent-bg: #e6f0fa;
+  --me: #e6f0fa; --other: #fdf0e1; --ok: #2e7d4f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e8ecef; --sub: #9aa7b2;
+    --line: #333c44; --accent: #6aa8e8; --accent-bg: #22364a;
+    --me: #22364a; --other: #3a2f22; --ok: #6cc28c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px; margin: 12px 0; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+.note { color: var(--sub); font-size: 13px; margin: 4px 0 8px; }
+button { font: inherit; border: 1px solid var(--accent); background: var(--card);
+  color: var(--accent); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--bg); }
+button:disabled { opacity: .5; cursor: default; }
+.tabs, .roles { display: flex; gap: 6px; margin: 8px 0; }
+.tabs button, .roles button { flex: 1; padding: 6px 4px; font-size: 14px; }
+.on { background: var(--accent-bg); font-weight: bold; }
+.chip { display: inline-block; border: 1px solid var(--line); border-radius: 14px;
+  padding: 2px 10px; margin: 2px 4px 2px 0; font-size: 13px; cursor: pointer; }
+.chip.sel { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--accent-bg); }
+input[type=text] { width: 100%; font: inherit; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.q { padding: 8px 10px; border-radius: 8px; margin: 6px 0; }
+.q.me { background: var(--me); } .q.other { background: var(--other); }
+.q small { color: var(--sub); display: block; }
+.slot { display: flex; justify-content: space-between; gap: 8px; }
+.row { display: flex; gap: 6px; margin-top: 6px; }
+.row button { white-space: nowrap; }
+.ok { color: var(--ok); font-weight: bold; }
+</style>
+</head>
+<body>
+<header><h1>知識交換ペア <small>A3xB2-2 / モック</small></h1></header>
+<main>
+  <div class="note">見る人を切り替えて、ペアの両側を1台で試せます。</div>
+  <div class="roles" id="roles"></div>
+  <button id="sample">サンプルを読み込む</button>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</main>
+<script>
+const FIELDS = ["回路・ノイズ", "材料", "筐体設計", "機構", "熱設計", "制御ソフト"];
+let people = {};
+let me = "B";
+let tab = "reg";
+let accepts = [];   // "X>Y" = XがYに承諾
+let questions = []; // {by, text}
+let records = [];   // {by, text}
+let first = "B";    // 前半15分に質問する人
+
+const TABS = { reg: "登録", pair: "ペア提案", board: "質問の置き場" };
+
+function blank() {
+  people = {
+    B: { name: "Bさん（電気・3年目）", teach: [], want: [] },
+    C: { name: "Cさん（機械・ベテラン）", teach: [], want: [] },
+    D: { name: "Dさん（機械・5年目）", teach: [], want: [] },
+    E: { name: "Eさん（熱・中堅）", teach: [], want: [] }
+  };
+  accepts = []; questions = []; records = []; first = "B";
+}
+
+function loadSample() {
+  blank();
+  people.B.teach = ["回路・ノイズ"]; people.B.want = ["材料", "筐体設計"];
+  people.C.teach = ["材料", "筐体設計", "機構"]; people.C.want = ["回路・ノイズ"];
+  people.D.teach = ["材料"]; people.D.want = ["制御ソフト"];
+  people.E.teach = ["熱設計"]; people.E.want = ["回路・ノイズ"];
+  render();
+}
+
+function inter(a, b) { return a.filter(x => b.includes(x)); }
+
+function candidates() {
+  const m = people[me];
+  const out = [];
+  for (const id in people) {
+    if (id === me) continue;
+    const p = people[id];
+    const get = inter(p.teach, m.want);   // 相手から教わる
+    const give = inter(m.teach, p.want);  // 自分が教える
+    if (get.length && give.length) out.push({ id, get, give, kind: "逆の組み合わせ" });
+    else if (get.length) out.push({ id, get, give, kind: "片方向（一方の知りたいを他方が教えられる）" });
+  }
+  return out.sort((a, b) => (b.give.length > 0) - (a.give.length > 0));
+}
+
+function pairOf() {
+  for (const id in people) {
+    if (id !== me && accepts.includes(me + ">" + id) && accepts.includes(id + ">" + me)) return id;
+  }
+  return null;
+}
+
+function chips(kind) {
+  return FIELDS.map(f => {
+    const sel = people[me][kind].includes(f) ? " sel" : "";
+    return `<span class="chip${sel}" data-k="${kind}" data-f="${f}">${f}</span>`;
+  }).join("");
+}
+
+function viewReg() {
+  return `<div class="card"><h2>${people[me].name}</h2>
+    <div>教えられること</div>${chips("teach")}
+    <div style="margin-top:8px">知りたいこと</div>${chips("want")}
+    <p class="note">タップで選択。登録した人の中からペアが提案されます。</p></div>`;
+}
+
+function viewPair() {
+  const p = pairOf();
+  if (p) return `<div class="card"><span class="ok">ペア成立</span>
+    <p>${people[p].name} とペアになりました。「質問の置き場」へ。</p></div>`;
+  const list = candidates();
+  if (!people[me].teach.length && !people[me].want.length)
+    return `<div class="card">先に「登録」をしてください。</div>`;
+  if (!list.length) return `<div class="card">今は提案できる相手がいません。</div>`;
+  return list.map(c => {
+    const mine = accepts.includes(me + ">" + c.id);
+    const theirs = accepts.includes(c.id + ">" + me);
+    return `<div class="card"><h2>${people[c.id].name}</h2>
+      <span class="tag">${c.kind}</span>
+      <p>教わる: ${c.get.join("・")}<br>教える: ${c.give.join("・") || "（なし）"}</p>
+      <p class="note">${theirs ? "相手は承諾済みです" : "相手の承諾待ち（役割を切り替えて承諾できます）"}</p>
+      <button class="primary" data-acc="${c.id}" ${mine ? "disabled" : ""}>${mine ? "承諾済み" : "ペアになる"}</button></div>`;
+  }).join("");
+}
+
+function qBlock(id, label) {
+  const mine = id === me ? "me" : "other";
+  const qs = questions.filter(q => q.by === id);
+  return `<div class="card"><div class="slot"><h2>${label}</h2><span class="tag">${people[id].name.split("（")[0]}の質問</span></div>
+    ${qs.map(q => `<div class="q ${mine}">${q.text}</div>`).join("") || '<div class="note">まだ質問はありません</div>'}</div>`;
+}
+
+function viewBoard() {
+  const p = pairOf();
+  if (!p) return `<div class="card">ペアが成立すると使えます。「ペア提案」で承諾してください。</div>`;
+  const second = first === me ? p : me;
+  const firstId = first === me ? me : p;
+  const rec = records.map(r => `<div class="q ${r.by === me ? "me" : "other"}"><small>${people[r.by].name.split("（")[0]}</small>${r.text}</div>`).join("");
+  return `<div class="card"><h2>週30分の時間割</h2>
+    <div class="slot"><span>前半15分</span><b>${people[firstId].name.split("（")[0]}の質問</b></div>
+    <div class="slot"><span>後半15分</span><b>${people[second === firstId ? p : second].name.split("（")[0]}の質問</b></div>
+    <p class="note">両方の質問の時間が同じ長さで確保されます。</p>
+    <button id="swap">前半と後半を入れ替える</button></div>
+    ${qBlock(firstId, "前半の質問")}${qBlock(firstId === me ? p : me, "後半の質問")}
+    <div class="card"><h2>質問を書く</h2>
+      <input type="text" id="qin" placeholder="次の時間に聞きたいこと">
+      <div class="row"><button class="primary" id="addq">置く</button></div></div>
+    <div class="card"><h2>教え合いの記録（ペアの2人だけが見られます）</h2>${rec || '<div class="note">まだ記録はありません</div>'}
+      <input type="text" id="rin" placeholder="話した内容を一行で">
+      <div class="row"><button id="addr">記録する</button></div></div>`;
+}
+
+function render() {
+  document.getElementById("roles").innerHTML = Object.keys(people).map(id =>
+    `<button class="${id === me ? "on" : ""}" data-role="${id}">${people[id].name.split("（")[0]}</button>`).join("");
+  document.getElementById("tabs").innerHTML = Object.keys(TABS).map(k =>
+    `<button class="${k === tab ? "on" : ""}" data-tab="${k}">${TABS[k]}</button>`).join("");
+  document.getElementById("view").innerHTML = { reg: viewReg, pair: viewPair, board: viewBoard }[tab]();
+}
+
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.role) me = t.dataset.role;
+  else if (t.dataset.tab) tab = t.dataset.tab;
+  else if (t.dataset.k) {
+    const arr = people[me][t.dataset.k], f = t.dataset.f;
+    arr.includes(f) ? arr.splice(arr.indexOf(f), 1) : arr.push(f);
+  } else if (t.dataset.acc) accepts.push(me + ">" + t.dataset.acc);
+  else if (t.id === "sample") return loadSample();
+  else if (t.id === "swap") first = first === me ? pairOf() : me;
+  else if (t.id === "addq" || t.id === "addr") {
+    const el = document.getElementById(t.id === "addq" ? "qin" : "rin");
+    if (el.value.trim()) (t.id === "addq" ? questions : records).push({ by: me, text: el.value.trim() });
+  } else return;
+  render();
+});
+
+blank();
+render();
+</script>
+</body>
+</html>

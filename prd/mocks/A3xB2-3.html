@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>何でも質問タイム（A3xB2-3）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1d2330; --sub: #667085;
+  --line: #dde1e8; --accent: #2f6fdb; --accent-t: #fff; --warn: #b4540a; --ok: #1f7a4d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b; --card: #1c212b; --text: #e7eaf0; --sub: #9aa3b2;
+    --line: #333b49; --accent: #6b9cf2; --accent-t: #101722; --warn: #f0a35e; --ok: #5ccb97;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  padding: 0 16px 40px; max-width: 480px; margin-inline: auto; overflow-x: hidden;
+}
+header { padding: 12px 0 8px; }
+header h1 { font-size: 16px; margin: 0; }
+header small { color: var(--sub); }
+.tabs { display: flex; gap: 6px; margin: 8px 0 12px; }
+.tabs button { flex: 1; }
+button, select, input, textarea {
+  font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+button { cursor: pointer; }
+button.on, button.primary { background: var(--accent); color: var(--accent-t); border-color: var(--accent); }
+textarea, input[type=text], select { width: 100%; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.card h2 { font-size: 15px; margin: 0 0 8px; }
+.tag { font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 99px; padding: 0 8px; color: var(--sub); }
+.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.sub { color: var(--sub); font-size: 13px; }
+.warn { color: var(--warn); }
+.ok { color: var(--ok); }
+.timer { font-size: 32px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.cur { border-color: var(--accent); border-width: 2px; }
+.done { opacity: .6; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>週1回30分「何でも質問タイム」</h1>
+  <small>PRD A3xB2-3 ／ モック（ダミーデータ）</small>
+</header>
+
+<div class="row" style="margin-bottom:8px">
+  <button id="load">サンプルを読み込む</button>
+  <button id="reset">空にする</button>
+</div>
+<div class="tabs" id="tabs"></div>
+<div id="view"></div>
+
+<div class="card" style="margin-top:16px">
+  <h2>部署の質問集（答えの要点）</h2>
+  <div id="archive" class="sub">まだありません</div>
+  <p class="sub">質問者は記録していません。評価には使いません。</p>
+</div>
+
+<script>
+const FIELDS = ['機械', '電気', '材料', '熱解析'];
+const POOL = {
+  '機械': ['田中', '山本'], '電気': ['小林', '井上'],
+  '材料': ['佐藤', '鈴木'], '熱解析': ['高橋', '山本']
+};
+const TOTAL = 30;
+let S, role = 'young', answerer = '田中';
+
+function fresh() { return { qs: [], mine: {}, elapsed: 0, cur: null, nextId: 1 }; }
+S = fresh();
+
+const SAMPLE = [
+  ['材料', '筐体の材料はどう選べばよいですか（アルミと樹脂の使い分け）', 3],
+  ['熱解析', '熱解析の境界条件の設定の考え方を知りたい', 3],
+  ['機械', '公差の指示の読み方がわかりません', 1],
+  ['電気', '放熱を考えた基板の部品配置で、機械側に伝えるべきことは？', 2],
+  ['機械', 'ねじ止めとスナップフィットはどう選ぶ？', 1],
+  ['材料', '難燃グレードの表記（V-0など）の意味', 2]
+];
+
+function addQ(field, text, marks, status) {
+  const q = { id: S.nextId++, field, text, marks: marks || 0, status: status || 'pending',
+              answerer: null, memo: '', summary: '', done: false };
+  S.qs.push(q);
+  return q;
+}
+
+function assign(q) {
+  const load = n => S.qs.filter(x => x.answerer === n && !x.done).length;
+  q.answerer = POOL[q.field].slice().sort((a, b) => load(a) - load(b))[0];
+}
+
+function approve(q) { q.status = 'ok'; assign(q); }
+
+function loadSample() {
+  S = fresh();
+  SAMPLE.forEach(s => approve(addQ(s[0], s[1], s[2], 'ok')));
+  addQ('機械', '（確認待ちの例）誰が一番わかっていないか知りたい', 0, 'pending');
+  render();
+}
+
+const approved = () => S.qs.filter(q => q.status === 'ok');
+const queue = () => approved().filter(q => !q.done).sort((a, b) => b.marks - a.marks || a.id - b.id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function youngView() {
+  const list = approved().filter(q => !q.done).sort((a, b) => b.marks - a.marks);
+  return `
+  <div class="card">
+    <h2>匿名で質問を出す</h2>
+    <select id="f">${FIELDS.map(f => `<option>${f}</option>`).join('')}</select>
+    <textarea id="t" rows="3" placeholder="初歩的なことでも大丈夫です。名前は残りません。" style="margin-top:8px"></textarea>
+    <p class="sub">前日までに出してください。業務の質問に限ります。進行役が確認します。</p>
+    <button class="primary" id="post">匿名で出す</button>
+    <span id="msg" class="ok sub"></span>
+  </div>
+  <div class="card">
+    <h2>みんなの質問</h2>
+    ${list.map(q => `
+      <div class="row" style="margin-bottom:10px">
+        <div style="flex:1 1 200px"><span class="tag">${q.field}</span> ${esc(q.text)}</div>
+        <button data-want="${q.id}" class="${S.mine[q.id] ? 'on' : ''}">自分も知りたい ${q.marks}</button>
+      </div>`).join('') || '<p class="sub">質問はまだありません</p>'}
+    <p class="sub">印が多いほど、同じことで困っている人が多いということです。</p>
+  </div>`;
+}
+
+function hostView() {
+  const pend = S.qs.filter(q => q.status === 'pending');
+  const qq = queue(), left = TOTAL - S.elapsed;
+  const budget = qq.length ? Math.floor(left / qq.length * 10) / 10 : 0;
+  const cur = S.qs.find(q => q.id === S.cur);
+  return `
+  <div class="card">
+    <h2>事前の確認（${pend.length}件）</h2>
+    ${pend.map(q => `
+      <div style="margin-bottom:8px"><span class="tag">${q.field}</span> ${esc(q.text)}
+        <div class="row"><button data-ok="${q.id}">承認</button><button data-ng="${q.id}">業務外なので外す</button></div>
+      </div>`).join('') || '<p class="sub">確認待ちはありません</p>'}
+  </div>
+  <div class="card">
+    <h2>当日の進行</h2>
+    <div class="timer ${left < 5 ? 'warn' : ''}">残り ${left} 分</div>
+    <div class="row">
+      <button id="tick">1分進める</button>
+      <button id="rewind">時間を戻す</button>
+    </div>
+    <p class="sub">残り ${qq.length} 問 ／ 1問あたりの目安 ${budget} 分
+      ${qq.length && budget < 3 ? '<span class="warn">（時間が足りません。下位は次回に回しますか）</span>' : ''}</p>
+    ${cur ? `<div class="card cur"><b>いま：</b><span class="tag">${cur.field}</span> ${esc(cur.text)}
+      <div class="sub">答える人：${cur.answerer}</div>
+      <input type="text" id="sum" placeholder="答えの要点を一行で" style="margin:8px 0">
+      <button class="primary" id="finish">答えた。要点を残して次へ</button></div>`
+      : `<button class="primary" id="start" ${qq.length ? '' : 'disabled'}>印の多い質問から始める</button>`}
+    ${qq.filter(q => q.id !== S.cur).map((q, i) => `
+      <div class="sub" style="margin-top:6px">${i + 1}. [印 ${q.marks}] ${esc(q.text)}（${q.answerer}）</div>`).join('')}
+  </div>`;
+}
+
+function answererView() {
+  const names = [...new Set(Object.values(POOL).flat())];
+  const mine = S.qs.filter(q => q.answerer === answerer && !q.done && q.status === 'ok');
+  return `
+  <div class="card">
+    <h2>答える人</h2>
+    <select id="who">${names.map(n => `<option ${n === answerer ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <p class="sub">分野ごとに複数人で順番に割り当てています。担当：${mine.length}件</p>
+  </div>
+  ${mine.map(q => `
+    <div class="card">
+      <span class="tag">${q.field}</span> 印 ${q.marks}<br>${esc(q.text)}
+      <input type="text" data-memo="${q.id}" value="${esc(q.memo)}" placeholder="準備メモ" style="margin-top:8px">
+    </div>`).join('') || '<p class="sub">担当の質問はありません</p>'}`;
+}
+
+function render() {
+  const roles = [['young', '若手'], ['host', '進行役'], ['ans', '答える人']];
+  document.getElementById('tabs').innerHTML = roles.map(r =>
+    `<button data-role="${r[0]}" class="${role === r[0] ? 'on' : ''}">${r[1]}</button>`).join('');
+  document.getElementById('view').innerHTML =
+    role === 'young' ? youngView() : role === 'host' ? hostView() : answererView();
+  const done = S.qs.filter(q => q.done);
+  document.getElementById('archive').innerHTML = done.length
+    ? done.map(q => `<div style="margin-bottom:6px"><span class="tag">${q.field}</span> ${esc(q.text)}<br>
+        <b>要点：</b>${esc(q.summary || '（未記入）')}</div>`).join('')
+    : 'まだありません';
+}
+
+document.addEventListener('click', e => {
+  const d = e.target.dataset, id = +(d.want || d.ok || d.ng);
+  if (d.role) role = d.role;
+  if (d.want) {
+    const q = S.qs.find(x => x.id === id);
+    S.mine[id] ? (q.marks--, delete S.mine[id]) : (q.marks++, S.mine[id] = 1);
+  }
+  if (d.ok) approve(S.qs.find(x => x.id === id));
+  if (d.ng) S.qs = S.qs.filter(x => x.id !== id);
+  switch (e.target.id) {
+    case 'load': loadSample(); return;
+    case 'reset': S = fresh(); break;
+    case 'post': {
+      const t = document.getElementById('t').value.trim();
+      if (!t) return;
+      addQ(document.getElementById('f').value, t, 0, 'pending');
+      render();
+      document.getElementById('msg').textContent = '出しました（確認後に表示されます）';
+      return;
+    }
+    case 'tick': S.elapsed = Math.min(TOTAL, S.elapsed + 1); break;
+    case 'rewind': S.elapsed = 0; break;
+    case 'start': S.cur = queue()[0].id; break;
+    case 'finish': {
+      const q = S.qs.find(x => x.id === S.cur);
+      q.summary = document.getElementById('sum').value.trim();
+      q.done = true;
+      S.cur = queue().length ? queue()[0].id : null;
+      break;
+    }
+  }
+  render();
+});
+
+document.addEventListener('change', e => {
+  if (e.target.id === 'who') { answerer = e.target.value; render(); }
+});
+document.addEventListener('input', e => {
+  if (e.target.dataset.memo) S.qs.find(q => q.id === +e.target.dataset.memo).memo = e.target.value;
+});
+
+loadSample();
+</script>
+</body>
+</html>

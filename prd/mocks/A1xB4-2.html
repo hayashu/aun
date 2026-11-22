@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>制約交換シート A1xB4-2</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1d2330; --sub: #5d6676; --line: #d9dde5;
+  --accent: #2b6cb0; --ok: #1f7a4d; --okbg: #e3f4ea; --ng: #a8402f; --ngbg: #fbe9e5; --hit: #fff4cc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --card: #1e232c; --text: #e8ebf0; --sub: #9aa3b2; --line: #333a46;
+    --accent: #6aa8ee; --ok: #6fd1a0; --okbg: #1b3326; --ng: #f0907f; --ngbg: #3a2420; --hit: #4a4018;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 10px 0; }
+h2 { font-size: 14px; margin: 0 0 8px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button, input, select { font: inherit; color: var(--text); }
+button { border: 1px solid var(--line); background: var(--card); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+input[type=text] { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); margin: 4px 0; }
+.tabs { display: flex; gap: 4px; margin: 8px 0; }
+.tabs button { flex: 1; padding: 6px 2px; font-size: 13px; }
+.item { border-top: 1px solid var(--line); padding: 8px 0; }
+.item:first-of-type { border-top: 0; }
+.st button { padding: 3px 8px; font-size: 13px; }
+.st .no.on { background: var(--ng); border-color: var(--ng); }
+.st .yes.on { background: var(--ok); border-color: var(--ok); }
+.sub { color: var(--sub); font-size: 13px; }
+.warn { color: var(--ng); font-size: 13px; min-height: 1.2em; }
+.chip { display: inline-block; border-radius: 10px; padding: 0 8px; font-size: 12px; }
+.chip.no { background: var(--ngbg); color: var(--ng); }
+.chip.yes { background: var(--okbg); color: var(--ok); }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.col h3 { font-size: 13px; margin: 0 0 4px; }
+.cell { border: 1px solid var(--line); border-radius: 6px; padding: 6px; margin: 4px 0; font-size: 13px; }
+.cell.no { background: var(--ngbg); }
+.cell.yes { background: var(--okbg); }
+.cell.hit { outline: 3px solid #e0a800; background: var(--hit); }
+.match { background: var(--hit); border-left: 4px solid #e0a800; padding: 6px 8px; margin: 6px 0; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header><h1>制約交換シート <small>A1xB4-2</small></h1></header>
+<main>
+  <div class="row">
+    <span class="sub">いまの立場:</span>
+    <button id="r-e" onclick="setRole('e')">電気（Bさん）</button>
+    <button id="r-m" onclick="setRole('m')">機械の担当者</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button onclick="loadSample()">サンプルを読み込む</button>
+    <button onclick="resetAll()">リセット</button>
+  </div>
+  <div class="tabs">
+    <button id="t-1" onclick="setTab(1)">1 相談の起点</button>
+    <button id="t-2" onclick="setTab(2)">2 制約の記入</button>
+    <button id="t-3" onclick="setTab(3)">3 並べて表示</button>
+    <button id="t-4" onclick="setTab(4)">4 方針メモ</button>
+  </div>
+  <div id="view"></div>
+</main>
+<script>
+const NAME = { e: '電気', m: '機械' };
+// need = その項目が動かせないと残る困りごと / solves = 動かせる場合に解決できる困りごと
+const CAND = {
+  e: [
+    { id: 'rev', label: '基板の改版', need: '発熱' },
+    { id: 'part', label: '部品の定数・選定', solves: '発熱' },
+    { id: 'fw', label: 'ソフトの設定（動作周波数など）', solves: '発熱' },
+    { id: 'test', label: '試験の日程' }
+  ],
+  m: [
+    { id: 'mold', label: '金型', need: '発熱' },
+    { id: 'mat', label: '材料の選定' },
+    { id: 'sink', label: '内部ヒートシンクの追加', solves: '発熱' },
+    { id: 'asm', label: '組立手順' }
+  ]
+};
+const SAMPLE = {
+  req: { by: 'e', what: '試作基板の発熱対策として、筐体に通気口を追加したい', why: '連続動作で基板温度が上限に近いため' },
+  e: { done: true, items: {
+    rev: { s: 'no', why: '基板を改版できるのは、あと1回だけ', when: '次の量産試作の後' },
+    part: { s: 'yes' }, fw: { s: 'yes' }, test: { s: 'no', why: '試験場の予約が確定済み', when: '12月第2週' } } },
+  m: { done: true, items: {
+    mold: { s: 'no', why: '金型を前週に発注済み', when: '次の試作の金型から' },
+    sink: { s: 'yes' }, mat: { s: 'yes' }, asm: { s: '' } } },
+  memo: '通気口は次の試作まで見送り。機械側が内部ヒートシンクを追加し、電気側は部品定数を見直す。'
+};
+let S, role = 'e', tab = 1;
+function blank() {
+  const mk = r => ({ done: false, items: {} });
+  return { req: { by: 'e', what: '', why: '' }, e: mk(), m: mk(), memo: '' };
+}
+S = blank();
+const $ = id => document.getElementById(id);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function setRole(r) { role = r; render(); }
+function setTab(t) { tab = t; render(); }
+function resetAll() { S = blank(); tab = 1; render(); }
+function loadSample() { S = JSON.parse(JSON.stringify(SAMPLE)); render(); }
+function setItem(id, key, val) {
+  const it = S[role].items[id] || (S[role].items[id] = { s: '' });
+  it[key] = val;
+  if (key === 's') render();
+}
+function submit() {
+  const items = Object.values(S[role].items);
+  const yes = items.filter(i => i.s === 'yes').length;
+  const bad = items.some(i => i.s === 'no' && !(i.why || '').trim());
+  let msg = '';
+  if (!yes) msg = '「動かせるもの」を少なくとも1つ選んでください。';
+  else if (bad) msg = '「動かせない」ものには理由を書いてください。';
+  if (msg) { $('warn').textContent = msg; return; }
+  S[role].done = true;
+  tab = 3;
+  render();
+}
+// 相手側の「動かせるもの」で、こちら側の動かせないものの困りごとを解決できる組み合わせ
+function matches() {
+  const out = [];
+  [['e', 'm'], ['m', 'e']].forEach(([a, b]) => {
+    CAND[a].forEach(c => {
+      const it = S[a].items[c.id];
+      if (!it || it.s !== 'no' || !c.need) return;
+      CAND[b].forEach(d => {
+        const jt = S[b].items[d.id];
+        if (jt && jt.s === 'yes' && d.solves === c.need) out.push({ a, c, b, d });
+      });
+    });
+  });
+  return out;
+}
+function viewReq() {
+  const q = S.req;
+  return `<div class="card"><h2>何を変えたいか（頼む側）</h2>
+    <input type="text" id="q-what" placeholder="変えたいこと" value="${esc(q.what)}" oninput="S.req.what=this.value">
+    <input type="text" id="q-why" placeholder="その理由" value="${esc(q.why)}" oninput="S.req.why=this.value">
+    <p class="sub">一行で書きます。頼む側は ${NAME[q.by]} です。</p>
+    <button class="primary" onclick="setTab(2)">制約の記入へ</button></div>`;
+}
+function viewFill() {
+  const me = S[role];
+  if (me.done) {
+    return `<div class="card"><h2>${NAME[role]}の記入は完了しています</h2>
+      <p class="sub">相手の記入: ${S[role === 'e' ? 'm' : 'e'].done ? '済み' : 'まだ'}</p>
+      <button onclick="setTab(3)">並べて表示へ</button>
+      <button onclick="S[role].done=false;render()">書き直す</button></div>`;
+  }
+  const rows = CAND[role].map(c => {
+    const it = me.items[c.id] || { s: '' };
+    const detail = it.s === 'no' ? `
+      <input type="text" placeholder="理由（例: 発注済み）" value="${esc(it.why || '')}" oninput="setItem('${c.id}','why',this.value)">
+      <input type="text" placeholder="いつから動かせるか" value="${esc(it.when || '')}" oninput="setItem('${c.id}','when',this.value)">` : '';
+    const b = (v, cls, t) => `<button class="${cls} ${it.s === v ? 'on' : ''}" onclick="setItem('${c.id}','s','${v}')">${t}</button>`;
+    return `<div class="item"><div>${esc(c.label)}</div>
+      <div class="st row">${b('no', 'no', '動かせない')}${b('yes', 'yes', '動かせる')}${b('', '', '関係ない')}</div>${detail}</div>`;
+  }).join('');
+  return `<div class="card"><h2>${NAME[role]}の「いま動かせるもの・動かせないもの」</h2>
+    <p class="sub">候補を1つずつ確かめます。相手の記入は、書き終えるまで見えません。</p>
+    <div class="sub">相談: ${esc(S.req.what || '（未入力）')}</div>${rows}
+    <div class="warn" id="warn"></div>
+    <button class="primary" onclick="submit()">記入を完了して見る</button></div>`;
+}
+function cellHtml(who, c, hitIds) {
+  const it = S[who].items[c.id];
+  if (!it || !it.s) return '';
+  const hit = hitIds.has(who + c.id) ? ' hit' : '';
+  if (it.s === 'yes') return `<div class="cell yes${hit}">${esc(c.label)}<br><span class="chip yes">動かせる</span></div>`;
+  return `<div class="cell no${hit}">${esc(c.label)}<br><span class="chip no">動かせない</span><br>${esc(it.why || '')}<br><span class="sub">${esc(it.when || '')}から</span></div>`;
+}
+function viewSide() {
+  if (!S[role].done) return `<div class="card">自分の記入を終えると、相手の記入が見られます。<br><button onclick="setTab(2)">制約の記入へ</button></div>`;
+  const other = role === 'e' ? 'm' : 'e';
+  if (!S[other].done) return `<div class="card">相手（${NAME[other]}）の記入を待っています。<br><span class="sub">1台で試すときは、立場を切り替えて記入するか、サンプルを読み込んでください。</span></div>`;
+  const ms = matches();
+  const hit = new Set();
+  ms.forEach(m => { hit.add(m.a + m.c.id); hit.add(m.b + m.d.id); });
+  const col = w => `<div class="col"><h3>${NAME[w]}</h3>${CAND[w].map(c => cellHtml(w, c, hit)).join('') || '<span class="sub">記入なし</span>'}</div>`;
+  const list = ms.length ? ms.map(m => `<div class="match">${NAME[m.b]}の「${esc(m.d.label)}」なら、${NAME[m.a]}の「${esc(m.c.label)}」が動かせなくても「${m.c.need}」に対応できそうです。</div>`).join('')
+    : '<p class="sub">重なる組み合わせは見つかりませんでした。話し合いで探してください。</p>';
+  return `<div class="card"><h2>相談: ${esc(S.req.what)}</h2><div class="sub">${esc(S.req.why)}</div></div>
+    <div class="cols">${col('e')}${col('m')}</div>
+    <div class="card"><h2>折り合えそうな組み合わせ（印は目安です。判断は当事者が行います）</h2>${list}
+    <button class="primary" onclick="setTab(4)">方針メモへ</button></div>`;
+}
+function viewMemo() {
+  return `<div class="card"><h2>話し合って決めた方針</h2>
+    <input type="text" id="memo" placeholder="どちらが何をするか。決まらなければ、誰が・いつまでに決めるか" value="${esc(S.memo)}" oninput="S.memo=this.value">
+    <p class="sub">メモは当事者と調整役だけが見ます。承認は既存の手続きで行います。</p></div>`;
+}
+function render() {
+  $('r-e').className = role === 'e' ? 'on' : '';
+  $('r-m').className = role === 'm' ? 'on' : '';
+  [1, 2, 3, 4].forEach(i => { $('t-' + i).className = tab === i ? 'on' : ''; });
+  $('view').innerHTML = [null, viewReq, viewFill, viewSide, viewMemo][tab]();
+}
+render();
+</script>
+</body>
+</html>

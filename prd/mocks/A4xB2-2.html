@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ミス振り返りシート A4xB2-2</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #66707a;
+  --line: #d8dde3; --accent: #2f6f8f; --accent-text: #ffffff;
+  --soft: #e6f0f5; --warn: #b4540a; --ok: #2e7d4f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1d2329; --text: #e8ecef; --sub: #9aa5b0;
+    --line: #333c45; --accent: #6fb3d2; --accent-text: #0e1418;
+    --soft: #22323c; --warn: #e0954f; --ok: #6fc28f;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  padding: 0 16px 48px; max-width: 480px; margin: 0 auto; overflow-x: hidden;
+}
+header { padding: 12px 0 8px; font-size: 13px; color: var(--sub); }
+header b { color: var(--text); font-size: 14px; display: block; }
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px; margin: 12px 0;
+}
+h2 { font-size: 15px; margin: 0 0 8px; }
+.sub { color: var(--sub); font-size: 13px; }
+.tabs, .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tabs button { flex: 1; }
+button {
+  font: inherit; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+}
+button.on, button.primary {
+  background: var(--accent); color: var(--accent-text); border-color: var(--accent);
+}
+button:disabled { opacity: .45; cursor: default; }
+textarea {
+  width: 100%; font: inherit; padding: 8px; border-radius: 8px; min-height: 64px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+textarea:disabled { opacity: .6; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 8px 0 4px; }
+.q { font-weight: 600; margin: 0 0 2px; }
+.hint { background: var(--soft); border-radius: 8px; padding: 8px; font-size: 13px; margin: 6px 0; }
+.who { font-size: 12px; color: var(--accent); font-weight: 600; }
+.timer { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.timer.over { color: var(--warn); }
+.step { display: flex; gap: 4px; margin: 8px 0; }
+.step span { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.step span.done { background: var(--accent); }
+.feel button { font-size: 13px; padding: 6px 8px; }
+.feel button.on { background: var(--ok); border-color: var(--ok); }
+.feel button.on.no { background: var(--warn); border-color: var(--warn); }
+.lock { font-size: 12px; color: var(--ok); }
+.rec { border-top: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
+.rec:first-child { border-top: 0; }
+dl { margin: 4px 0; font-size: 13px; } dt { color: var(--sub); } dd { margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<header><b>設計レビューのあとの「ミス振り返りシート」</b>PRD A4xB2-2 / モック</header>
+
+<div class="card">
+  <div class="sub">この画面で演じる人</div>
+  <div class="tabs" style="margin-top:6px">
+    <button id="roleJ" onclick="setRole('junior')">Bさん（若手）</button>
+    <button id="roleS" onclick="setRole('senior')">機械の先輩</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button onclick="loadSample()">サンプルを読み込む</button>
+    <button onclick="resetAll()">最初から</button>
+  </div>
+</div>
+
+<div id="app"></div>
+
+<script>
+const QS = [
+  { key: 'what', title: '1. 何が起きましたか', ph: '例: 基板の取り付け穴が筐体のリブと干渉していると指摘された',
+    hint: '事実だけを書きます。原因の推測は次の質問で。' },
+  { key: 'saw', title: '2. そのとき何を見ていましたか', ph: '例: 以前もらった筐体データ（使っていたデータ・参照した資料）',
+    hint: '使っていたデータや資料を書きます。' },
+  { key: 'prevent', title: '3. 何があれば防げたと思いますか', ph: '例: 最新の筐体データがいつ更新されたかわかる仕組み',
+    hint: '「なぜミスしたか」ではなく、「何があれば防げたか」を一緒に考えます。' },
+  { key: 'next', title: '4. 次はどうしますか（一つに絞る）', ph: '例: 配置の前に、機械側に最新の筐体データを確かめる',
+    hint: '対策は一つだけ。小さく、すぐできることにします。' }
+];
+const WORDING = {
+  prevent: '何があれば防げたと思いますか',
+  alt: 'なぜそのミスをしたのですか'
+};
+const SAMPLE = {
+  state: 'talk', requestedBy: 'senior', elapsed: 0, step: 0, wording: 'prevent',
+  ans: {
+    what: '基板の取り付け穴が筐体のリブと干渉していると指摘された',
+    saw: '3週間前にもらった筐体データ',
+    prevent: '筐体データの更新日が、受け取るときにわかること',
+    next: '配置の前に、機械側に最新の筐体データを確かめる'
+  },
+  note: '古い筐体データを使っていたのでは、と思っていました。レビューの場では言いにくくて。',
+  feel: {}, records: []
+};
+let S, role = 'junior', timerId = null;
+
+function fresh() {
+  return { state: 'start', requestedBy: null, elapsed: 0, step: 0, wording: 'prevent',
+    ans: {}, note: '', feel: {}, records: S ? S.records : [] };
+}
+S = fresh();
+
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function setRole(r) { role = r; render(); }
+function mmss(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+function resetAll() { stopTimer(); S = fresh(); render(); }
+function loadSample() {
+  stopTimer();
+  S = JSON.parse(JSON.stringify(SAMPLE));
+  S.records = [{
+    date: '先月', what: '電源基板のコネクタ位置が筐体の穴とずれていた',
+    prevent: '寸法図の版数が一目でわかること', next: '図面を受け取るとき版数を声に出して確かめる'
+  }];
+  render();
+}
+function request(by) { S.requestedBy = by; S.state = 'talk'; render(); }
+function startTimer() {
+  if (timerId) return;
+  timerId = setInterval(() => { S.elapsed++; const t = document.getElementById('tm');
+    if (t) { t.textContent = mmss(S.elapsed); t.className = 'timer' + (S.elapsed > 900 ? ' over' : ''); } }, 1000);
+}
+function stopTimer() { clearInterval(timerId); timerId = null; }
+function save(key, v) { S.ans[key] = v; }
+function saveNote(v) { S.note = v; }
+function go(d) { S.step = Math.max(0, Math.min(QS.length, S.step + d)); render(); }
+function setWording(w) { S.wording = w; render(); }
+function feel(k, v) { S.feel[k] = v; render(); }
+function finish() {
+  stopTimer();
+  S.records.unshift({ date: '今回', what: S.ans.what, prevent: S.ans.prevent, next: S.ans.next });
+  S.state = 'done'; render();
+}
+
+function render() {
+  document.getElementById('roleJ').className = role === 'junior' ? 'on' : '';
+  document.getElementById('roleS').className = role === 'senior' ? 'on' : '';
+  const app = document.getElementById('app');
+  if (S.state === 'start') app.innerHTML = viewStart();
+  else if (S.state === 'talk') { app.innerHTML = viewTalk(); startTimer(); }
+  else app.innerHTML = viewDone();
+  app.innerHTML += viewRecords();
+}
+
+function viewStart() {
+  const j = role === 'junior';
+  return `<div class="card"><h2>振り返りの依頼</h2>
+    <p class="sub">設計レビューで「基板の取り付け穴が筐体のリブと干渉」を指摘されました。レビューのあとに、2人だけで15分、経緯をたどります。</p>
+    <button class="primary" style="width:100%" onclick="request('${role}')">
+      ${j ? '先輩に15分の振り返りを依頼する' : 'Bさんに15分の振り返りを提案する'}</button>
+    <p class="sub" style="margin-bottom:0">どちらからでも依頼できます。断ってもかまいません。</p></div>`;
+}
+
+function viewTalk() {
+  const by = S.requestedBy === 'junior' ? 'Bさん' : '先輩';
+  let h = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center">
+    <div><div class="sub">経過時間（目安15分）</div>
+    <div id="tm" class="timer${S.elapsed > 900 ? ' over' : ''}">${mmss(S.elapsed)}</div></div>
+    <div class="sub">依頼: ${by}</div></div>
+    <div class="step">${QS.map((q, i) => `<span class="${i < S.step ? 'done' : ''}"></span>`).join('')}</div></div>`;
+  if (S.step < QS.length) h += viewQuestion(QS[S.step]);
+  else h += viewSenior();
+  return h;
+}
+
+function viewQuestion(q) {
+  const j = role === 'junior';
+  const title = (q.key === 'prevent' && S.wording === 'alt') ? '3. ' + WORDING.alt + 'か' : q.title;
+  let h = `<div class="card"><div class="q">${esc(title)}</div>
+    <div class="who">${j ? 'Bさんが先に答えます' : 'Bさんの答えを読み、気づいたことは次の画面で書き足します'}</div>
+    <div class="hint">${esc(q.hint)}</div>
+    <textarea ${j ? '' : 'disabled'} placeholder="${esc(q.ph)}" oninput="save('${q.key}', this.value)">${esc(S.ans[q.key] || '')}</textarea>`;
+  if (q.key === 'prevent') {
+    h += `<label>問い方の比べ（モック用）</label><div class="row">
+      <button class="${S.wording === 'prevent' ? 'on' : ''}" onclick="setWording('prevent')">「何があれば防げたか」</button>
+      <button class="${S.wording === 'alt' ? 'on' : ''}" onclick="setWording('alt')">「なぜしたのか」</button></div>`;
+    if (j) h += `<label>この問い方、責められている感じがしましたか（Bさんのみ。記録には残りません）</label>
+      <div class="row feel">
+      <button class="${S.feel[S.wording] === 'ok' ? 'on' : ''}" onclick="feel('${S.wording}','ok')">感じなかった</button>
+      <button class="${S.feel[S.wording] === 'no' ? 'on no' : ''}" onclick="feel('${S.wording}','no')">感じた</button></div>`;
+  }
+  h += `<div class="row" style="margin-top:12px">
+    <button onclick="go(-1)" ${S.step === 0 ? 'disabled' : ''}>戻る</button>
+    <button class="primary" style="flex:1" onclick="go(1)">次へ</button></div></div>`;
+  return h;
+}
+
+function viewSenior() {
+  const s = role === 'senior';
+  return `<div class="card"><div class="q">先輩の気づき（一行）</div>
+    <div class="who">${s ? '先輩が書きます' : '先輩が書くまで少し待ちます'}</div>
+    <div class="hint">レビューの場では言いにくかったことを、ここで伝えます。心当たりがなければ空欄でかまいません。</div>
+    <textarea ${s ? '' : 'disabled'} placeholder="例: 古い筐体データを使っていたのではと思っていました" oninput="saveNote(this.value)">${esc(S.note)}</textarea>
+    <div class="hint">言い方の例: 「責める意図はないけど、こうだったのかなと思っていて」</div>
+    <div class="row" style="margin-top:12px"><button onclick="go(-1)">戻る</button>
+    <button class="primary" style="flex:1" onclick="finish()">振り返りを終えて記録する</button></div></div>`;
+}
+
+function viewDone() {
+  const within = S.elapsed <= 900;
+  const reached = !!(S.ans.prevent && S.ans.next);
+  return `<div class="card"><h2>振り返りが終わりました</h2>
+    <dl><dt>かかった時間</dt><dd>${mmss(S.elapsed)}（${within ? '15分以内' : '15分を超えました'}）</dd>
+    <dt>原因の手がかりと次の対策に届いたか</dt><dd>${reached ? '届いた（防げたこと・次の対策が書かれています）' : '空欄があります'}</dd>
+    <dt>次の対策</dt><dd>${esc(S.ans.next || '（未記入）')}</dd>
+    <dt>先輩の気づき</dt><dd>${esc(S.note || '（なし）')}</dd></dl>
+    <p class="sub">誰が悪いかは決めていません。点数も付きません。</p>
+    <button onclick="resetAll()">新しい振り返りを始める</button></div>`;
+}
+
+function viewRecords() {
+  const r = S.records;
+  return `<div class="card"><h2>振り返りの記録</h2>
+    <div class="lock">この記録は、Bさんと先輩の2人だけが見られます（人事評価には使われません）</div>
+    ${r.length ? r.map(x => `<div class="rec"><b>${esc(x.date)}</b>　${esc(x.what)}
+      <dl><dt>何があれば防げたか</dt><dd>${esc(x.prevent)}</dd><dt>次の対策</dt><dd>${esc(x.next)}</dd></dl></div>`).join('')
+      : '<p class="sub">まだ記録はありません。次に似た設計をするとき、ここを見返せます。</p>'}</div>`;
+}
+render();
+</script>
+</body>
+</html>

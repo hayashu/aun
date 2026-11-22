@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>完了条件プランナー（A2xB3-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #5f6b7a;
+  --line: #d9dee5; --accent: #2b6cb0; --accent-bg: #e6f0fa; --warm: #fff6e0; --warm-line: #e8c76a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6e9ed; --sub: #9aa5b1;
+    --line: #333c46; --accent: #7db4ee; --accent-bg: #1f3347; --warm: #3a3220; --warm-line: #8a7230;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 16px; max-width: 480px; margin: 0 auto; }
+nav { display: flex; gap: 6px; margin-bottom: 12px; }
+nav button { flex: 1; padding: 8px 4px; font-size: 13px; }
+nav button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+p.note { color: var(--sub); font-size: 13px; margin: 4px 0 8px; }
+button { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kinds button.on { background: var(--accent-bg); border-color: var(--accent); }
+label.opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; }
+label.opt input { margin-top: 5px; }
+input[type=text], input[type=date], select { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+.row { display: flex; gap: 8px; margin-top: 8px; }
+.row > * { flex: 1; }
+.tag { font-size: 12px; color: var(--accent); background: var(--accent-bg); border-radius: 4px; padding: 1px 6px; }
+.mine { border-left: 3px solid var(--accent); padding-left: 8px; }
+.plan li { margin-bottom: 6px; }
+.clock { font-size: 32px; font-weight: 600; text-align: center; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.alert { background: var(--warm); border: 1px solid var(--warm-line); border-radius: 8px; padding: 10px; margin-top: 8px; }
+.hidden { display: none; }
+.timer3 { font-size: 12px; color: var(--sub); text-align: right; }
+</style>
+</head>
+<body>
+<header>
+  <h1>完了条件プランナー <small>A2xB3-1</small></h1>
+</header>
+<main>
+  <nav id="nav"></nav>
+  <div id="view"></div>
+</main>
+<script>
+// 仕事の種類ごとの候補（あくまで候補。部署・上司で違う）
+const KINDS = {
+  '調査': {
+    criteria: ['候補を3つに絞り、推奨を付ける', '比較表（価格・性能・入手性）を作る', '調べた範囲と除外理由を1行ずつ書く'],
+    checks: [{ t: '方向が決まったら一度見せる', d: 2 }, { t: '比較表の初版を見せる', d: 5 }]
+  },
+  '評価': {
+    criteria: ['測定条件を書く', '再現性を確認する（同条件で複数回）', '結果と判定の根拠をまとめる'],
+    checks: [{ t: '測定条件が決まったら一度見せる', d: 1 }, { t: '初回の測定結果を見せる', d: 3 }]
+  },
+  '設計': {
+    criteria: ['要求を満たす案を1つ決める', '検討した代替案を1行で残す', 'レビュー用の図を1枚作る'],
+    checks: [{ t: '方針が決まったら一度見せる', d: 2 }, { t: 'レビュー前に図を見せる', d: 4 }]
+  },
+  '資料': {
+    criteria: ['目次と結論を先に書く', '1ページ1メッセージにする'],
+    checks: [{ t: '目次ができたら一度見せる', d: 1 }, { t: '初版を見せる', d: 3 }]
+  }
+};
+const STUCK_LIMITS = { '2': '2時間', '4': '半日（4時間）', '8': '1日（8時間）' };
+const PHRASES = [
+  '「◯◯で2時間止まっています。次の一手を相談させてください」',
+  '「ここまでやって、ここから先がわかりません。5分もらえますか」'
+];
+
+let state = load();
+let tab = 'plan';
+let planStart = Date.now();
+let tick = null;
+
+function load() {
+  try { return JSON.parse(localStorage.getItem('a2b31')) || fresh(); } catch (e) { return fresh(); }
+}
+function fresh() {
+  return { kind: '', title: '', picked: [], extra: '', limit: '4', due: '', myCriteria: {}, stuckSince: null, stuckOffset: 0, planned: false, notes: [] };
+}
+function save() { try { localStorage.setItem('a2b31', JSON.stringify(state)); } catch (e) {} }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function addDays(n) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return (d.getMonth() + 1) + '/' + d.getDate();
+}
+function criteriaFor(kind) {
+  const mine = state.myCriteria[kind] || [];
+  return { mine, base: KINDS[kind].criteria.filter(c => !mine.includes(c)) };
+}
+
+function render() {
+  const tabs = [['plan', '1 計画'], ['work', '2 作業中'], ['review', '3 振り返り']];
+  document.getElementById('nav').innerHTML = tabs.map(t =>
+    '<button class="' + (tab === t[0] ? 'on' : '') + '" onclick="go(\'' + t[0] + '\')">' + t[1] + '</button>').join('');
+  const v = { plan: viewPlan, work: viewWork, review: viewReview }[tab]();
+  document.getElementById('view').innerHTML = v;
+}
+function go(t) { tab = t; render(); }
+
+function viewPlan() {
+  let h = '<div class="timer3" id="t3"></div>';
+  h += '<div class="card"><h2>仕事を受けた</h2>';
+  h += '<input type="text" id="title" placeholder="仕事の名前（例: 新しい電源ICの候補調査）" value="' + esc(state.title) + '" oninput="state.title=this.value;save()">';
+  h += '<p class="note">仕事の種類を選ぶと、完了の基準と相談の区切りの候補が出ます。</p><div class="kinds">';
+  for (const k in KINDS) h += '<button class="' + (state.kind === k ? 'on' : '') + '" onclick="pickKind(\'' + k + '\')">' + k + '</button>';
+  h += '</div></div>';
+  h += '<div class="row"><button onclick="loadSample()">サンプルを読み込む</button><button onclick="resetAll()">最初から</button></div><div style="height:12px"></div>';
+  if (!state.kind) return h + '<p class="note">まず仕事の種類を選んでください。</p>';
+  const c = criteriaFor(state.kind);
+  h += '<div class="card"><h2>完了の基準（合うものを選ぶ）</h2>';
+  h += '<p class="note">部署や上司によって違います。候補は目安です。</p>';
+  c.mine.forEach(x => h += opt(x, true));
+  c.base.forEach(x => h += opt(x, false));
+  h += '<input type="text" placeholder="足りない基準を書き足す" value="' + esc(state.extra) + '" oninput="state.extra=this.value;save()"></div>';
+  h += '<div class="card"><h2>相談の区切り</h2>';
+  h += '<label>この仕事の締切（任意）<input type="date" value="' + state.due + '" onchange="state.due=this.value;save()"></label>';
+  h += '<p class="note">詰まったとき、どれくらいで相談しますか</p><select onchange="state.limit=this.value;save()">';
+  for (const k in STUCK_LIMITS) h += '<option value="' + k + '"' + (state.limit === k ? ' selected' : '') + '>' + STUCK_LIMITS[k] + '詰まったら聞く</option>';
+  h += '</select></div>';
+  h += '<button class="primary" style="width:100%" onclick="makePlan()">この内容で計画にする</button>';
+  if (state.planned) h += planCard();
+  return h;
+}
+function opt(x, mine) {
+  const on = state.picked.includes(x) ? ' checked' : '';
+  return '<label class="opt' + (mine ? ' mine' : '') + '"><input type="checkbox"' + on + ' onchange="togglePick(this.dataset.x)" data-x="' + esc(x) + '"><span>' +
+    esc(x) + (mine ? ' <span class="tag">自分用</span>' : '') + '</span></label>';
+}
+function togglePick(x) {
+  const i = state.picked.indexOf(x);
+  if (i >= 0) state.picked.splice(i, 1); else state.picked.push(x);
+  save();
+}
+function pickKind(k) { state.kind = k; state.picked = []; state.planned = false; save(); render(); }
+function makePlan() {
+  if (!state.kind) return;
+  state.planned = true; save(); render();
+  window.scrollTo(0, document.body.scrollHeight);
+}
+function planCard() {
+  const k = KINDS[state.kind];
+  const all = state.picked.concat(state.extra ? [state.extra] : []);
+  let h = '<div class="card plan" style="margin-top:12px"><h2>私の計画：' + esc(state.title || state.kind + 'の仕事') + '</h2>';
+  h += '<p class="note">完了の基準</p><ul>' + (all.length ? all.map(x => '<li>' + esc(x) + '</li>').join('') : '<li>（未選択）</li>') + '</ul>';
+  h += '<p class="note">相談の区切り</p><ul>';
+  k.checks.forEach(c => h += '<li>' + addDays(c.d) + ' 頃：' + esc(c.t) + '</li>');
+  h += '<li>' + STUCK_LIMITS[state.limit] + '詰まったら聞く</li>';
+  if (state.due) h += '<li>締切：' + state.due.replace(/-0?/g, '/').replace('/', '年').replace('/', '月') + '日</li>';
+  h += '</ul></div>';
+  return h;
+}
+
+// 詰まり時計（デモでは時間を進められる）
+function elapsedMs() { return state.stuckSince ? Date.now() - state.stuckSince + state.stuckOffset * 3600000 : 0; }
+function fmt(ms) {
+  const s = Math.floor(ms / 1000), p = n => String(n).padStart(2, '0');
+  return p(Math.floor(s / 3600)) + ':' + p(Math.floor(s % 3600 / 60)) + ':' + p(s % 60);
+}
+function viewWork() {
+  let h = '<div class="card"><h2>作業中</h2>';
+  h += '<p class="note">' + esc(state.title || '（仕事名未入力）') + (state.kind ? ' / ' + state.kind : '') + '</p>';
+  h += '<p class="note">詰まったと思ったら押してください。時計は相談の目安です。過ぎても問題ありません。</p>';
+  if (!state.stuckSince) {
+    h += '<button class="primary" style="width:100%" onclick="startStuck()">詰まった</button>';
+  } else {
+    h += '<div class="clock" id="clock">' + fmt(elapsedMs()) + '</div>';
+    h += '<p class="note" style="text-align:center">目安：' + STUCK_LIMITS[state.limit] + '</p>';
+    h += '<div id="alertBox"></div>';
+    h += '<div class="row"><button onclick="resolveStuck()">解決した</button><button onclick="skipHours()">デモ: 2時間進める</button></div>';
+  }
+  h += '</div>';
+  return h;
+}
+function startStuck() { state.stuckSince = Date.now(); state.stuckOffset = 0; save(); render(); }
+function skipHours() { state.stuckOffset += 2; save(); }
+function resolveStuck() { state.stuckSince = null; save(); render(); }
+function updateClock() {
+  const t3 = document.getElementById('t3');
+  if (t3) {
+    const s = Math.floor((Date.now() - planStart) / 1000);
+    t3.textContent = 'この画面を開いてから ' + Math.floor(s / 60) + '分' + (s % 60) + '秒（目標：3分以内）';
+  }
+  const c = document.getElementById('clock');
+  if (!c) return;
+  c.textContent = fmt(elapsedMs());
+  const over = elapsedMs() >= Number(state.limit) * 3600000;
+  document.getElementById('alertBox').innerHTML = over ?
+    '<div class="alert"><b>相談の時間です</b><br>ここまで考えたことを伝えれば十分です。相談は仕事の一部です。<p class="note">言い方の例</p>' +
+    PHRASES.map(p => '<div>' + esc(p) + '</div>').join('') + '</div>' : '';
+}
+
+function viewReview() {
+  let h = '<div class="card"><h2>仕事が終わった</h2>';
+  h += '<p class="note">上司に言われたことをもとに、完了の基準を自分用に書き換えます。次に同じ種類の仕事を受けたとき、先頭に出ます。</p>';
+  h += '<select id="rk">' + Object.keys(KINDS).map(k => '<option' + (k === state.kind ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
+  h += '<div style="height:8px"></div><input type="text" id="said" placeholder="上司に言われたこと（例: 3つに絞って推奨を付ければよかった）">';
+  h += '<div style="height:8px"></div><input type="text" id="newc" placeholder="自分用の基準（例: 候補は3つに絞り推奨を付ける）">';
+  h += '<div style="height:8px"></div><button class="primary" style="width:100%" onclick="saveCriteria()">自分用の基準として保存</button></div>';
+  const keys = Object.keys(state.myCriteria).filter(k => state.myCriteria[k].length);
+  if (keys.length) {
+    h += '<div class="card"><h2>自分用の基準</h2>';
+    keys.forEach(k => state.myCriteria[k].forEach(x => h += '<div class="mine">' + esc(k) + '：' + esc(x) + '</div>'));
+    h += '</div>';
+  }
+  state.notes.forEach(n => h += '<p class="note">上司のひとこと：' + esc(n) + '</p>');
+  return h;
+}
+function saveCriteria() {
+  const k = document.getElementById('rk').value;
+  const c = document.getElementById('newc').value.trim();
+  const s = document.getElementById('said').value.trim();
+  if (s) state.notes.push(s);
+  if (c) {
+    state.myCriteria[k] = state.myCriteria[k] || [];
+    if (!state.myCriteria[k].includes(c)) state.myCriteria[k].unshift(c);
+  }
+  save(); render();
+}
+
+function loadSample() {
+  state.kind = '調査';
+  state.title = '新しい電源ICの候補調査';
+  state.picked = [KINDS['調査'].criteria[0], KINDS['調査'].criteria[1]];
+  state.limit = '4';
+  state.myCriteria = { '調査': ['データシートは上位3候補だけ読む'] };
+  state.notes = ['もっと早く見せてほしかった'];
+  state.planned = false;
+  save(); planStart = Date.now(); tab = 'plan'; render();
+}
+function resetAll() { state = fresh(); save(); planStart = Date.now(); render(); }
+
+render();
+setInterval(updateClock, 1000);
+updateClock();
+</script>
+</body>
+</html>

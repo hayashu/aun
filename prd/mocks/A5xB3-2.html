@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>進捗バディ モック (A5xB3-2)</title>
+<style>
+:root {
+  --bg: #f6f7f5; --card: #ffffff; --text: #222; --sub: #6a6f6a;
+  --line: #dcdfd9; --accent: #3f7d5c; --accent-bg: #e4f0e9; --warn: #b5701f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17191a; --card: #222527; --text: #e8eae6; --sub: #9aa09a;
+    --line: #363a3c; --accent: #6fbf94; --accent-bg: #23342b; --warn: #e0a65a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px 8px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 420px; margin: 0 auto; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > * { flex: 1; }
+button, input, textarea { font: inherit; color: var(--text); }
+button { border: 1px solid var(--line); background: var(--card); border-radius: 8px;
+  padding: 8px 6px; cursor: pointer; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: bold; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: bold; width: 100%; }
+input[type=text], textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px; background: var(--card); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 12px 0; }
+.card h2 { font-size: 14px; margin: 0 0 8px; }
+.note { color: var(--sub); font-size: 13px; }
+.goal { margin: 8px 0; }
+.goal .st { display: flex; gap: 6px; margin-top: 4px; }
+.goal .st button { padding: 4px 2px; font-size: 13px; }
+.chip { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px;
+  background: var(--accent-bg); color: var(--accent); }
+.chip.mid { color: var(--warn); }
+.timer { font-size: 13px; color: var(--sub); text-align: right; }
+.msg { border-left: 3px solid var(--accent); padding: 4px 10px; margin: 8px 0; background: var(--accent-bg); border-radius: 4px; }
+.tabs { margin-top: 10px; }
+.top { margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>進捗バディ</h1>
+  <small>PRD A5xB3-2 ／ 週の目標と進み具合を、評価と関係なく見せ合う</small>
+</header>
+<main>
+  <div class="row top" id="roles"></div>
+  <div class="row tabs" id="tabs"></div>
+  <div class="timer" id="timer"></div>
+  <div id="view"></div>
+  <button id="sample" style="width:100%;margin-top:12px">サンプルを読み込む</button>
+  <p class="note">見せ合うのは進め方だけです。仕事の中身は書かなくてかまいません。上司への報告は別に行います。相手との比較や点数は表示しません。</p>
+</main>
+<script>
+const NAMES = { B: "Bさん（入社3年目・設計）", A: "Aさん（バディ・別部署）" };
+const ST = ["できた", "途中", "できなかった"];
+const TABS = [["mon", "月曜の目標"], ["fri", "金曜の進み具合"], ["buddy", "バディの一言"]];
+let me = "B", tab = "mon", startedAt = null;
+const other = r => (r === "B" ? "A" : "B");
+const blank = () => ({ goals: ["", "", ""], status: [null, null, null], note: "", times: {} });
+let S = { B: blank(), A: blank(), msgs: [], feel: {}, month: null };
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function fmt(sec) { return Math.floor(sec / 60) + "分" + String(sec % 60).padStart(2, "0") + "秒"; }
+
+function startTimer() { if (!startedAt) startedAt = Date.now(); }
+function finishTimer(key) {
+  if (!startedAt) return;
+  const sec = Math.round((Date.now() - startedAt) / 1000);
+  S[me].times[key] = sec;
+  startedAt = null;
+}
+function timeLine(key) {
+  const t = S[me].times[key];
+  if (t == null) return "";
+  const ok = t <= 120 ? "2分以内でした" : "2分を超えました";
+  return `<p class="note">前回の記入時間: ${fmt(t)}（${ok}）</p>`;
+}
+
+function renderChrome() {
+  document.getElementById("roles").innerHTML = ["B", "A"].map(r =>
+    `<button class="${r === me ? "on" : ""}" onclick="setRole('${r}')">${NAMES[r]}</button>`).join("");
+  document.getElementById("tabs").innerHTML = TABS.map(([k, l]) =>
+    `<button class="${k === tab ? "on" : ""}" onclick="setTab('${k}')">${l}</button>`).join("");
+  document.getElementById("timer").textContent = startedAt ? "記入中… 計測しています" : "";
+}
+function setRole(r) { me = r; startedAt = null; render(); }
+function setTab(t) { tab = t; startedAt = null; render(); }
+
+function viewMon() {
+  const g = S[me].goals;
+  return `<div class="card"><h2>今週の目標を3つ（一行ずつ）</h2>
+    <p class="note">例: 「評価資料の測定を終える」。仕事の中身は伏せてかまいません。</p>
+    ${g.map((v, i) => `<p><input type="text" value="${esc(v)}" placeholder="目標 ${i + 1}"
+      onfocus="startTimer()" oninput="S[me].goals[${i}]=this.value"></p>`).join("")}
+    <button class="primary" onclick="saveMon()">この目標で今週を始める</button>
+    ${timeLine("mon")}</div>`;
+}
+function saveMon() {
+  finishTimer("mon");
+  S[me].status = [null, null, null];
+  render();
+}
+
+function viewFri() {
+  const d = S[me];
+  const goals = d.goals.map((g, i) => ({ g, i })).filter(x => x.g.trim());
+  if (!goals.length) return `<div class="card">先に月曜の目標を書いてください。</div>`;
+  return `<div class="card"><h2>今週、どこまで進みましたか</h2>
+    <p class="note">自分の目標に対してだけ選びます。</p>
+    ${goals.map(({ g, i }) => `<div class="goal">${esc(g)}<div class="st">
+      ${ST.map(s => `<button class="${d.status[i] === s ? "on" : ""}"
+        onclick="pick(${i},'${s}')">${s}</button>`).join("")}</div></div>`).join("")}
+    <p><textarea rows="2" placeholder="一言（例: 区切りが大きすぎて手が止まった）"
+      onfocus="startTimer()" oninput="S[me].note=this.value">${esc(d.note)}</textarea></p>
+    <button class="primary" onclick="saveFri()">バディに見せる</button>
+    ${timeLine("fri")}</div>`;
+}
+function pick(i, s) { startTimer(); S[me].status[i] = s; render(); }
+function saveFri() { finishTimer("fri"); render(); }
+
+function partnerWeek() {
+  const p = S[other(me)];
+  const goals = p.goals.map((g, i) => ({ g, i })).filter(x => x.g.trim());
+  if (!goals.length) return `<p class="note">相手はまだ今週の目標を書いていません。</p>`;
+  return goals.map(({ g, i }) => `<div class="goal">${esc(g)}
+    <span class="chip ${p.status[i] === "できた" ? "" : "mid"}">${p.status[i] || "これから"}</span></div>`).join("") +
+    (p.note ? `<p class="note">一言: ${esc(p.note)}</p>` : "");
+}
+const QUICK = ["お疲れさま、その調子です", "区切りを小さくしてみたらどうでしょう", "私も同じところで止まりました"];
+function viewBuddy() {
+  const mine = S.msgs.filter(m => m.to === me);
+  return `<div class="card"><h2>${NAMES[other(me)]} の今週</h2>${partnerWeek()}
+    <p><input type="text" id="msg" placeholder="励ましか、進め方の工夫を一言"></p>
+    <div class="row">${QUICK.map((q, i) => `<button onclick="useQuick(${i})">${esc(q)}</button>`).join("")}</div>
+    <p><button class="primary" onclick="sendMsg()">一言を送る</button></p></div>
+    <div class="card"><h2>届いた一言</h2>
+    ${mine.length ? mine.map((m, i) => `<div class="msg">${esc(m.text)}</div>`).join("") + feelBox() :
+      `<p class="note">まだ届いていません。</p>`}</div>
+    <div class="card"><h2>月に一度の15分</h2>
+    <p class="note">文字では伝わらない悩みを話す時間です。</p>
+    <button onclick="S.month=!S.month;render()">${S.month ? "予約済み（取り消す）" : "15分を予約する"}</button></div>`;
+}
+function useQuick(i) { document.getElementById("msg").value = QUICK[i]; }
+function sendMsg() {
+  const t = document.getElementById("msg").value.trim();
+  if (!t) return;
+  S.msgs.push({ to: other(me), text: t });
+  render();
+}
+function feelBox() {
+  const v = S.feel[me];
+  return `<p class="note">この一言で、一人じゃないと感じましたか（自分用の記録です）</p>
+    <div class="row">${["感じた", "どちらとも", "感じない"].map(f =>
+      `<button class="${v === f ? "on" : ""}" onclick="S.feel[me]='${f}';render()">${f}</button>`).join("")}</div>`;
+}
+
+function loadSample() {
+  S.B = { goals: ["評価資料の測定を終える", "測定結果を一枚にまとめる", "手順書の見直しを始める"],
+    status: ["途中", "できなかった", "できた"], note: "測定で時間を取られ、まとめに入れなかった", times: { mon: 95, fri: 70 } };
+  S.A = { goals: ["試験計画の骨子を書く", "レビュー依頼を出す", "先週の遅れを取り戻す"],
+    status: ["できた", "途中", "途中"], note: "区切りを細かくしたら進めやすかった", times: {} };
+  S.msgs = [{ to: "B", text: "測定お疲れさま。まとめは一枚目だけ先に作るのはどうでしょう" },
+            { to: "A", text: "区切りを細かくする工夫、私も試してみます" }];
+  S.feel = {}; S.month = false;
+  render();
+}
+document.getElementById("sample").onclick = loadSample;
+
+function render() {
+  renderChrome();
+  document.getElementById("view").innerHTML = { mon: viewMon, fri: viewFri, buddy: viewBuddy }[tab]();
+}
+render();
+</script>
+</body>
+</html>

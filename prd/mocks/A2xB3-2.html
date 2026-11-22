@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>期待合わせチェックイン モック (A2xB3-2)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2f6f9f; --accent-t: #ffffff;
+  --mark: #c2570c; --mark-bg: #fdf0e3; --ok: #2e7d4f; --ok-bg: #e5f4ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1d2329; --text: #e6eaee; --sub: #98a4af;
+    --line: #34404a; --accent: #6bb0e0; --accent-t: #0d1519;
+    --mark: #f0a15e; --mark-bg: #3a2a1a; --ok: #7ccb97; --ok-bg: #1b3326;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 420px; margin: 0 auto; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs button { flex: 1; padding: 8px 4px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); border-radius: 8px; font-size: 14px; }
+.tabs button.on { background: var(--accent); color: var(--accent-t); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.card h2 { margin: 0 0 6px; font-size: 15px; }
+.note { color: var(--sub); font-size: 13px; }
+textarea, input[type=text] { width: 100%; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+button.btn { padding: 9px 14px; border: 0; border-radius: 8px; font-size: 14px;
+  background: var(--accent); color: var(--accent-t); }
+button.sub { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.clock { font-size: 28px; font-variant-numeric: tabular-nums; text-align: center; }
+.clock.over { color: var(--mark); }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.ng { background: var(--mark-bg); color: var(--mark); }
+.pick button { flex: 1; padding: 8px 4px; border: 1px solid var(--line); background: var(--bg);
+  color: var(--text); border-radius: 8px; font-size: 13px; }
+.pick button.ok.on { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.pick button.ng.on { background: var(--mark-bg); border-color: var(--mark); color: var(--mark); }
+.mark { border-left: 4px solid var(--mark); background: var(--mark-bg); padding: 8px; border-radius: 6px; }
+.bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>期待合わせチェックイン</h1>
+  <small>A2xB3-2 / 週1回5分、3つの質問 / モック</small>
+</header>
+<main>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</main>
+<script>
+const QS = [
+  { t: "いまの仕事で、どこまでやれば完了だと思っていますか", ok: "それでよい", ng: "ここが違う" },
+  { t: "次の区切りはいつで、そこで何を見せますか", ok: "それでよい", ng: "もっと早く見せて" },
+  { t: "詰まっていることはありますか", ok: "", ng: "" }
+];
+const LIMIT_A = 120, LIMIT_B = 60, TOTAL = 300;
+const SAMPLE_HISTORY = [
+  { week: "3週前", task: "電源ICの候補調査", a: ["候補20個を詳細に調べたら完了", "3週間後に全部まとめて見せる", "なし"],
+    v: ["ng", "ng", null], note: "3つに絞った推奨がほしい。1週間後に途中経過を見せて。",
+    rev: ["候補を3つに絞った推奨まで", "1週間後に絞り込み案を見せる", ""], feel: "早めにわかってよかった", tA: 95, tB: 48 },
+  { week: "2週前", task: "電源ICの候補調査", a: ["3つに絞り、理由を1枚にまとめたら完了", "金曜に3候補の比較表を見せる", "価格の最新情報が取れない"],
+    v: ["ok", "ok", null], note: "価格は営業に聞いてみて。", rev: null, feel: "", tA: 84, tB: 40 },
+  { week: "先週", task: "評価試験の手順書", a: ["試験項目を全部書いたら完了", "水曜に項目一覧を見せる", "なし"],
+    v: ["ng", "ok", null], note: "項目は主要5つで十分。", rev: ["主要5項目を書いたら完了", "", ""], feel: "どちらでもない", tA: 130, tB: 52 }
+];
+const S = {
+  tab: "sub", hist: [], draft: ["", "", ""], sent: false, reply: null,
+  rev: ["", "", ""], feelNow: "", tAstart: 0, tA: 0, tBstart: 0, tB: 0,
+  clockStart: 0, clockTimer: null, busy: false
+};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+const now = () => Math.floor(Date.now() / 1000);
+
+function tabs() {
+  const items = [["sub", "部下(Bさん)"], ["boss", "課長"], ["hist", "履歴"]];
+  document.getElementById("tabs").innerHTML = items.map(([k, l]) =>
+    `<button class="${S.tab === k ? "on" : ""}" onclick="S.tab='${k}';render()">${l}</button>`).join("");
+}
+function clockCard() {
+  const el = S.clockStart ? now() - S.clockStart : 0;
+  const left = TOTAL - el;
+  return `<div class="card"><h2>5分の時計</h2>
+    <div class="clock ${left < 0 ? "over" : ""}" id="clock">${left < 0 ? "-" + fmt(-left) : fmt(left)}</div>
+    <div class="row">
+      <button class="btn sub" onclick="clockStart()">${S.clockStart ? "やり直す" : "チェックイン開始"}</button>
+    </div>
+    <p class="note">長くならないことが続ける条件です。5分を過ぎても止まりません。</p></div>`;
+}
+function clockStart() {
+  S.clockStart = now();
+  clearInterval(S.clockTimer);
+  S.clockTimer = setInterval(() => {
+    const c = document.getElementById("clock");
+    if (!c) return;
+    const left = TOTAL - (now() - S.clockStart);
+    c.textContent = left < 0 ? "-" + fmt(-left) : fmt(left);
+    c.className = "clock" + (left < 0 ? " over" : "");
+  }, 500);
+  render();
+}
+function timeResult(sec, limit) {
+  if (!sec) return "";
+  const ok = sec <= limit;
+  return `<span class="chip ${ok ? "ok" : "ng"}">${fmt(sec)}(目安 ${fmt(limit)}以内: ${ok ? "収まった" : "超えた"})</span>`;
+}
+
+function subView() {
+  let h = clockCard();
+  if (!S.sent) {
+    h += `<div class="card"><h2>3つの質問(前日に通知)</h2>
+      <p class="note">それぞれ一行で。答えるまでの時間をはかります(目安 2分)。</p>
+      <button class="btn sub" onclick="S.tAstart=now();render()">${S.tAstart ? "計り直す" : "書き始める"}</button>`;
+    QS.forEach((q, i) => {
+      h += `<hr><b>Q${i + 1}. ${q.t}</b>
+        <input type="text" value="${esc(S.draft[i])}" oninput="S.draft[${i}]=this.value"
+          placeholder="一行で">`;
+    });
+    h += `<div class="row"><button class="btn" onclick="sendAnswers()">課長に送る</button></div></div>`;
+  } else {
+    h += `<div class="card"><h2>送った答え</h2>${timeResult(S.tA, LIMIT_A)}`;
+    QS.forEach((q, i) => h += `<p><b>Q${i + 1}</b> ${esc(S.draft[i]) || "(空)"}</p>`);
+    h += `</div>`;
+    h += S.reply ? replyForSub() : `<div class="card note">課長の一言を待っています。</div>`;
+  }
+  return h;
+}
+function sendAnswers() {
+  S.tA = S.tAstart ? now() - S.tAstart : 0;
+  S.sent = true; render();
+}
+function replyForSub() {
+  let h = `<div class="card"><h2>課長の一言</h2>`;
+  if (S.reply.busy) h += `<p class="note">忙しい週のため、一言だけ返ります。</p>`;
+  QS.slice(0, 2).forEach((q, i) => {
+    const v = S.reply.v[i];
+    if (!v) return;
+    h += `<p>Q${i + 1} <span class="chip ${v === "ok" ? "ok" : "ng"}">${v === "ok" ? q.ok : q.ng}</span></p>`;
+    if (v === "ng") {
+      h += `<div class="mark"><b>ずれの印</b><br>
+        <span class="note">早めに見つかったずれです。直した答えを書いてください。</span>
+        <input type="text" value="${esc(S.rev[i])}" oninput="S.rev[${i}]=this.value" placeholder="直した答え"></div>`;
+    }
+  });
+  if (S.reply.note) h += `<p>一言: ${esc(S.reply.note)}</p>`;
+  const hasNg = S.reply.v.includes("ng");
+  if (hasNg) {
+    h += `<hr><b>「ここが違う」と言われて、どう感じましたか</b>
+      <p class="note">答えは2人の履歴に残るだけで、評価には使われません。</p>
+      <div class="row pick">`;
+    ["早めにわかってよかった", "責められたと感じた", "どちらでもない"].forEach(f =>
+      h += `<button class="${S.feelNow === f ? "on ok" : ""}" onclick="S.feelNow='${f}';render()">${f}</button>`);
+    h += `</div>`;
+  }
+  h += `<div class="row"><button class="btn" onclick="archive()">今週を履歴に残す</button></div></div>`;
+  return h;
+}
+
+function bossView() {
+  if (!S.sent) return clockCard() + `<div class="card note">部下の答えがまだ届いていません。「部下」タブで答えて送ってください。</div>`;
+  let h = clockCard();
+  if (S.reply) return h + `<div class="card"><h2>返信済み</h2>${timeResult(S.tB, LIMIT_B)}
+    <p class="note">「部下」タブで反応を確認できます。</p></div>`;
+  h += `<div class="card"><h2>部下の答え</h2>
+    <p class="note">${S.tBstart ? "一言を返すまでの時間をはかっています(目安 1分)。" : ""}</p>
+    <button class="btn sub" onclick="S.tBstart=now();render()">${S.tBstart ? "計り直す" : "確認を始める"}</button>`;
+  QS.forEach((q, i) => {
+    h += `<hr><b>Q${i + 1}. ${q.t}</b><p>${esc(S.draft[i]) || "(空)"}</p>`;
+    if (i < 2 && !S.busy) {
+      h += `<div class="row pick">
+        <button class="ok ${S.pickV[i] === "ok" ? "on" : ""}" onclick="S.pickV[${i}]='ok';render()">${q.ok}</button>
+        <button class="ng ${S.pickV[i] === "ng" ? "on" : ""}" onclick="S.pickV[${i}]='ng';render()">${q.ng}</button></div>`;
+    }
+  });
+  h += `<hr><label class="note">一言(任意)</label>
+    <textarea rows="2" id="note" placeholder="必要なら一言">${esc(S.pickNote || "")}</textarea>
+    <div class="row">
+      <label class="note"><input type="checkbox" ${S.busy ? "checked" : ""}
+        onchange="S.busy=this.checked;render()"> 忙しい週: 一言だけで済ませる</label></div>
+    <div class="row"><button class="btn" onclick="sendReply()">返す</button></div>
+    <p class="note">評価の話はここでは扱いません。話題は3つの質問に限ります。</p></div>`;
+  return h;
+}
+function sendReply() {
+  S.tB = S.tBstart ? now() - S.tBstart : 0;
+  S.pickNote = document.getElementById("note").value;
+  S.reply = { v: S.busy ? [null, null] : S.pickV.slice(), note: S.pickNote, busy: S.busy };
+  render();
+}
+
+function archive() {
+  const v = S.reply.v;
+  S.hist.unshift({ week: "今週", task: "電源ICの候補調査", a: S.draft.slice(), v: [v[0], v[1], null],
+    note: S.reply.note, rev: v.some(x => x === "ng") ? S.rev.slice() : null,
+    feel: S.feelNow, tA: S.tA, tB: S.tB });
+  S.draft = ["", "", ""]; S.sent = false; S.reply = null; S.rev = ["", "", ""];
+  S.pickV = [null, null]; S.pickNote = ""; S.feelNow = ""; S.tAstart = S.tBstart = 0;
+  S.tab = "hist"; render();
+}
+function histView() {
+  const ng = S.hist.reduce((n, h) => n + h.v.filter(x => x === "ng").length, 0);
+  let h = `<div class="card"><h2>2人の履歴</h2>
+    <p class="note">この履歴は2人だけが見られます。「期待が違った」と記録された件数: <b>${ng}</b>件
+    (ずれが見つかること自体を成果として数えます)</p></div>`;
+  if (!S.hist.length) return h + `<div class="card note">まだ履歴がありません。「サンプルを読み込む」を押すか、今週のチェックインを済ませてください。</div>`;
+  S.hist.forEach(e => {
+    h += `<div class="card"><div class="bar"><b>${e.week}</b><span class="note">${esc(e.task)}</span></div>
+      <div>${timeResult(e.tA, LIMIT_A)} ${timeResult(e.tB, LIMIT_B)}</div>`;
+    QS.forEach((q, i) => {
+      const v = e.v[i];
+      h += `<hr><b>Q${i + 1}</b> ${v ? `<span class="chip ${v === "ok" ? "ok" : "ng"}">${v === "ok" ? q.ok : "印: " + q.ng}</span>` : ""}
+        <p>${esc(e.a[i]) || "(空)"}</p>`;
+      if (e.rev && e.rev[i]) h += `<div class="mark">直した答え: ${esc(e.rev[i])}</div>`;
+    });
+    if (e.note) h += `<p class="note">課長の一言: ${esc(e.note)}</p>`;
+    if (e.feel) h += `<p class="note">そのときの感じ方: ${esc(e.feel)}</p>`;
+    h += `</div>`;
+  });
+  return h;
+}
+
+function loadSample() {
+  S.hist = JSON.parse(JSON.stringify(SAMPLE_HISTORY));
+  S.draft = ["3つに絞り、推奨を1枚にまとめたら完了", "来週水曜に推奨案を見せる", "放熱の条件がわからない"];
+  S.tAstart = now() - 85; S.sent = false; S.reply = null;
+  S.pickV = [null, null]; S.pickNote = ""; S.rev = ["", "", ""]; S.feelNow = "";
+  render();
+}
+S.pickV = [null, null]; S.pickNote = "";
+function render() {
+  tabs();
+  const v = { sub: subView, boss: bossView, hist: histView }[S.tab]();
+  document.getElementById("view").innerHTML =
+    `<div class="row" style="margin:0 0 12px"><button class="btn sub" onclick="loadSample()">サンプルを読み込む</button></div>` + v;
+}
+render();
+</script>
+</body>
+</html>

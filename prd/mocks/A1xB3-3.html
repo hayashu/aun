@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>依頼ボード（A1xB3-3）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1d2330; --sub: #5f6b7d;
+  --line: #d9dee6; --accent: #2b6cb0; --warn: #b7791f; --warn-bg: #fff6e0;
+  --ok: #2f855a; --ng: #c53030;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --card: #1e232c; --text: #e8ebf0; --sub: #9aa5b5;
+    --line: #333b48; --accent: #63a4e8; --warn: #f0b955; --warn-bg: #3a3017;
+    --ok: #5cc795; --ng: #f08080;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 16px; }
+header small { color: var(--sub); }
+main { padding: 16px; max-width: 420px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-weight: bold; font-size: 13px; margin: 10px 0 4px; }
+.req { color: var(--ng); font-size: 12px; }
+textarea, input, select { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+button { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.chip.on { border-color: var(--accent); color: var(--accent); font-weight: bold; }
+button.chip[disabled] { opacity: .5; text-decoration: line-through; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabs button { flex: 1; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.item { border-top: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
+.item:first-of-type { border-top: 0; }
+.item.hit { background: var(--warn-bg); margin: 0 -6px; padding: 8px 6px; border-radius: 6px; }
+.meta { color: var(--sub); font-size: 12px; }
+.warn { background: var(--warn-bg); color: var(--warn); padding: 8px; border-radius: 6px; font-size: 13px; margin-top: 8px; }
+.note { color: var(--sub); font-size: 12px; margin-top: 6px; }
+.badge { display: inline-block; font-size: 11px; padding: 0 6px; border: 1px solid var(--line); border-radius: 10px; margin-right: 4px; }
+.hidden { display: none; }
+#log div { font-size: 13px; padding: 4px 0; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>依頼ボード</h1>
+  <small>依頼には「期限・完成度・途中確認」を必須にするチームの依頼ボード / A1xB3-3</small>
+</header>
+<main>
+  <div class="tabs">
+    <button id="tab-req" class="on">依頼者（課長）</button>
+    <button id="tab-rcv">受け手（Bさん）</button>
+  </div>
+  <button id="sample" style="width:100%;margin-bottom:12px">サンプルを読み込む</button>
+
+  <section id="v-req">
+    <div class="card">
+      <h2>依頼を出す</h2>
+      <label>受け手</label>
+      <select id="to"><option>Bさん</option><option>Aさん</option></select>
+      <label>依頼の内容 <span class="req">必須</span></label>
+      <textarea id="body" rows="2" placeholder="例：ノイズ対策の案をまとめてほしい"></textarea>
+      <label>期限の幅 <span class="req">必須</span></label>
+      <div class="row" id="range">
+        <button class="chip" data-v="7">今週</button>
+        <button class="chip" data-v="14">2週間以内</button>
+        <button class="chip" data-v="30">1か月以内</button>
+        <button class="chip" id="noturgent" data-v="x">急ぎじゃない</button>
+      </div>
+      <div id="nu-msg" class="warn hidden">「急ぎじゃない」は選べません。期限の幅から選んでください。</div>
+      <label>完成度 <span class="req">必須</span></label>
+      <div class="row" id="level">
+        <button class="chip" data-v="たたき台">たたき台</button>
+        <button class="chip" data-v="一次案">一次案</button>
+        <button class="chip" data-v="ほぼ完成">ほぼ完成</button>
+      </div>
+      <label>途中確認日 <span class="req">必須</span></label>
+      <input type="date" id="mid">
+      <label>使い道（任意）</label>
+      <input id="use" placeholder="例：2週間後の部長報告用">
+      <div id="load-wrap">
+        <h2 style="margin-top:14px">受け手が抱えている依頼</h2>
+        <div id="load"></div>
+        <div id="overlap" class="warn hidden"></div>
+      </div>
+      <div id="err" class="warn hidden" style="color:var(--ng)"></div>
+      <div class="row" style="margin-top:12px"><button class="primary" id="send">依頼を出す</button></div>
+      <div class="note">受け手には自動で割り振られません。誰に頼むかは依頼者が決めます。</div>
+    </div>
+  </section>
+
+  <section id="v-rcv" class="hidden">
+    <div class="card">
+      <h2>Bさん宛ての依頼</h2>
+      <div id="inbox"></div>
+    </div>
+    <div class="card">
+      <h2>途中確認の通知</h2>
+      <div id="notice"></div>
+    </div>
+  </section>
+
+  <div class="card">
+    <h2>モックの観察メモ</h2>
+    <div class="note">負荷を見たあと、期限の幅を変えたかを自動で記録します（個人別の集計・評価はしません）。</div>
+    <div class="row" style="margin-top:8px">
+      <button id="tight">窮屈だった</button>
+      <button id="fine">問題なかった</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</main>
+<script>
+const TODAY = new Date(2026, 10, 22);
+const state = { range: null, level: null, rangeAtLoad: null, requests: [], busy: [] };
+const $ = (id) => document.getElementById(id);
+
+function addDays(n) { const d = new Date(TODAY); d.setDate(d.getDate() + n); return d; }
+function fmt(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
+function iso(d) { return d.toISOString().slice(0, 10); }
+function log(t) { const e = document.createElement('div'); e.textContent = t; $('log').prepend(e); }
+
+function loadSample() {
+  state.busy = [
+    { who: 'Bさん', body: '評価資料の作成（係長）', due: 5, level: '一次案', mid: 2 },
+    { who: 'Bさん', body: '試験データの整理（他チーム）', due: 12, level: 'ほぼ完成', mid: 8 },
+    { who: 'Aさん', body: '仕様書の翻訳チェック（係長）', due: 20, level: 'ほぼ完成', mid: 10 },
+  ];
+  state.requests = [];
+  $('to').value = 'Bさん';
+  $('body').value = 'ノイズ対策の案をまとめてほしい';
+  $('use').value = '部長報告用（2週間後）';
+  renderLoad(); renderRcv();
+  log('サンプルを読み込みました');
+}
+
+function pick(groupId, key) {
+  $(groupId).querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => {
+    if (b.id === 'noturgent') { $('nu-msg').classList.remove('hidden'); log('「急ぎじゃない」を押した（選べない）'); return; }
+    $('nu-msg').classList.add('hidden');
+    $(groupId).querySelectorAll('.chip').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    state[key] = b.dataset.v;
+    if (key === 'range') onRange();
+  }));
+}
+
+function onRange() {
+  const prev = state.rangeAtLoad;
+  if (prev && prev !== state.range) {
+    log('負荷を見たあと、期限の幅を変えた（' + prev + '日 → ' + state.range + '日）');
+  }
+  state.rangeAtLoad = state.range;
+  renderLoad();
+}
+
+function renderLoad() {
+  const to = $('to').value;
+  const list = state.busy.filter((b) => b.who === to).sort((a, b) => a.due - b.due);
+  const end = state.range ? Number(state.range) : null;
+  $('load').innerHTML = list.length ? '' : '<div class="meta">抱えている依頼はありません</div>';
+  let hits = 0;
+  list.forEach((b) => {
+    const hit = end !== null && Math.abs(b.due - end) <= 3;
+    if (hit) hits++;
+    const e = document.createElement('div');
+    e.className = 'item' + (hit ? ' hit' : '');
+    e.innerHTML = '<div>' + b.body + '</div><div class="meta"><span class="badge">期限 ' + fmt(addDays(b.due)) +
+      '</span><span class="badge">' + b.level + '</span><span class="badge">途中確認 ' + fmt(addDays(b.mid)) + '</span></div>';
+    $('load').appendChild(e);
+  });
+  const o = $('overlap');
+  if (hits) {
+    o.textContent = '期限が重なります（' + hits + '件）。期限の幅や途中確認日を見直しますか。';
+    o.classList.remove('hidden');
+  } else {
+    o.classList.add('hidden');
+  }
+}
+
+function send() {
+  const miss = [];
+  if (!$('body').value.trim()) miss.push('依頼の内容');
+  if (!state.range) miss.push('期限の幅');
+  if (!state.level) miss.push('完成度');
+  if (!$('mid').value) miss.push('途中確認日');
+  const err = $('err');
+  if (miss.length) {
+    err.textContent = '未入力の必須項目：' + miss.join('、');
+    err.classList.remove('hidden');
+    log('必須項目の未入力で止まった（' + miss.join('、') + '）');
+    return;
+  }
+  err.classList.add('hidden');
+  state.requests.push({
+    id: Date.now(), to: $('to').value, body: $('body').value, range: state.range, level: state.level,
+    mid: $('mid').value, use: $('use').value, status: '回答待ち', counter: null,
+  });
+  log('依頼を出した（' + $('to').value + '宛て・期限の幅 ' + state.range + '日）');
+  $('body').value = ''; $('use').value = '';
+  renderRcv();
+  alert('依頼を出しました。受け手のタブで確認できます。');
+}
+
+function respond(id, accept) {
+  const r = state.requests.find((x) => x.id === id);
+  if (accept) {
+    r.status = '受けた';
+    log('受け手が「受ける」を選んだ');
+  } else {
+    const d = prompt('希望の期限を一つ返してください（例：' + fmt(addDays(Number(r.range) + 5)) + '）');
+    if (!d) return;
+    r.status = '期限を相談したい';
+    r.counter = d;
+    log('受け手が「期限を相談したい」を選んだ（希望 ' + d + '）');
+  }
+  renderRcv();
+}
+
+function renderRcv() {
+  const mine = state.requests.filter((r) => r.to === 'Bさん');
+  $('inbox').innerHTML = mine.length ? '' : '<div class="meta">依頼はまだありません</div>';
+  mine.forEach((r) => {
+    const e = document.createElement('div');
+    e.className = 'item';
+    e.innerHTML = '<div>' + r.body + '</div><div class="meta"><span class="badge">期限 ' + fmt(addDays(Number(r.range))) +
+      'まで</span><span class="badge">' + r.level + '</span><span class="badge">途中確認 ' + r.mid + '</span></div>' +
+      (r.use ? '<div class="meta">使い道：' + r.use + '</div>' : '') +
+      '<div class="meta">状態：' + r.status + (r.counter ? '（希望 ' + r.counter + '）' : '') + '</div>';
+    if (r.status === '回答待ち') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.marginTop = '6px';
+      const a = document.createElement('button'); a.textContent = '受ける'; a.className = 'primary';
+      const c = document.createElement('button'); c.textContent = '期限を相談したい';
+      a.onclick = () => respond(r.id, true);
+      c.onclick = () => respond(r.id, false);
+      row.append(a, c);
+      e.appendChild(row);
+    }
+    $('inbox').appendChild(e);
+  });
+  const acc = state.requests.filter((r) => r.status !== '回答待ち');
+  $('notice').innerHTML = acc.length ? '' : '<div class="meta">受けた依頼の途中確認日に、依頼者と受け手の両方へ知らせます</div>';
+  acc.forEach((r) => {
+    const e = document.createElement('div');
+    e.className = 'item';
+    e.textContent = r.mid + ' に「' + r.body + '」の途中確認（依頼者・受け手 両方に通知）';
+    $('notice').appendChild(e);
+  });
+}
+
+function show(role) {
+  $('v-req').classList.toggle('hidden', role !== 'req');
+  $('v-rcv').classList.toggle('hidden', role !== 'rcv');
+  $('tab-req').classList.toggle('on', role === 'req');
+  $('tab-rcv').classList.toggle('on', role === 'rcv');
+}
+
+pick('range', 'range'); pick('level', 'level');
+$('to').addEventListener('change', renderLoad);
+$('send').addEventListener('click', send);
+$('sample').addEventListener('click', loadSample);
+$('tab-req').addEventListener('click', () => show('req'));
+$('tab-rcv').addEventListener('click', () => show('rcv'));
+$('tight').addEventListener('click', () => log('「急ぎじゃない」を選べない書式は窮屈だった'));
+$('fine').addEventListener('click', () => log('「急ぎじゃない」を選べなくても問題なかった'));
+renderLoad(); renderRcv();
+</script>
+</body>
+</html>

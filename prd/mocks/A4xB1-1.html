@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>試作の振り返りノート（A4xB1-1）</title>
+<style>
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --text: #22282a; --sub: #6a7377;
+  --line: #d9ded8; --accent: #2f7d6b; --accent-bg: #e1f0eb;
+  --warn: #b5651d; --warn-bg: #fbeedd;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161a1b; --card: #1f2526; --text: #e6eae8; --sub: #94a09c;
+    --line: #333c3d; --accent: #6cc4ad; --accent-bg: #1f3732;
+    --warn: #e0a265; --warn-bg: #3a2c1c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 16px; max-width: 420px; margin: 0 auto; }
+nav { display: flex; gap: 4px; margin-bottom: 14px; }
+nav button { flex: 1; padding: 8px 2px; font-size: 12px; border: 1px solid var(--line);
+  background: var(--card); color: var(--sub); border-radius: 8px; }
+nav button.on { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+input, select, textarea { width: 100%; padding: 8px; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+textarea { min-height: 56px; resize: vertical; }
+button.btn { padding: 9px 14px; font: inherit; border-radius: 8px; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--card); margin-top: 10px; }
+button.ghost { background: transparent; color: var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.note { font-size: 12px; color: var(--sub); }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px;
+  background: var(--warn-bg); color: var(--warn); }
+.unknown { border-color: var(--warn); background: var(--warn-bg); }
+.cand { display: block; width: 100%; text-align: left; margin: 6px 0; padding: 8px; font: inherit;
+  background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; }
+.cand.sel { border-color: var(--accent); background: var(--accent-bg); }
+.conf button { flex: 1; padding: 8px 0; border: 1px solid var(--line); background: var(--card);
+  color: var(--text); border-radius: 8px; font: inherit; }
+.conf button.on { background: var(--accent); color: var(--card); border-color: var(--accent); }
+</style>
+</head>
+<body>
+<header><h1>試作の振り返りノート</h1><small>A4xB1-1 / 指摘を「何が・なぜ・次にどう」に分ける</small></header>
+<main>
+  <nav id="nav"></nav>
+  <div id="view"></div>
+</main>
+<script>
+const TYPES = {
+  治具: { c: ["作業者が片手で扱えない", "部品の交換に工具が要る", "作業者の位置から見えない"],
+    q: ["どの点が使いにくかったですか", "現場の作業者が使う場面を想定すべきでしたか"] },
+  基板: { c: ["測定条件の範囲が足りない", "結果の記録が不足している", "想定外の入力を試していない"],
+    q: ["どの部分を詰めればよかったですか", "報告にどんな確認項目が必要でしたか"] },
+  評価: { c: ["比較の基準が決まっていない", "試験の回数が足りない"],
+    q: ["何と比べて判断すればよかったですか"] },
+  筐体: { c: ["組み立て手順が想定と違う", "公差の見方が合っていない"],
+    q: ["組み立てのどの場面で困りますか"] }
+};
+const SAMPLES = {
+  B: { who: "Bさん", rec: { by: "課長", words: "うーん、これだと現場では使いにくいな", type: "治具" },
+    split: { what: "", why: "", next: "" } },
+  A: { who: "Aさん", rec: { by: "先輩", words: "詰めが甘いね", type: "基板" },
+    split: { what: "試作基板の評価報告", why: "", next: "" } }
+};
+const S = { tab: 0, rec: { by: "", words: "", type: "治具" }, split: { what: "", why: "", next: "" },
+  picked: null, notes: [], conf: 0 };
+const TABS = ["① 記録", "② 3つに分ける", "③ 確かめる", "④ 改善点"];
+const $ = (id) => document.getElementById(id);
+
+function esc(s) { return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function isUnknown(v) { return v.trim() === "" || v.trim() === "わからない"; }
+function unknownKeys() { return ["what", "why"].filter((k) => isUnknown(S.split[k])); }
+function label(k) { return k === "what" ? "何が（対象）" : "なぜ（理由）"; }
+
+function loadSample(key) {
+  const s = SAMPLES[key];
+  S.rec = { ...s.rec }; S.split = { ...s.split }; S.picked = null; S.tab = 0;
+  render();
+}
+function go(i) { S.tab = i; render(); }
+function bind(group, key, el) { S[group][key] = el.value; }
+
+function viewRecord() {
+  const t = S.rec;
+  return `<div class="card"><h2>指摘の記録</h2>
+    <div class="row"><button class="btn ghost" onclick="loadSample('B')">サンプルを読み込む（Bさん・治具）</button>
+    <button class="btn ghost" onclick="loadSample('A')">サンプル（Aさん・基板）</button></div>
+    <label>誰に指摘されましたか</label>
+    <input value="${esc(t.by)}" oninput="bind('rec','by',this)" placeholder="例：課長">
+    <label>どんな言葉でしたか</label>
+    <textarea oninput="bind('rec','words',this)" placeholder="言われた言葉をそのまま">${esc(t.words)}</textarea>
+    <label>試作の種類</label>
+    <select onchange="bind('rec','type',this)">${Object.keys(TYPES).map((k) =>
+      `<option ${k === t.type ? "selected" : ""}>${k}</option>`).join("")}</select>
+    <button class="btn" onclick="go(1)">3つに分ける →</button></div>`;
+}
+
+function viewSplit() {
+  const f = (k, ph) => `<label>${k === "what" ? "何が（対象）" : k === "why" ? "なぜ（理由）" : "次にどう（改善）"}</label>
+    <textarea oninput="bind('split','${k}',this);refreshHint()" placeholder="${ph}">${esc(S.split[k])}</textarea>`;
+  return `<div class="card"><h2>3つに分ける</h2>
+    <p class="note">言われた言葉：「${esc(S.rec.words)}」（${esc(S.rec.by)}）<br>
+    わからない欄は空か「わからない」でかまいません。</p>
+    ${f("what", "例：治具の持ち手")}${f("why", "例：わからない")}${f("next", "例：確かめてから書く")}
+    <p id="hint"></p>
+    <button class="btn" onclick="go(2)">確かめる質問へ →</button></div>`;
+}
+function refreshHint() {
+  const u = unknownKeys();
+  $("hint").innerHTML = u.length
+    ? `<span class="tag">確かめるべき点 ${u.length}件</span> ${u.map(label).join("・")}`
+    : `<span class="note">「何が」「なぜ」が書けています。</span>`;
+}
+
+function pick(i) { S.picked = i; render(); }
+function viewAsk() {
+  const u = unknownKeys();
+  const t = TYPES[S.rec.type];
+  if (!u.length) return `<div class="card"><h2>確かめる質問</h2>
+    <p>確かめる点はありません。「次にどう」を改善点に残せます。</p>
+    <button class="btn" onclick="addNote()">改善点に残す</button></div>`;
+  const k = u[0];
+  const cands = t.c.map((c, i) => `<button class="cand ${S.picked === i ? "sel" : ""}" onclick="pick(${i})">
+    ${esc(c)}<br><span class="note">→ ${esc(t.q[i % t.q.length])}</span></button>`).join("");
+  return `<div class="card unknown"><h2>いま確かめるのは1つ：${label(k)}</h2>
+    <p class="note">質問は一度に一つ。残り ${u.length} 件。</p></div>
+    <div class="card"><h2>よくある候補（質問とセット）</h2>
+    <p class="note">候補は原因の決めつけには使いません。確かめる質問のきっかけです。</p>${cands}
+    <label>自分の言葉に直した質問</label>
+    <textarea id="myq" placeholder="上の質問を、自分の言い方で">${S.picked === null ? "" : esc(t.q[S.picked % t.q.length])}</textarea>
+    <label>確かめた結果（聞けたら書く）</label>
+    <textarea id="ans" placeholder="例：片手で持てる重さに"></textarea>
+    <button class="btn" onclick="resolve('${k}')">確かめた → 反映する</button>
+    <p class="note">質問を送る機能はありません。自分で伝えます。</p></div>`;
+}
+function resolve(k) {
+  const a = $("ans").value.trim();
+  if (!a) return alert("確かめた結果を書くと反映できます。");
+  S.split[k] = a; S.picked = null;
+  if (!unknownKeys().length && isUnknown(S.split.next)) S.split.next = a;
+  render();
+}
+function addNote() {
+  const n = S.split.next.trim();
+  if (!n) return alert("「次にどう」を書いてください。");
+  S.notes.push({ type: S.rec.type, text: n, what: S.split.what, why: S.split.why });
+  S.tab = 3; render();
+}
+
+function setConf(n) { S.conf = n; render(); }
+function viewNotes() {
+  const list = S.notes.length
+    ? S.notes.map((n) => `<div class="card"><span class="tag">${esc(n.type)}</span>
+      <p><b>次にどう：</b>${esc(n.text)}</p>
+      <p class="note">何が：${esc(n.what)}／なぜ：${esc(n.why)}</p></div>`).join("")
+    : `<p class="note">まだ改善点はありません。</p>`;
+  const labels = ["まだ自信がない", "少しある", "ややある", "ある", "十分ある"];
+  return `<h2>たまった改善点（${S.notes.length}件）</h2>${list}
+    <div class="card"><h2>次の機会を申し出る自信</h2>
+    <p class="note">自分の感覚を記録するだけで、点数としての評価はしません。</p>
+    <div class="row conf">${[1, 2, 3, 4, 5].map((n) =>
+      `<button class="${S.conf === n ? "on" : ""}" onclick="setConf(${n})">${n}</button>`).join("")}</div>
+    <p>${S.conf ? labels[S.conf - 1] : "未選択"}</p></div>`;
+}
+
+function render() {
+  $("nav").innerHTML = TABS.map((t, i) =>
+    `<button class="${i === S.tab ? "on" : ""}" onclick="go(${i})">${t}</button>`).join("");
+  $("view").innerHTML = [viewRecord, viewSplit, viewAsk, viewNotes][S.tab]();
+  if (S.tab === 1) refreshHint();
+}
+render();
+</script>
+</body>
+</html>

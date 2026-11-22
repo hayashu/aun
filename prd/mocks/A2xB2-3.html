@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新人目線ログ A2xB2-3</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2b6cb0; --accent-bg: #e6eef7;
+  --warn: #b7791f; --warn-bg: #fdf3dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #7fb2e5; --accent-bg: #23374d;
+    --warn: #e5b868; --warn-bg: #3a2f17;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 16px; max-width: 420px; margin: 0 auto; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs button {
+  flex: 1; padding: 8px 4px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); color: var(--text); font-size: 14px;
+}
+.tabs button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: bold; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.card h2 { margin: 0 0 6px; font-size: 15px; }
+.note { color: var(--sub); font-size: 13px; margin: 4px 0 8px; }
+input, textarea, select {
+  width: 100%; padding: 8px; margin-bottom: 8px; font-size: 15px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text);
+}
+button.act { padding: 8px 14px; border: 0; border-radius: 6px; background: var(--accent); color: var(--bg); font-size: 14px; }
+button.ghost { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--text); font-size: 13px; }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.term { font-weight: bold; font-size: 16px; }
+.badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); white-space: nowrap; }
+.stale { background: var(--warn-bg); color: var(--warn); }
+.item { border-top: 1px solid var(--line); padding: 10px 0; }
+.item:first-child { border-top: 0; }
+.meaning { margin: 4px 0 0; }
+.meta { color: var(--sub); font-size: 12px; }
+.msg { color: var(--accent); font-size: 13px; min-height: 20px; }
+.chips button { margin: 0 6px 6px 0; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>新人目線ログ（部署の略語・規格の手引き）</h1>
+  <small>PRD A2xB2-3 / モック</small>
+</header>
+<main>
+  <div class="tabs" id="tabs">
+    <button data-v="newbie" class="on">新人</button>
+    <button data-v="veteran">ベテラン</button>
+    <button data-v="guide">手引き</button>
+  </div>
+  <button class="ghost" id="loadSample" style="margin-bottom:12px">サンプルを読み込む</button>
+
+  <section id="newbie">
+    <div class="card">
+      <h2>わからなかった言葉を記録</h2>
+      <p class="note">誰が記録したかは残りません。件数も個人ごとには数えません。</p>
+      <input id="nTerm" placeholder="言葉（例: DR2）">
+      <textarea id="nScene" rows="2" placeholder="出てきた場面（例: 設計会議で期限を言われた）"></textarea>
+      <select id="nCat">
+        <option>略語</option><option>規格</option><option>図面</option><option>工程</option>
+      </select>
+      <button class="act" id="nSend">匿名で記録する</button>
+      <div class="msg" id="nMsg"></div>
+    </div>
+  </section>
+
+  <section id="veteran" class="hidden">
+    <div class="card">
+      <h2>意味を書いてほしい言葉</h2>
+      <p class="note">つまずいた人が多い順です。意味は一行、資料の場所は任意です。</p>
+      <div id="queue"></div>
+    </div>
+  </section>
+
+  <section id="guide" class="hidden">
+    <div class="card">
+      <h2>手引き</h2>
+      <p class="note">多くの人がつまずいた言葉が上に並びます。</p>
+      <select id="gCat">
+        <option value="">すべての分類</option>
+        <option>略語</option><option>規格</option><option>図面</option><option>工程</option>
+      </select>
+      <div id="list"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const TODAY = new Date("2026-11-22");
+let terms = [];
+let timer = null;
+
+const SAMPLE = [
+  { term: "DR2", cat: "略語", count: 4, scene: "会議で「DR2までに差し替え」と言われた",
+    meaning: "デザインレビュー第2回。試作図面を確定する節目の会議。", ref: "設計プロセス規程 3章", updated: "2026-10-03" },
+  { term: "ES品", cat: "略語", count: 3, scene: "差し替え対象の部品を指して言われた",
+    meaning: "エンジニアリングサンプル品。量産前の評価用試作部品。", ref: "試作管理表", updated: "2025-04-12" },
+  { term: "一般公差は社内規格による", cat: "図面", count: 5, scene: "図面の注記で読み方がわからなかった",
+    meaning: "", ref: "", scene2: "規格書の場所がわからず半日探した", updated: "" },
+  { term: "ランナー", cat: "工程", count: 2, scene: "金型の打ち合わせで出てきた",
+    meaning: "", ref: "", updated: "" },
+  { term: "QC-12", cat: "規格", count: 1, scene: "検査手順書に書かれていた",
+    meaning: "", ref: "", updated: "" }
+];
+
+function show(view) {
+  for (const id of ["newbie", "veteran", "guide"]) {
+    document.getElementById(id).classList.toggle("hidden", id !== view);
+  }
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
+  render();
+}
+
+function isStale(t) {
+  if (!t.updated) return false;
+  return (TODAY - new Date(t.updated)) / 86400000 > 365;
+}
+
+function renderGuide() {
+  const cat = document.getElementById("gCat").value;
+  const done = terms.filter(t => t.meaning && (!cat || t.cat === cat))
+    .sort((a, b) => b.count - a.count);
+  const box = document.getElementById("list");
+  if (!done.length) { box.innerHTML = '<p class="note">意味が書かれた言葉はまだありません。</p>'; return; }
+  box.innerHTML = done.map(t => `
+    <div class="item">
+      <div class="row"><span class="term">${esc(t.term)}</span>
+        <span class="badge">新人が${t.count}人つまずいた</span></div>
+      <p class="meaning">${esc(t.meaning)}</p>
+      <div class="meta">${esc(t.cat)}${t.ref ? " / 資料: " + esc(t.ref) : ""} / 最終更新 ${esc(t.updated)}
+        ${isStale(t) ? '<span class="badge stale">1年以上更新なし</span>' : ""}</div>
+    </div>`).join("");
+}
+
+function renderQueue() {
+  const todo = terms.filter(t => !t.meaning).sort((a, b) => b.count - a.count);
+  const box = document.getElementById("queue");
+  if (!todo.length) { box.innerHTML = '<p class="note">いま依頼されている言葉はありません。</p>'; return; }
+  box.innerHTML = todo.map((t, i) => `
+    <div class="item" data-i="${terms.indexOf(t)}">
+      <div class="row"><span class="term">${esc(t.term)}</span>
+        <span class="badge">${t.count}人</span></div>
+      <div class="meta">場面: ${esc(t.scene)}</div>
+      <button class="ghost open" style="margin-top:6px">書く</button>
+      <div class="form hidden" style="margin-top:8px">
+        <input class="mean" placeholder="一行の意味">
+        <input class="ref" placeholder="関連する規格・資料の場所（任意）">
+        <button class="act save">手引きに載せる</button>
+        <span class="meta timer"></span>
+      </div>
+    </div>`).join("");
+}
+
+function render() { renderQueue(); renderGuide(); }
+
+function esc(s) {
+  return String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+document.getElementById("tabs").addEventListener("click", e => {
+  if (e.target.dataset.v) show(e.target.dataset.v);
+});
+
+document.getElementById("loadSample").onclick = () => {
+  terms = JSON.parse(JSON.stringify(SAMPLE));
+  terms[2].scene = "図面の注記で読み方がわからず、規格書を探すのに半日かかった";
+  render();
+  document.getElementById("nMsg").textContent = "サンプルを読み込みました。";
+};
+
+document.getElementById("nSend").onclick = () => {
+  const name = document.getElementById("nTerm").value.trim();
+  const scene = document.getElementById("nScene").value.trim();
+  const cat = document.getElementById("nCat").value;
+  const msg = document.getElementById("nMsg");
+  if (!name) { msg.textContent = "言葉を入力してください。"; return; }
+  const hit = terms.find(t => t.term === name);
+  if (hit) {
+    hit.count += 1;
+    msg.textContent = hit.meaning
+      ? `「${name}」は手引きに載っています。これまでに新人が${hit.count}人つまずきました。自分だけではありません。`
+      : `「${name}」は記録済みでした。つまずいた人は${hit.count}人になりました。`;
+  } else {
+    terms.push({ term: name, cat, count: 1, scene: scene || "（場面の記入なし）", meaning: "", ref: "", updated: "" });
+    msg.textContent = `「${name}」を匿名で記録しました。ベテランに届きます。`;
+  }
+  document.getElementById("nTerm").value = "";
+  document.getElementById("nScene").value = "";
+  render();
+};
+
+document.getElementById("queue").addEventListener("click", e => {
+  const item = e.target.closest(".item");
+  if (!item) return;
+  const t = terms[item.dataset.i];
+  if (e.target.classList.contains("open")) {
+    item.querySelector(".form").classList.remove("hidden");
+    e.target.classList.add("hidden");
+    const start = Date.now();
+    clearInterval(timer);
+    const label = item.querySelector(".timer");
+    timer = setInterval(() => {
+      label.textContent = Math.floor((Date.now() - start) / 1000) + "秒";
+    }, 500);
+    item.dataset.start = start;
+  }
+  if (e.target.classList.contains("save")) {
+    const mean = item.querySelector(".mean").value.trim();
+    if (!mean) return;
+    clearInterval(timer);
+    const sec = Math.round((Date.now() - Number(item.dataset.start)) / 1000);
+    t.meaning = mean;
+    t.ref = item.querySelector(".ref").value.trim();
+    t.updated = "2026-11-22";
+    render();
+    document.querySelector("#veteran .note").textContent =
+      `「${t.term}」を手引きに載せました（記入に${sec}秒）。この時間は保存されません。`;
+  }
+});
+
+document.getElementById("gCat").onchange = renderGuide;
+render();
+</script>
+</body>
+</html>

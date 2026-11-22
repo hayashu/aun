@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>触っていい度ラベル（A1xB5-2）</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #fff; --text: #1d2330; --sub: #5c6577;
+  --line: #d9dde5; --accent: #1f6feb; --accent-bg: #e6efff;
+  --warn: #b42318; --warn-bg: #fdecea; --ok: #1a7f4b; --ok-bg: #e5f5ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151c; --card: #1c212c; --text: #e8ebf2; --sub: #9aa3b5;
+    --line: #333b4b; --accent: #6ea4ff; --accent-bg: #1d2c47;
+    --warn: #ff8f85; --warn-bg: #3a1e1c; --ok: #5fd39a; --ok-bg: #173226;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 12px 16px 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { padding: 0 16px 40px; max-width: 480px; margin: 0 auto; }
+.tabs { display: flex; gap: 8px; margin: 8px 0 12px; }
+.tabs button { flex: 1; }
+button { font: inherit; padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--text); }
+button.on, button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ghost { background: transparent; color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px; margin-bottom: 12px; }
+.card h2 { font-size: 15px; margin: 0 0 8px; }
+.note { color: var(--sub); font-size: 13px; }
+select, input[type=text], textarea { width: 100%; font: inherit; padding: 9px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.level { display: block; border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px; margin-bottom: 8px; cursor: pointer; }
+.level.sel { border-color: var(--accent); background: var(--accent-bg); }
+.level b { display: block; }
+.level span { color: var(--sub); font-size: 13px; }
+.chk { display: block; padding: 4px 0; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px;
+  background: var(--accent-bg); color: var(--accent); font-weight: 700; }
+.ng { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 10px; }
+.ok { background: var(--ok-bg); color: var(--ok); border-radius: 8px; padding: 8px 10px; }
+.row { display: flex; gap: 8px; margin-top: 8px; }
+.row > * { flex: 1; }
+.q { border-top: 1px solid var(--line); padding: 8px 0; }
+.timer { font-variant-numeric: tabular-nums; font-weight: 700; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>機材の触っていい度ラベル</h1>
+  <small>PRD A1xB5-2 ／ モック（動作確認用）</small>
+</header>
+<main>
+  <div class="card">
+    <button class="primary" onclick="loadSample()">サンプルを読み込む</button>
+    <p class="note" style="margin:8px 0 0">対象機材: 旧型評価ボード（持ち主: 先輩、使い手: Bさん）。画面上部で役割を切り替えます。</p>
+  </div>
+  <div class="tabs">
+    <button id="tab-owner" onclick="setRole('owner')">持ち主（先輩）</button>
+    <button id="tab-user" onclick="setRole('user')">使い手（Bさん）</button>
+  </div>
+  <section id="owner"></section>
+  <section id="user"></section>
+</main>
+<script>
+const LEVELS = [
+  { name: "見るだけ", desc: "電源は入れず、見たり写真を撮ったりするだけ" },
+  { name: "電源を入れて測ってよい", desc: "通電して測定してよい。回路は変えない" },
+  { name: "部品を付け替えてよい", desc: "部品の交換・追加までよい" },
+  { name: "分解・改造してよい", desc: "基板の改造や分解までよい" }
+];
+const STEPS = ["予約表に記入する", "使ったあとは元の場所に戻す", "電源電圧は規定値までにする", "使う前に持ち主に一声かける"];
+const FAQ_SEED = [{ q: "半田付けはしてもよいですか？", a: "部品の付け替えに必要な範囲ならOKです。" }];
+
+let role = "owner";
+let label = null;      // 確定したラベル
+let prev = null;       // 前回の設定（引き継ぎ用）
+let draft = blank();
+let startedAt = null;  // 設定開始時刻
+let lastSecs = null;   // 設定にかかった秒数
+let questions = [];
+let feelings = [];
+let timerId = null;
+
+function blank() {
+  return { level: null, ng: "", steps: [], contact: "", faq: [] };
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function setRole(r) {
+  role = r;
+  render();
+}
+
+function loadSample() {
+  prev = {
+    level: 2, ng: "FPGAの書き換えはしないでください",
+    steps: [0, 1], contact: "先輩（内線 2314）", faq: FAQ_SEED.slice()
+  };
+  label = JSON.parse(JSON.stringify(prev));
+  questions = [];
+  feelings = [];
+  lastSecs = 48;
+  startedAt = null;
+  draft = JSON.parse(JSON.stringify(prev));
+  render();
+}
+
+function touchDraft() {
+  if (startedAt === null) {
+    startedAt = Date.now();
+    clearInterval(timerId);
+    timerId = setInterval(tick, 500);
+  }
+}
+
+function tick() {
+  const el = document.getElementById("timer");
+  if (!el || startedAt === null) return;
+  el.textContent = Math.floor((Date.now() - startedAt) / 1000);
+}
+
+function pickLevel(i) { touchDraft(); draft.level = i; render(); }
+
+function inheritPrev() {
+  if (!prev) return;
+  touchDraft();
+  draft = JSON.parse(JSON.stringify(prev));
+  render();
+}
+
+function syncText() {
+  draft.ng = document.getElementById("ng").value;
+  draft.contact = document.getElementById("contact").value;
+  touchDraft();
+}
+
+function toggleStep(i) {
+  touchDraft();
+  const at = draft.steps.indexOf(i);
+  if (at >= 0) draft.steps.splice(at, 1); else draft.steps.push(i);
+}
+
+function publish() {
+  syncText();
+  if (draft.level === null) { alert("触っていい度を選んでください"); return; }
+  lastSecs = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
+  clearInterval(timerId);
+  startedAt = null;
+  label = JSON.parse(JSON.stringify(draft));
+  prev = JSON.parse(JSON.stringify(draft));
+  render();
+}
+
+function renderOwner() {
+  const lv = LEVELS.map((l, i) =>
+    `<label class="level ${draft.level === i ? "sel" : ""}" onclick="pickLevel(${i})">
+      <b>${i + 1}. ${l.name}</b><span>${l.desc}</span></label>`).join("");
+  const st = STEPS.map((s, i) =>
+    `<label class="chk"><input type="checkbox" ${draft.steps.includes(i) ? "checked" : ""}
+      onchange="toggleStep(${i})"> ${s}</label>`).join("");
+  const qs = questions.map((x, i) => `<div class="q">
+      <div>質問: ${esc(x.q)}</div>
+      ${x.a ? `<div class="ok">回答: ${esc(x.a)}</div>` : `
+      <input type="text" id="ans${i}" placeholder="回答を入力">
+      <div class="row"><button onclick="answer(${i}, false)">返信のみ</button>
+      <button onclick="answer(${i}, true)">返信してFAQに追加</button></div>`}
+    </div>`).join("") || `<p class="note">まだ質問はありません。</p>`;
+  document.getElementById("owner").innerHTML = `
+    <div class="card">
+      <h2>ラベルを設定する <span class="note">経過 <span class="timer" id="timer">${startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0}</span> 秒（目標 60 秒以内）</span></h2>
+      ${prev ? `<button class="ghost" onclick="inheritPrev()">前回の設定を引き継ぐ</button>` : ""}
+      ${lv}
+      <h2>これだけはやめてほしいこと（一行）</h2>
+      <input type="text" id="ng" value="${esc(draft.ng)}" oninput="syncText()" placeholder="例: FPGAの書き換えはしないでください">
+      <h2 style="margin-top:12px">使う前の手順</h2>${st}
+      <h2 style="margin-top:12px">壊したときの連絡先</h2>
+      <input type="text" id="contact" value="${esc(draft.contact)}" oninput="syncText()" placeholder="例: 先輩（内線 2314）">
+      <div class="row"><button class="primary" onclick="publish()">ラベルを貼る（QRに反映）</button></div>
+      ${lastSecs !== null ? `<p class="note">前回の設定にかかった時間: ${lastSecs} 秒</p>
+      <div class="row"><button onclick="effort('楽だった')">手間に感じなかった</button>
+      <button onclick="effort('面倒だった')">面倒だった</button></div>
+      <p class="note" id="effort"></p>` : ""}
+    </div>
+    <div class="card"><h2>使い手からの質問</h2>${qs}</div>
+    <p class="note">利用の記録や監視はしません。安全上の注意は既存の手順書に従ってください。</p>`;
+}
+
+function effort(v) {
+  document.getElementById("effort").textContent = "記録しました: " + v + "（この画面内のみ）";
+}
+
+function answer(i, toFaq) {
+  const a = document.getElementById("ans" + i).value.trim();
+  if (!a) return;
+  questions[i].a = a;
+  if (toFaq && label) label.faq.push({ q: questions[i].q, a: a });
+  render();
+}
+
+function ask() {
+  const t = document.getElementById("qtext").value.trim();
+  if (!t) return;
+  questions.push({ q: t, a: "" });
+  document.getElementById("qtext").value = "";
+  render();
+}
+
+function feel(v) {
+  feelings.push(v);
+  render();
+}
+
+function renderUser() {
+  const el = document.getElementById("user");
+  if (!label) {
+    el.innerHTML = `<div class="card"><p class="note">この機材にはまだラベルがありません。持ち主に設定してもらうか、サンプルを読み込んでください。</p></div>`;
+    return;
+  }
+  const steps = label.steps.map(i => `<li>${STEPS[i]}</li>`).join("") || "<li>特になし</li>";
+  const faq = label.faq.map(f => `<div class="q"><b>Q. ${esc(f.q)}</b><br>A. ${esc(f.a)}</div>`).join("");
+  const mine = questions.map(x => `<div class="q">あなたの質問: ${esc(x.q)}<br>
+    ${x.a ? `<span class="ok">回答: ${esc(x.a)}</span>` : `<span class="note">持ち主の回答待ち</span>`}</div>`).join("");
+  const done = feelings.length ? `<p class="note">回答を記録しました: ${esc(feelings[feelings.length - 1])}</p>` : "";
+  el.innerHTML = `
+    <div class="card">
+      <h2>旧型評価ボード（QRで表示）</h2>
+      <p>触っていい度: <span class="badge">${label.level + 1}. ${LEVELS[label.level].name}</span></p>
+      <p class="note">${LEVELS[label.level].desc}</p>
+      ${label.ng ? `<div class="ng"><b>やめてほしいこと</b><br>${esc(label.ng)}</div>` : ""}
+      <h2 style="margin-top:12px">使う前の手順</h2><ul>${steps}</ul>
+      <h2>壊したときの連絡先</h2><p>${esc(label.contact || "未設定")}</p>
+      <p class="note">安全上の注意は既存の手順書に従ってください。</p>
+    </div>
+    <div class="card"><h2>よくある質問</h2>${faq || `<p class="note">まだありません。</p>`}</div>
+    <div class="card"><h2>わからないことを質問する</h2>
+      <textarea id="qtext" rows="2" placeholder="例: ジャンパの変更はよいですか？"></textarea>
+      <div class="row"><button class="primary" onclick="ask()">持ち主に送る</button></div>${mine}</div>
+    <div class="card"><h2>このラベルを見て、ここまでなら安心して試せると感じますか？</h2>
+      <div class="row"><button onclick="feel('安心して試せそう')">感じる</button>
+      <button onclick="feel('まだ不安')">まだ不安</button></div>${done}</div>`;
+}
+
+function render() {
+  document.getElementById("tab-owner").className = role === "owner" ? "on" : "";
+  document.getElementById("tab-user").className = role === "user" ? "on" : "";
+  document.getElementById("owner").className = role === "owner" ? "" : "hidden";
+  document.getElementById("user").className = role === "user" ? "" : "hidden";
+  if (role === "owner") renderOwner(); else renderUser();
+}
+render();
+</script>
+</body>
+</html>

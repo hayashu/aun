@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1on1 質問カード（A3xB1-2）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #6b7785;
+  --line: #d9dee5; --accent: #2f6f5e; --accent-bg: #e3f1ec; --warn-bg: #fff4dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #98a3af;
+    --line: #34404a; --accent: #6cc4a8; --accent-bg: #1f3a32; --warn-bg: #3a3220;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 16px; max-width: 420px; margin: 0 auto; }
+.roles { display: flex; gap: 8px; margin-bottom: 12px; }
+.roles button { flex: 1; }
+button { font: inherit; padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--card); color: var(--text); cursor: pointer; }
+button.on, button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sec { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.sec h2 { margin: 0 0 8px; font-size: 14px; color: var(--accent); }
+.q { background: var(--accent-bg); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+.note { background: var(--warn-bg); border-radius: 8px; padding: 8px 10px;
+  font-size: 13px; margin: 8px 0; }
+.sub { color: var(--sub); font-size: 13px; }
+textarea, input { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--text); margin: 4px 0; }
+textarea { min-height: 70px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.ans { border-left: 3px solid var(--accent); padding-left: 10px; margin: 6px 0; }
+.rec { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+label { font-size: 13px; color: var(--sub); }
+</style>
+</head>
+<body>
+<header>
+  <h1>1on1 質問カード</h1>
+  <small>PRD A3xB1-2 / 上司が部下の「やりたいこと」を業務とつなげる</small>
+</header>
+<main>
+  <div class="roles">
+    <button id="r-boss" onclick="setRole('boss')">上司（課長）</button>
+    <button id="r-sub" onclick="setRole('sub')">部下（Bさん）</button>
+  </div>
+  <div class="row" style="margin:0 0 12px">
+    <button onclick="loadSample()">サンプルを読み込む</button>
+    <button onclick="resetAll()">リセット</button>
+  </div>
+  <div id="view"></div>
+</main>
+<script>
+var CARDS = [
+  { q1: "最近、手を動かしてやってみたいと思ったことは？",
+    q2: "それを今の業務のどこかで試すとしたら？",
+    follow: ["それをやると、今の評価業務はどう変わりそう？", "最初の一歩として、2週間でできる範囲はどこまで？", "何があればやりやすい？（時間・道具・相談相手）"] },
+  { q1: "いまの業務で、自分で作れたら楽になりそうなものは？",
+    q2: "それを作るとしたら、最初に何から始める？",
+    follow: ["それがあると、誰のどの作業が減る？", "まず小さく試すなら、どの部分？", "似たものが社内にあるか、一緒に探してみる？"] },
+  { q1: "この半年で、時間を忘れて取り組めた仕事は？",
+    q2: "その仕事の、どこが面白かった？それを増やすには？",
+    follow: ["その中で、一番楽しかった作業は？", "それを次の業務に少し混ぜるなら？", "逆に、手放したい作業はある？"] }
+];
+var KEY = "a3xb1-2-mock";
+var S = load();
+
+function fresh() {
+  return { role: "boss", cardIdx: 0, answer: "", none: false, burden: "",
+    follow: [], trial: "", period: "", bossTodo: "", records: [] };
+}
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || fresh(); }
+  catch (e) { return fresh(); }
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(S)); render(); }
+function esc(t) {
+  return String(t).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
+}
+function setRole(r) { S.role = r; save(); }
+function resetAll() { S = fresh(); save(); }
+
+function loadSample() {
+  S = fresh();
+  S.records = [{
+    date: "前回（10月）", card: CARDS[1].q1,
+    answer: "評価治具の配線確認が毎回手作業。小さな治具を自作できたら楽。",
+    trial: "配線確認用の簡易治具を試作する", period: "3週間",
+    result: "（今回の1on1で結果を話す）"
+  }];
+  S.cardIdx = 0;
+  S.answer = "評価で使う小さな治具を、自分で作ってみたい。基板を触る時間が最近ほとんどない。";
+  save();
+}
+
+function card() { return CARDS[S.cardIdx]; }
+
+function subView() {
+  var c = card();
+  var h = '<div class="sec"><h2>明日の1on1で聞かれる質問</h2>'
+    + '<div class="q">' + esc(c.q1) + '</div>'
+    + '<div class="q">' + esc(c.q2) + '</div>'
+    + '<div class="note">「今はない」も、そのまま答えとして受け入れられます。書かなくても1on1は進みます。</div>'
+    + '<label>考えておくメモ（任意・1on1で上司に共有されます）</label>'
+    + '<textarea id="ans" ' + (S.none ? "disabled" : "") + '>' + esc(S.answer) + '</textarea>'
+    + '<div class="row">'
+    + '<button onclick="setAnswer()">メモを保存</button>'
+    + '<button class="' + (S.none ? "on" : "") + '" onclick="toggleNone()">今はない</button></div></div>'
+    + '<div class="sec"><h2>この準備、どうでしたか？（モックの確認）</h2>'
+    + '<div class="row">' + ["負担にならない", "少し負担", "負担だった"].map(function (b) {
+      return '<button class="' + (S.burden === b ? "on" : "") + '" onclick="setBurden(\'' + b + '\')">' + b + '</button>';
+    }).join("") + '</div></div>';
+  return h + recordsView();
+}
+function setAnswer() { S.answer = document.getElementById("ans").value; save(); }
+function toggleNone() { S.none = !S.none; if (S.none) S.answer = ""; save(); }
+function setBurden(b) { S.burden = b; save(); }
+
+function bossView() {
+  var c = card();
+  var shown = S.none ? "（Bさん：今はない）" : (S.answer || "（まだ答えが共有されていません）");
+  var h = '<div class="sec"><h2>1on1の最後の5分：今回のカード</h2>'
+    + '<div class="q">' + esc(c.q1) + '</div><div class="q">' + esc(c.q2) + '</div>'
+    + '<div class="row"><button onclick="nextCard()">別のカードを引く</button></div>'
+    + '<div class="ans"><span class="sub">部下の答え</span><br>' + esc(shown) + '</div></div>';
+  if (S.none) {
+    h += '<div class="sec"><h2>「今はない」のとき</h2>'
+      + '<div class="note">答えを求めず、そのまま受け止めます。次回また聞く、とだけ決めてもかまいません。</div></div>';
+  } else {
+    h += '<div class="sec"><h2>聞き方の例（掘り下げる）</h2>'
+      + '<div class="sub">使ってみたものを選ぶと、記録に残ります。</div>'
+      + c.follow.map(function (f, i) {
+        var on = S.follow.indexOf(f) >= 0;
+        return '<div class="q"><label style="color:inherit"><input type="checkbox" style="width:auto" '
+          + (on ? "checked" : "") + ' onchange="toggleFollow(' + i + ')"> ' + esc(f) + '</label></div>';
+      }).join("") + '</div>';
+  }
+  h += '<div class="sec"><h2>小さな試しの決定</h2>'
+    + '<label>試しにやってみる仕事（業務の一部）</label>'
+    + '<input id="trial" value="' + esc(S.trial) + '">'
+    + '<label>期間</label><input id="period" value="' + esc(S.period) + '" placeholder="例：2〜3週間">'
+    + '<label>決まらないとき：次回までに上司が考えること</label>'
+    + '<input id="todo" value="' + esc(S.bossTodo) + '">'
+    + '<div class="row"><button class="primary" onclick="saveRecord()">2人の記録に残す</button></div></div>';
+  return h + recordsView();
+}
+function nextCard() { S.cardIdx = (S.cardIdx + 1) % CARDS.length; S.follow = []; save(); }
+function toggleFollow(i) {
+  var f = card().follow[i], k = S.follow.indexOf(f);
+  if (k >= 0) S.follow.splice(k, 1); else S.follow.push(f);
+  save();
+}
+function saveRecord() {
+  var trial = document.getElementById("trial").value.trim();
+  var todo = document.getElementById("todo").value.trim();
+  if (!trial && !todo) { alert("小さな試しか、次回までに考えることのどちらかを書いてください。"); return; }
+  S.records.unshift({
+    date: "今回", card: card().q1,
+    answer: S.none ? "今はない" : S.answer,
+    follow: S.follow.slice(),
+    trial: trial, period: document.getElementById("period").value,
+    bossTodo: todo, result: "（次回の1on1で結果を話す）"
+  });
+  S.trial = ""; S.period = ""; S.bossTodo = ""; S.follow = []; S.answer = ""; S.none = false;
+  save();
+}
+
+function recordsView() {
+  var h = '<div class="sec"><h2>希望の記録</h2>'
+    + '<div class="note">この記録は2人だけが見られます。人事評価には使われません。</div>';
+  if (!S.records.length) h += '<div class="sub">まだ記録はありません。</div>';
+  S.records.forEach(function (r) {
+    h += '<div class="rec"><b>' + esc(r.date) + '</b><div class="sub">' + esc(r.card) + '</div>'
+      + '<div>答え：' + esc(r.answer || "—") + '</div>'
+      + (r.follow && r.follow.length ? '<div class="sub">使った聞き方：' + r.follow.map(esc).join(" / ") + '</div>' : "")
+      + (r.trial ? '<div>小さな試し：' + esc(r.trial) + (r.period ? "（" + esc(r.period) + "）" : "") + '</div>' : "")
+      + (r.bossTodo ? '<div>次回までに上司が考える：' + esc(r.bossTodo) + '</div>' : "")
+      + '<div class="sub">試しの結果：' + esc(r.result) + '</div></div>';
+  });
+  return h + '</div>';
+}
+
+function render() {
+  document.getElementById("r-boss").className = S.role === "boss" ? "on" : "";
+  document.getElementById("r-sub").className = S.role === "sub" ? "on" : "";
+  document.getElementById("view").innerHTML = S.role === "boss" ? bossView() : subView();
+}
+render();
+</script>
+</body>
+</html>

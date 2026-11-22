@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A3xB4-1 出し方の下書きツール（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--warn-bg:#fff4dc;--warn:#8a5a00;--ok-bg:#e6f4ea;--ok:#1d6b35;--hint-bg:#eef2fc}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--warn-bg:#3a2f14;--warn:#f0c46b;--ok-bg:#16301f;--ok:#7fd69a;--hint-bg:#222a3d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:64px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;font-weight:400;margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px}
+.opts input{margin:0}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.person{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.person .opts label{font-size:13px;padding:4px 8px}
+.person b{font-size:12px;color:var(--sub);display:block;margin:8px 0 2px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.hint{background:var(--hint-bg)}
+.term{border-left:4px solid var(--warn);padding:4px 0 4px 10px;margin-top:14px}
+.term .w{font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600;font-size:12px}
+.cand{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.cand h3{font-size:14px;margin:0 0 4px}
+.cand p{margin:0;white-space:pre-wrap}
+.empty{color:var(--sub);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>相談の前に「誰に・何を・どこまで」を組み立てる下書きツール</h1>
+  <small><span class="badge">A3xB4-1</span><span class="badge">モック</span>入力はこの画面内だけで処理され、送信されません</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const FIELDS = ["機械","電気","ソフト","営業"];
+const DICT = {
+  "機械":[["公差","部品の寸法の許されるばらつき","図面で決めた寸法から、どれだけずれてもよいか"],["肉厚","壁の厚さ","部品の壁の厚み"],["抜き勾配","型から抜くための傾き","型から取り出しやすいよう付ける、わずかな傾き"],["締結","ねじなどで留めること","ねじで部品同士を留めること"]],
+  "電気":[["ディレーティング","部品の定格に余裕をもたせて使うこと","部品を限界ぎりぎりでなく、余裕を残した使い方にすること"],["定格","部品が安全に使える上限の値","その部品を壊さず使える最大の条件"],["突入電流","電源を入れた瞬間に流れる大きな電流","スイッチを入れた直後だけ流れる大きな電流"],["絶縁","電気が漏れないよう隔てること","電気が通ってはいけないところに流れないようにすること"]],
+  "ソフト":[["レイテンシ","処理の遅れ時間","操作してから反応するまでの待ち時間"],["リグレッション","直したはずが別の所で壊れること","変更のせいで、前は動いていた機能が動かなくなること"],["ファームウェア","機器に組み込まれた制御用ソフト","機器の中で動いている制御のプログラム"],["排他制御","同時に使わせない仕組み","同じものを二人が同時に変更しないようにする仕組み"]],
+  "営業":[["与信","取引先にどこまで掛売りできるかの判断","代金を後払いにしても大丈夫か、先方の支払い能力を見ること"],["リードタイム","注文から納品までの期間","頼んでから届くまでに何日かかるか"],["仕様凍結","仕様をこれ以上変えない決定","もう変更を受け付けない、と決めること"],["金型発注","製品の形を作る型を作らせる注文","量産用の型を作る業者へ正式に頼むこと"]]
+};
+const SAMPLE = {
+  topic:"試作基板の発熱が想定を超えている。筐体の通気口を追加したい",kind:"提案",urgency:"通常",
+  people:[{name:"機械チームのリーダー",impact:"大",knows:"いいえ",pre:"未定"},{name:"調整役（Aさん）",impact:"中",knows:"はい",pre:"会議で"},{name:"購買担当",impact:"小",knows:"いいえ",pre:"未定"}],
+  field:"機械",terms:"ディレーティング\n金型発注\n通気口\n定格"
+};
+
+// ---- 状態 ----
+const S = {step:0,topic:"",kind:"提案",urgency:"通常",people:[],field:"機械",terms:"",re:{},shown:{}};
+const STEPS = ["① 件","② 関係者","③ 前提","④ 下書き"];
+const $ = s=>document.querySelector(s);
+const esc = t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const radios=(name,vals,cur,fn)=>`<div class="opts">`+vals.map(v=>`<label><input type="radio" name="${name}" ${v===cur?"checked":""} onchange="${fn}('${v}')">${v}</label>`).join("")+`</div>`;
+const isShort = ()=>S.urgency==="高い（今日中）";
+const steps = ()=>isShort()?[0,1,3]:[0,1,2,3];
+
+function go(n){S.step=n;render();window.scrollTo(0,0);}
+function next(){const s=steps();go(s[Math.min(s.indexOf(S.step)+1,s.length-1)]);}
+function loadSample(){Object.assign(S,{topic:SAMPLE.topic,kind:SAMPLE.kind,urgency:SAMPLE.urgency,people:JSON.parse(JSON.stringify(SAMPLE.people)),field:SAMPLE.field,terms:SAMPLE.terms,re:{},shown:{}});render();}
+
+// ---- 前提チェック ----
+function flagged(){
+  const words=S.terms.split(/[\n、,]+/).map(w=>w.trim()).filter(Boolean);
+  return words.map(w=>({w,hit:DICT[S.field].find(d=>d[0]===w)})).filter(x=>x.hit);
+}
+function unflagged(){return S.terms.split(/[\n、,]+/).map(w=>w.trim()).filter(Boolean).filter(w=>!DICT[S.field].some(d=>d[0]===w));}
+
+// ---- 描画 ----
+function render(){
+  const ss=steps();
+  $("#nav").innerHTML=STEPS.map((t,i)=>ss.includes(i)?`<button class="${i===S.step?"on":""}" onclick="go(${i})">${t}</button>`:"").join("");
+  $("#main").innerHTML=[v0,v1,v2,v3][S.step]();
+}
+function v0(){return `<div class="card"><h2>件の入力</h2><p class="lead">相談したい内容を一言で。種類を選ぶことが、出し方を考える最初の一歩です。</p>
+  <div class="row" style="margin-top:0"><button class="btn ghost" onclick="loadSample()">サンプル（発熱・通気）を読み込む</button></div>
+  <label for="topic">内容（一言で）</label><textarea id="topic" oninput="S.topic=this.value">${esc(S.topic)}</textarea>
+  <label>種類</label>${radios("kind",["報告","相談","提案","反対意見"],S.kind,"setKind")}
+  <label>急ぎ度</label>${radios("urg",["通常","高い（今日中）"],S.urgency,"setUrg")}
+  ${isShort()?`<div class="note hint">急ぎなので、関係者マップだけの短い流れにします（前提チェックは省略）。</div>`:""}
+  <div class="row"><button class="btn" onclick="next()">関係者マップへ</button></div></div>`;}
+function setKind(v){S.kind=v}
+function setUrg(v){S.urgency=v;render();}
+
+function v1(){
+  const ps=S.people.map((p,i)=>{
+    const bad=p.impact==="大"&&p.knows==="いいえ"&&p.pre!=="伝える";
+    return `<div class="person"><input type="text" value="${esc(p.name)}" placeholder="名前・役割" oninput="S.people[${i}].name=this.value">
+    <b>影響の大きさ</b>${rg(i,"impact",["大","中","小"])}<b>もう知っているか</b>${rg(i,"knows",["はい","いいえ"])}
+    <b>会議の前に個別に伝えるか</b>${rg(i,"pre",["伝える","会議で","未定"])}
+    ${bad?`<div class="note warn">影響が大きく、まだ知らない人かもしれません。議題に出す前に一言伝えておくか、考えてみてください（決めるのはあなたです）。</div>`:""}
+    <div class="row" style="margin-top:6px"><button class="btn ghost" style="font-size:13px;padding:2px 8px" onclick="S.people.splice(${i},1);render()">削除</button></div></div>`;}).join("");
+  return `<div class="card"><h2>関係者マップ</h2><p class="lead">この件で影響を受ける人を挙げて、一人ずつ答えてください。</p>
+  ${ps||`<p class="empty">まだ誰も追加されていません。</p>`}
+  <div class="row"><button class="btn ghost" onclick="S.people.push({name:'',impact:'中',knows:'いいえ',pre:'未定'});render()">＋ 人を追加</button>
+  <button class="btn" onclick="next()">${isShort()?"下書きへ":"前提チェックへ"}</button></div></div>`;}
+function rg(i,key,vals){return `<div class="opts">`+vals.map(v=>`<label><input type="radio" name="${key}${i}" ${S.people[i][key]===v?"checked":""} onchange="S.people[${i}].${key}='${v}';render()">${v}</label>`).join("")+`</div>`;}
+
+function v2(){
+  const f=flagged(),u=unflagged();
+  const items=f.map(({w,hit})=>{
+    const val=S.re[w]||"",tried=val.trim().length>0,show=tried||S.shown[w];
+    return `<div class="term"><span class="w">${esc(w)}</span> <span class="empty">は${S.field}の人には通じにくいかもしれません</span>
+    <label for="re_${esc(w)}">あなたなら、どう言い換えますか</label>
+    <input type="text" id="re_${esc(w)}" value="${esc(val)}" placeholder="自分の言葉で書いてみる" oninput="S.re['${esc(w)}']=this.value" onchange="render()">
+    ${show?`<div class="note hint">例：${esc(hit[2])}<br><span class="empty">（${tried?"あなたの言い換えと見比べてください。例は一つの候補です":"先に自分で考えずに表示しました"}）</span></div>`:`<div class="row" style="margin-top:6px"><button class="btn ghost" style="font-size:13px;padding:2px 8px" onclick="S.shown['${esc(w)}']=true;render()">例を見る</button></div>`}</div>`;}).join("");
+  return `<div class="card"><h2>前提チェック</h2><p class="lead">説明に使う言葉を書き出し、相手の分野を選んでください。</p>
+  <label>相手の分野</label><select onchange="S.field=this.value;render()">${FIELDS.map(x=>`<option ${x===S.field?"selected":""}>${x}</option>`).join("")}</select>
+  <label for="terms">説明に使う言葉（改行か「、」で区切る）</label><textarea id="terms" oninput="S.terms=this.value">${esc(S.terms)}</textarea>
+  <div class="row" style="margin-top:8px"><button class="btn ghost" onclick="render()">印を付ける</button></div>
+  ${S.terms.trim()?(f.length?items:`<div class="note ok">この簡易辞書では、通じにくい言葉は見つかりませんでした。</div>`):""}
+  ${u.length&&f.length?`<p class="empty">辞書にない言葉：${u.map(esc).join("、")}（辞書は小さな固定の一覧です）</p>`:""}
+  <div class="row"><button class="btn" onclick="next()">下書きへ</button></div></div>`;}
+
+function v3(){
+  const ord={大:0,中:1,小:2};
+  const ppl=S.people.filter(p=>p.name.trim()).sort((a,b)=>(ord[a.impact]-ord[b.impact])||((a.knows==="はい")-(b.knows==="はい")));
+  const rows=ppl.map((p,i)=>{
+    const first=p.knows==="いいえ"&&p.pre!=="会議で";
+    return `<tr><td>${i+1}</td><td>${esc(p.name)}</td><td>${p.knows==="はい"?"すでに共有済み":(first?"会議の前に一言伝える候補":"会議で初めて伝える（本人が選択）")}</td></tr>`;}).join("");
+  const f=isShort()?[]:flagged();
+  const tr=f.map(({w,hit})=>{const mine=(S.re[w]||"").trim();return `<tr><td>${esc(w)}</td><td>${esc(mine||hit[2])}${mine?"":" <span class='empty'>（例）</span>"}</td></tr>`;}).join("");
+  const T=S.topic.trim()||"（件が未入力です）",K=S.kind,who=(ppl.find(p=>p.knows==="いいえ"&&p.impact==="大")||{}).name||"関係者の方";
+  const cands=[
+    ["候補A：先に個別に伝える型",`${who}へ。会議の前に少しお時間をいただけますか。${K}の件で、先に共有しておきたいことがあります。\n${T}`],
+    ["候補B：会議で短く出す型",`次の会議で${K}としてお話しします。${T}\n結論を急がず、まず状況の共有をさせてください。`],
+    ["候補C：先に上司へ確認する型",`この件を${who}に${K}として出したいのですが、先に誰へ話すべきか、順番を確認させてください。\n${T}`]];
+  return `<div class="card"><h2>出す順の下書き</h2><p class="lead">件：${esc(T)}（${esc(K)}）<br>以下は候補です。唯一の正解ではありません。</p>
+  <h3 style="font-size:14px;margin:8px 0 0">誰に・どの順で</h3>
+  ${rows?`<table><tr><th>順</th><th>誰に</th><th>候補</th></tr>${rows}</table>`:`<p class="empty">関係者が入力されていません。</p>`}
+  ${isShort()?"":`<h3 style="font-size:14px;margin:14px 0 0">どの言葉で</h3>${tr?`<table><tr><th>言葉</th><th>言い換え</th></tr>${tr}</table>`:`<p class="empty">印の付いた言葉はありません。</p>`}`}
+  <h3 style="font-size:14px;margin:14px 0 0">最初の一言（候補）</h3>
+  ${cands.map(c=>`<div class="cand"><h3>${c[0]}</h3><p>${esc(c[1])}</p></div>`).join("")}
+  <div class="note hint" style="margin-top:12px">この画面は下書きまでです。送るかどうか、どの候補を使うかは、あなたが決めます。</div>
+  <div class="row"><button class="btn ghost" onclick="go(0)">最初に戻る</button></div></div>`;}
+
+render();
+</script>
+</body>
+</html>

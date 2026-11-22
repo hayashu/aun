@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小さな実験ノート（A4xB5-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1d2230; --sub: #6b7280;
+  --line: #dde1e8; --accent: #2f6fdb; --accent-text: #ffffff;
+  --warn-bg: #fff1e0; --warn-line: #e08a1e; --ok-bg: #e5f5ea; --ok-line: #2e9b55;
+  --note-bg: #fff8d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --card: #1e2229; --text: #e8eaee; --sub: #9aa1ad;
+    --line: #333945; --accent: #6b9cf0; --accent-text: #10151f;
+    --warn-bg: #3a2a14; --warn-line: #e0a04a; --ok-bg: #16301f; --ok-line: #52c07a;
+    --note-bg: #3a3516;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+main { max-width: 420px; margin: 0 auto; padding: 12px 16px 40px; }
+nav { display: flex; gap: 8px; margin-bottom: 12px; }
+nav button { flex: 1; }
+button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); cursor: pointer; }
+button.on, button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.card h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+input, textarea, select { width: 100%; font: inherit; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.chip { font-size: 13px; padding: 6px 10px; }
+.safety { background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-radius: 8px; padding: 8px; font-size: 13px; margin-bottom: 12px; }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.cmp div { background: var(--bg); border-radius: 8px; padding: 8px; font-size: 14px; }
+.cmp b { display: block; font-size: 12px; color: var(--sub); }
+.gap { border: 2px solid var(--warn-line); background: var(--warn-bg); border-radius: 8px;
+  padding: 8px; margin-top: 8px; font-weight: 600; }
+.same { border: 2px solid var(--ok-line); background: var(--ok-bg); border-radius: 8px;
+  padding: 8px; margin-top: 8px; font-weight: 600; }
+.hint { background: var(--note-bg); border-radius: 8px; padding: 8px; font-size: 13px; margin-top: 8px; }
+.tag { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); }
+.tag.gap { display: inline-block; margin: 0; padding: 2px 8px; font-weight: 400; }
+.tag.same { display: inline-block; margin: 0; padding: 2px 8px; font-weight: 400; }
+.muted { color: var(--sub); font-size: 13px; }
+.item p { margin: 2px 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<header><h1>小さな実験ノート <small>PRD A4xB5-1</small></h1></header>
+<main>
+  <nav>
+    <button id="tabNew" onclick="show('new')">試す</button>
+    <button id="tabList" onclick="show('list')">試しの一覧</button>
+  </nav>
+  <div class="safety">電源や高電圧に関わる試しは、部署の既存の安全手順に従ってください。</div>
+  <div class="row" style="margin:0 0 12px"><button onclick="loadSample()">サンプルを読み込む</button></div>
+  <div id="view"></div>
+</main>
+<script>
+const OUTCOMES = ['予想どおり', '予想より良い', '予想と違う'];
+const CAUSES = [
+  ['前提が違っていた', '予想の理由で「こうなるはず」と置いた前提は、本当に合っていましたか。'],
+  ['別の要因があった', '変えたもの以外に、結果に効きそうなものはありませんでしたか。'],
+  ['測り方が違っていた', '予想と結果は、同じ条件・同じ方法で比べられていますか。']
+];
+let tab = 'new';
+let items = [];
+let draft = blank();
+
+function blank() {
+  return { change: '', expect: '', reason: '', result: '', value: '', outcome: '',
+           cause: '', next: '', stage: 1 };
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function show(t) { tab = t; render(); }
+function setField(k, v) { draft[k] = v; }
+
+function loadSample() {
+  items = [
+    { change: 'コンデンサを 0.1uF から 1uF に変更', expect: '電源ラインの高周波ノイズが減る',
+      reason: '容量を増やせば高い周波数も吸収できると思った',
+      result: 'ノイズは減らず、少し増えた', value: '40mVpp → 48mVpp', outcome: '予想と違う',
+      cause: '別の周波数で共振していたかもしれない。値がノイズの周波数と合っていない可能性。',
+      next: '0.01uF を並列に足して、同じ点で測り直す' },
+    { change: 'ADC のサンプリング設定を 1kHz から 2kHz に変更', expect: '波形の取りこぼしが減る',
+      reason: 'わからない', result: '波形がきれいに取れた', value: '設定: 2kHz / 平均8回',
+      outcome: '予想どおり', cause: '', next: '平均回数だけ変えて、同じ条件で再現できるか見る' }
+  ];
+  draft = blank();
+  tab = 'list';
+  render();
+}
+
+function render() {
+  document.getElementById('tabNew').className = tab === 'new' ? 'on' : '';
+  document.getElementById('tabList').className = tab === 'list' ? 'on' : '';
+  document.getElementById('view').innerHTML = tab === 'new' ? renderNew() : renderList();
+}
+
+function renderNew() {
+  const d = draft;
+  let h = `<div class="card"><h2>1. 試す前の予想</h2>
+    <label>何を変える？</label>
+    <input value="${esc(d.change)}" oninput="setField('change',this.value)" placeholder="例: コンデンサの値">
+    <label>どうなると予想する？</label>
+    <input value="${esc(d.expect)}" oninput="setField('expect',this.value)" placeholder="例: ノイズが減る">
+    <label>なぜそう予想する？</label>
+    <input value="${esc(d.reason)}" oninput="setField('reason',this.value)" placeholder="書けなければ「わからない」でOK">
+    <div class="row">
+      <button class="chip" onclick="setReason('わからない')">理由は「わからない」</button>
+      ${d.stage === 1 ? '<button class="primary" onclick="toStage(2)">この予想で試す</button>' : ''}
+    </div>
+    <p class="muted">一行ずつ、1分で。まず試してみて大丈夫です。</p></div>`;
+  if (d.stage >= 2) h += renderResult();
+  if (d.stage >= 3) h += renderGap();
+  return h;
+}
+
+function setReason(v) { draft.reason = v; render(); }
+function toStage(n) {
+  if (n === 2 && !draft.change.trim() && !draft.expect.trim()) {
+    alert('「何を変える」か「予想」を一行書いてください。');
+    return;
+  }
+  draft.stage = n;
+  render();
+}
+
+function renderResult() {
+  const d = draft;
+  return `<div class="card"><h2>2. 結果の記録</h2>
+    <label>実際の結果</label>
+    <input value="${esc(d.result)}" oninput="setField('result',this.value)" placeholder="例: ノイズは減らなかった">
+    <label>測定値（あれば）</label>
+    <input value="${esc(d.value)}" oninput="setField('value',this.value)" placeholder="例: 40mVpp → 48mVpp">
+    <label>予想と比べてどうだった？</label>
+    <div class="row">${OUTCOMES.map(o =>
+      `<button class="chip ${d.outcome === o ? 'on' : ''}" onclick="setOutcome('${o}')">${o}</button>`).join('')}</div>
+  </div>`;
+}
+function setOutcome(o) { draft.outcome = o; draft.stage = 3; render(); }
+
+function renderGap() {
+  const d = draft;
+  const diff = d.outcome === '予想と違う';
+  let h = `<div class="card"><h2>3. 予想とのずれ</h2>
+    <div class="cmp"><div><b>予想</b>${esc(d.expect) || '（未記入）'}</div>
+    <div><b>結果</b>${esc(d.result) || '（未記入）'}</div></div>
+    <div class="${diff ? 'gap' : 'same'}">${diff
+      ? 'ずれがあります。ここが原因を考える入口です。'
+      : d.outcome + '。この設定は記録しておけば再現できます。'}</div>`;
+  if (diff) {
+    h += `<p class="muted" style="margin-top:12px">予想の理由：「${esc(d.reason) || 'わからない'}」のどこが違ったかを考えます。考え方の候補（押すと問いが出ます）</p>
+      <div class="row">${CAUSES.map((c, i) =>
+        `<button class="chip" onclick="askCause(${i})">${c[0]}</button>`).join('')}</div>
+      <div id="ask" class="hint" style="display:none"></div>
+      <label>原因の推測（自分の言葉で。確定ではなく推測です）</label>
+      <textarea rows="3" oninput="setField('cause',this.value)">${esc(d.cause)}</textarea>`;
+  }
+  h += `<label>次の一手（次に何を試す？）</label>
+    <input value="${esc(d.next)}" oninput="setField('next',this.value)" placeholder="推測を確かめる試しを一行で">
+    <div class="row"><button class="primary" onclick="saveItem()">ノートに残す</button></div></div>`;
+  return h;
+}
+
+function askCause(i) {
+  const el = document.getElementById('ask');
+  el.style.display = 'block';
+  el.textContent = CAUSES[i][1];
+}
+
+function saveItem() {
+  const d = draft;
+  items.unshift({ change: d.change, expect: d.expect, reason: d.reason, result: d.result,
+    value: d.value, outcome: d.outcome, cause: d.cause, next: d.next });
+  draft = blank();
+  tab = 'list';
+  render();
+}
+
+function renderList() {
+  if (!items.length) {
+    return '<p class="muted">まだ試しがありません。「試す」から始めるか、サンプルを読み込んでください。</p>';
+  }
+  return items.map(it => {
+    const diff = it.outcome === '予想と違う';
+    return `<div class="card item">
+      <span class="tag ${diff ? 'gap' : 'same'}">${esc(it.outcome)}</span>
+      <p><b>変えたもの：</b>${esc(it.change)}</p>
+      <p><b>予想：</b>${esc(it.expect)}（理由：${esc(it.reason) || '未記入'}）</p>
+      <p><b>結果：</b>${esc(it.result)}${it.value ? '［' + esc(it.value) + '］' : ''}</p>
+      ${it.cause ? `<p><b>原因の推測：</b>${esc(it.cause)}</p>` : ''}
+      ${it.next ? `<p><b>次の一手：</b>${esc(it.next)}</p>` : ''}
+    </div>`;
+  }).join('');
+}
+
+render();
+</script>
+</body>
+</html>

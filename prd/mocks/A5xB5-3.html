@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A5xB5-3 練習カリキュラム モック</title>
+<style>
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --text: #222a24; --sub: #667068;
+  --line: #dde2da; --accent: #2f7d57; --accent-soft: #e2f1e8; --warm: #fff3dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151a17; --card: #1f2622; --text: #e8ede9; --sub: #9aa59d;
+    --line: #34403a; --accent: #5cc08b; --accent-soft: #223b2d; --warm: #3a3220;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+.wrap { max-width: 420px; margin: 0 auto; padding: 0 16px 40px; }
+header { padding: 12px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.tabs { display: flex; gap: 6px; margin: 8px 0 12px; }
+button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card);
+  color: var(--text); border-radius: 8px; padding: 8px 10px; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tabs button { flex: 1; padding: 6px 4px; font-size: 13px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+.card h2 { font-size: 16px; margin: 0 0 6px; }
+.note { background: var(--warm); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.sub { color: var(--sub); font-size: 13px; }
+.task { border-top: 1px solid var(--line); padding: 8px 0; }
+.task b { font-weight: 600; }
+.badge { font-size: 11px; background: var(--accent-soft); color: var(--accent);
+  border-radius: 10px; padding: 1px 8px; margin-left: 4px; }
+.done { color: var(--accent); }
+textarea, input[type=text] { width: 100%; font: inherit; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.msg { border-left: 3px solid var(--accent); padding: 4px 8px; margin: 6px 0; font-size: 14px; }
+.msg.adv { border-color: #d29a2f; }
+.photo { display: inline-block; background: var(--accent-soft); border-radius: 6px; padding: 0 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>壊してよい練習カリキュラム</h1>
+  <small>A5xB5-3 / モック（ダミーデータ）</small>
+</header>
+<div class="tabs" id="tabs"></div>
+<div style="margin-bottom:12px"><button id="sample">サンプルを読み込む</button>
+  <button id="reset">リセット</button></div>
+<main id="view"></main>
+</div>
+
+<script>
+const STAGES = [
+  { name: '第1段階 はんだ付け', tasks: [
+    '安全の確認（はんだごてと電源の扱い）', '抵抗を1本付ける', '部品を外してみる（わざと失敗してよい）',
+    'ICソケットを付ける', '付けた基板を見直す' ] },
+  { name: '第2段階 測定', tasks: [
+    'テスタで電池の電圧を測る', 'テスタで抵抗値を測る', 'オシロで信号を見る（相談役が付き添い）',
+    '測った値を一行で書く', 'わざと壊した回路を測って探す' ] },
+  { name: '第3段階 改造', tasks: [
+    '抵抗を替えてLEDの明るさを変える', 'コンデンサを替えて応答を変える', '替える前後を測って比べる',
+    '失敗した改造を元に戻す', '自分で一つ改造を決める' ] }
+];
+const ROLES = ['Bさん（若手）', '相談役', '部門長'];
+const OTHERS = [4, 3, 1]; // 他の若手の段階別人数（個人名は持たない）
+let S;
+
+function fresh() { return { role: 0, stage: 0, done: {}, notes: {}, msgs: [], review: {}, feel: '' }; }
+function key(s, t) { return s + '-' + t; }
+function stageDone(s) { return STAGES[s].tasks.every((_, t) => S.done[key(s, t)]); }
+function esc(x) { return String(x).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+function loadSample() {
+  S = fresh();
+  [0, 1, 2, 3, 4].forEach(t => { S.done[key(0, t)] = true; });
+  S.notes['0-1'] = '最初は部品が浮いたが、2回目で付いた';
+  S.notes['0-2'] = 'わざと外して、失敗しても壊れないと分かった';
+  S.stage = 1;
+  S.done['1-0'] = true; S.notes['1-0'] = '1.5Vの電池で1.52V';
+  S.msgs.push({ from: 'B', text: 'オシロの設定が分かりません。触って壊さないか不安です。' });
+  S.msgs.push({ from: 'adv', text: '壊れても大丈夫なキットです。次の木曜に一緒に触りましょう。' });
+  render();
+}
+
+function tabs() {
+  document.getElementById('tabs').innerHTML = ROLES.map((r, i) =>
+    '<button data-r="' + i + '" class="' + (S.role === i ? 'on' : '') + '">' + r + '</button>').join('');
+}
+
+function taskList() {
+  return STAGES.map((st, s) => {
+    const n = st.tasks.filter((_, t) => S.done[key(s, t)]).length;
+    const rows = st.tasks.map((tx, t) => {
+      const k = key(s, t), d = S.done[k];
+      const memo = d ? '<div class="sub"><span class="photo">写真</span> ' + esc(S.notes[k] || '') + '</div>'
+        : '<input type="text" id="n' + k + '" placeholder="一行メモ（任意）">' +
+          '<div class="row"><button data-done="' + k + '">写真を付けて「終えた」</button></div>';
+      return '<div class="task"><b class="' + (d ? 'done' : '') + '">' + (d ? '✓ ' : '') + (t + 1) + '. ' + tx + '</b>' + memo + '</div>';
+    }).join('');
+    return '<details class="card" ' + (s === S.stage ? 'open' : '') + '><summary><b>' + st.name + '</b> ' +
+      '<span class="badge">' + n + '/5</span></summary>' + rows + '</details>';
+  }).join('');
+}
+
+function viewB() {
+  const total = STAGES.length * 5, n = Object.keys(S.done).length;
+  const feel = S.feel ? '<div class="sub">記録しました：' + esc(S.feel) + '</div>' : '';
+  return '<div class="card"><h2>自分の進み具合</h2><div class="bar"><i style="width:' + (n / total * 100) + '%"></i></div>' +
+    '<div class="sub">' + n + ' / ' + total + ' 課題。点数はありません。自分のペースで進めます。</div></div>' +
+    '<div class="card"><h2>一覧を見てどう感じましたか</h2><div class="sub">第1段階の課題は、はんだ付けと安全確認からです。</div>' +
+    '<div class="row"><button data-feel="第1段階からなら始められそう">始められそう</button>' +
+    '<button data-feel="まだ不安">まだ不安</button></div>' + feel + '</div>' +
+    taskList() + consult('B');
+}
+
+function consult(who) {
+  const list = S.msgs.map(m => '<div class="msg ' + m.from + '">' +
+    '<span class="sub">' + (m.from === 'B' ? 'Bさん' : '相談役') + '</span><br>' + esc(m.text) + '</div>').join('') ||
+    '<div class="sub">まだ相談はありません。</div>';
+  const box = '<textarea id="msg" rows="2" placeholder="' +
+    (who === 'B' ? '困ったことを書く' : '返信を書く') + '"></textarea>' +
+    '<div class="row"><button data-send="' + who + '">送る</button></div>';
+  return '<div class="card"><h2>相談役に相談する</h2>' + list + box +
+    '<div class="sub">いつでも送れます。送るのは自分で押したときだけです。</div></div>';
+}
+
+function reviewCard(s) {
+  const st = STAGES[s], r = S.review[s];
+  const photos = st.tasks.map((tx, t) => S.done[key(s, t)] ? '<div class="sub"><span class="photo">写真</span> ' + tx + '</div>' : '').join('');
+  let body;
+  if (r) {
+    body = '<div class="msg">' + esc(r) + '</div>';
+  } else if (!stageDone(s)) {
+    body = '<div class="sub">この段階の課題を終えたら、15分の確認ができます。</div>';
+  } else {
+    body = '<div class="note">これは試験ではありません。合格・不合格や点数はなく、写真を見ながら、次に進むかを一緒に決める15分です。</div>' + photos +
+      '<div class="row"><button data-rv="' + s + '|いっしょに決めました：次の段階へ進みます。">次の段階へ進む</button>' +
+      '<button data-rv="' + s + '|いっしょに決めました：もう少しこの段階を練習します。">もう少し練習する</button>' +
+      '<button data-rv="' + s + '|いっしょに決めました：気になる課題をもう一度やってから決めます。">課題をもう一度</button></div>';
+  }
+  return '<div class="card"><h2>' + st.name + ' の確認</h2>' + body + '</div>';
+}
+
+function viewAdv() {
+  const next = S.stage;
+  return '<div class="card"><h2>相談役の画面</h2><div class="sub">担当の若手：Bさん。励ます立場で、評価はしません。</div></div>' +
+    consult('adv') + reviewCard(next) +
+    '<div class="card"><h2>Bさんの記録</h2><div class="sub">終えた課題 ' + Object.keys(S.done).length + ' 件</div></div>';
+}
+
+function viewBoss() {
+  const c = OTHERS.slice();
+  c[S.stage] += 1; // Bさんも人数に含める。個人名は出さない
+  const sum = c.reduce((a, b) => a + b, 0);
+  const rows = STAGES.map((st, i) => '<div class="task">' + st.name + '：<b>' + c[i] + '人</b></div>').join('');
+  return '<div class="card"><h2>部署の一覧</h2><div>練習を進めている若手：<b>' + sum + '人</b></div>' + rows +
+    '<div class="note" style="margin-top:8px">個人別の進み具合は表示しません。この数字は人事評価に使いません。</div></div>';
+}
+
+function render() {
+  tabs();
+  document.getElementById('view').innerHTML = [viewB, viewAdv, viewBoss][S.role]();
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset;
+  if (b.id === 'sample') return loadSample();
+  if (b.id === 'reset') { S = fresh(); return render(); }
+  if (d.r) S.role = +d.r;
+  if (d.feel) S.feel = d.feel;
+  if (d.done) {
+    const inp = document.getElementById('n' + d.done);
+    S.done[d.done] = true; S.notes[d.done] = inp ? inp.value : '';
+  }
+  if (d.send) {
+    const v = document.getElementById('msg').value.trim();
+    if (v) S.msgs.push({ from: d.send, text: v });
+  }
+  if (d.rv) {
+    const [s, text] = d.rv.split('|');
+    S.review[s] = text;
+    if (text.includes('次の段階へ') && S.stage < STAGES.length - 1) S.stage = +s + 1;
+  }
+  render();
+});
+
+S = fresh();
+render();
+</script>
+</body>
+</html>

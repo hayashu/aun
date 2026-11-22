@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>実験レビュー（A4xB5-2）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2b6cb0; --accent-text: #ffffff;
+  --soft: #e8f0fa; --warn: #b7791f; --warn-bg: #fdf3dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #63a4e8; --accent-text: #0d1620;
+    --soft: #1f2e3e; --warn: #e8b85a; --warn-bg: #3a3020;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; background-color: var(--bg); }
+main { max-width: 420px; margin: 0 auto; padding: 0 16px 40px; overflow-x: hidden; }
+header { padding: 12px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.roles { display: flex; gap: 8px; margin: 8px 0; }
+.roles button { flex: 1; }
+.roles button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 12px 0; }
+.card h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 8px 0 2px; }
+input, textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+button { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.note { font-size: 12px; color: var(--sub); }
+.q { background: var(--soft); border-radius: 8px; padding: 10px; font-size: 17px; font-weight: 600; }
+.timer { text-align: center; font-size: 28px; font-variant-numeric: tabular-nums; }
+.timer.over { color: var(--warn); }
+.warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px; font-size: 13px; margin-top: 8px; }
+.steps { display: flex; gap: 4px; margin: 8px 0; }
+.steps span { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.steps span.done { background: var(--accent); }
+ul.log { list-style: none; margin: 0; padding: 0; }
+ul.log li { padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+ul.log li:first-child { border-top: 0; }
+ul.log b { display: block; font-size: 12px; color: var(--sub); font-weight: normal; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>うまくいかなかった実験を先輩と15分見返す</h1>
+  <small>PRD A4xB5-2 / モック</small>
+  <div class="roles">
+    <button id="roleJ" onclick="setRole('junior')">若手（Bさん）</button>
+    <button id="roleS" onclick="setRole('senior')">先輩</button>
+  </div>
+  <button onclick="loadSample()">サンプルを読み込む</button>
+  <button onclick="resetAll()">最初から</button>
+</header>
+
+<section id="view"></section>
+<p class="note">この記録は若手と先輩の2人だけが見られます。評価には使いません。</p>
+</main>
+
+<script>
+const QUESTIONS = [
+  { q: "何を予想していた？", hint: "若手: 変えたとき、どうなると思っていた？" },
+  { q: "結果はどう違った？", hint: "若手: 見えたことをそのまま一行で。" },
+  { q: "何が起きたと思う？", hint: "若手: 外れてもよい。「わからない」も答えです。" },
+  { q: "それを確かめるには何を測る？", hint: "若手: 次に測ってみることを一つ。" }
+];
+const LIMIT = 15 * 60;
+const SAMPLE = {
+  changed: "ノイズ対策でコンデンサを 0.1uF から 1uF に変えた",
+  expect: "電源ラインのノイズが減る",
+  result: "10MHz付近のノイズがかえって増えた"
+};
+let S = fresh();
+let role = "junior";
+let tick = null;
+
+function fresh() {
+  return { stage: "request", req: { changed: "", expect: "", result: "" },
+           step: 0, answers: ["", "", "", ""], elapsed: 0, running: false,
+           reached: null, wrapup: "" };
+}
+function esc(t) {
+  return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function fmt(sec) {
+  return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0");
+}
+function setRole(r) { role = r; render(); }
+function resetAll() { stopClock(); S = fresh(); render(); }
+function loadSample() {
+  stopClock();
+  S = fresh();
+  S.req = Object.assign({}, SAMPLE);
+  render();
+}
+
+function startClock() {
+  if (S.running) return;
+  S.running = true;
+  tick = setInterval(() => { S.elapsed++; updateTimer(); }, 1000);
+  render();
+}
+function stopClock() { clearInterval(tick); S.running = false; }
+function skip5() { S.elapsed += 300; updateTimer(); }
+function updateTimer() {
+  const el = document.getElementById("timer");
+  if (!el) return;
+  el.textContent = fmt(S.elapsed);
+  el.classList.toggle("over", S.elapsed >= LIMIT);
+  document.getElementById("overMsg").classList.toggle("hidden", S.elapsed < LIMIT);
+}
+
+function bind(path, value) {
+  if (path === "answer") return;
+  S.req[path] = value;
+}
+function sendRequest() {
+  const r = S.req;
+  if (!r.changed.trim() || !r.expect.trim() || !r.result.trim()) { alert("3つとも書いてください"); return; }
+  S.stage = "review";
+  render();
+}
+function saveAnswer(v) { S.answers[S.step] = v; }
+function next() {
+  if (S.step < 3) { S.step++; render(); return; }
+  stopClock();
+  S.stage = "wrapup";
+  render();
+}
+function prev() { if (S.step > 0) { S.step--; render(); } }
+function toWrapup() { stopClock(); S.stage = "wrapup"; render(); }
+function finish(reached) {
+  S.reached = reached;
+  S.wrapup = document.getElementById("wrap") ? document.getElementById("wrap").value : "";
+  S.stage = "done";
+  render();
+}
+
+function clockCard() {
+  const over = S.elapsed >= LIMIT;
+  return `<div class="card"><div id="timer" class="timer ${over ? "over" : ""}">${fmt(S.elapsed)}</div>
+    <div class="note" style="text-align:center">15分の時計</div>
+    <div class="row" style="justify-content:center">
+      ${S.running ? "" : '<button class="primary" onclick="startClock()">開始</button>'}
+      <button onclick="skip5()">+5分（デモ）</button>
+    </div>
+    <div id="overMsg" class="warn ${over ? "" : "hidden"}">15分になりました。答え合わせに進みましょう。</div></div>`;
+}
+function logCard() {
+  const items = QUESTIONS.map((x, i) => S.answers[i]
+    ? `<li><b>${esc(x.q)}</b>${esc(S.answers[i])}</li>` : "").join("");
+  return items ? `<div class="card"><h2>若手の答えの記録</h2><ul class="log">${items}</ul></div>` : "";
+}
+function requestSummary() {
+  const r = S.req;
+  return `<div class="card"><h2>依頼の内容</h2><ul class="log">
+    <li><b>変えたもの</b>${esc(r.changed)}</li><li><b>予想</b>${esc(r.expect)}</li>
+    <li><b>結果</b>${esc(r.result)}</li></ul></div>`;
+}
+
+function render() {
+  document.getElementById("roleJ").className = role === "junior" ? "on" : "";
+  document.getElementById("roleS").className = role === "senior" ? "on" : "";
+  const v = document.getElementById("view");
+  const r = S.req;
+
+  if (S.stage === "request") {
+    v.innerHTML = role === "junior" ? `<div class="card"><h2>レビューの依頼</h2>
+      <div class="note">うまくいかなかった実験を書いて、先輩に15分のレビューを依頼します。</div>
+      <label>変えたもの</label><textarea rows="2" oninput="bind('changed',this.value)">${esc(r.changed)}</textarea>
+      <label>予想</label><textarea rows="2" oninput="bind('expect',this.value)">${esc(r.expect)}</textarea>
+      <label>結果</label><textarea rows="2" oninput="bind('result',this.value)">${esc(r.result)}</textarea>
+      <div class="row"><button class="primary" onclick="sendRequest()">先輩に依頼する</button></div></div>`
+      : `<div class="card"><h2>先輩の画面</h2><div class="note">まだ依頼はありません。若手に切り替えて依頼を書いてください。</div></div>`;
+    return;
+  }
+
+  if (S.stage === "review") {
+    const x = QUESTIONS[S.step];
+    const steps = QUESTIONS.map((_, i) => `<span class="${i <= S.step ? "done" : ""}"></span>`).join("");
+    let body;
+    if (role === "senior") {
+      body = `<div class="card"><h2>問いのカード ${S.step + 1} / 4</h2><div class="steps">${steps}</div>
+        <div class="q">${esc(x.q)}</div>
+        <div class="note" style="margin-top:8px">読み上げて、若手の答えを待ちます。答えは言わず、答えに応じて次へ進むか、掘り下げてください。</div>
+        <div class="row">
+          <button onclick="alert('掘り下げ例: 「たとえば？」「どうしてそう思った？」「もう少し教えて」')">掘り下げ例</button>
+          <button onclick="alert('黙ったとき: 「わからない」でも大丈夫。一緒に見るので、気づいたことを一つだけどうぞ。')">黙ったとき</button>
+        </div></div>${logCard()}`;
+    } else {
+      body = `<div class="card"><h2>若手の答え ${S.step + 1} / 4</h2><div class="steps">${steps}</div>
+        <div class="q">${esc(x.q)}</div>
+        <div class="note" style="margin-top:8px">${esc(x.hint)}</div>
+        <textarea rows="2" placeholder="一行で。「わからない」でも大丈夫です。" oninput="saveAnswer(this.value)">${esc(S.answers[S.step])}</textarea></div>${logCard()}`;
+    }
+    v.innerHTML = clockCard() + requestSummary() + body + `<div class="row">
+      <button onclick="prev()" ${S.step === 0 ? "disabled" : ""}>戻る</button>
+      <button class="primary" onclick="next()">${S.step < 3 ? "次の問いへ" : "答え合わせへ"}</button>
+      <button onclick="toWrapup()">時間なので答え合わせへ</button></div>`;
+    updateTimer();
+    return;
+  }
+
+  if (S.stage === "wrapup") {
+    v.innerHTML = requestSummary() + logCard() + (role === "senior"
+      ? `<div class="card"><h2>最後の答え合わせ</h2>
+        <div class="note">若手が原因の推測にたどり着けたか、確認してください。たどり着けなかった場合は、答えと「どう考えればそこにたどり着けたか」を一行で伝えます。</div>
+        <label>答えと考え方（任意）</label>
+        <textarea id="wrap" rows="3" placeholder="例: 容量を上げると配線のインダクタンスと共振する。周波数が動いたかをまず測ると気づける。"></textarea>
+        <div class="row"><button class="primary" onclick="finish(true)">若手が推測にたどり着けた</button>
+        <button onclick="finish(false)">答えを伝えた</button></div></div>`
+      : `<div class="card"><h2>最後の答え合わせ</h2><div class="note">先輩が、答えと考え方を伝えます。ここまでの答えは「わからない」も含めて、考えた過程として残っています。</div></div>`);
+    return;
+  }
+
+  v.innerHTML = requestSummary() + logCard() + `<div class="card"><h2>レビュー終了</h2>
+    <div>所要時間: ${fmt(S.elapsed)}</div>
+    <div>${S.reached ? "若手が自分で原因の推測にたどり着きました。" : "先輩が答えと考え方を伝えました。"}</div>
+    ${S.wrapup ? `<ul class="log"><li><b>答えと考え方</b>${esc(S.wrapup)}</li></ul>` : ""}
+    <div class="note" style="margin-top:8px">理解度の点数や評価は付きません。</div>
+    <div class="row"><button onclick="resetAll()">新しいレビュー</button></div></div>`;
+}
+render();
+</script>
+</body>
+</html>

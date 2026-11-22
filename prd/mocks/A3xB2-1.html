@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>質問の下ごしらえツール A3xB2-1</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #6b7785;
+  --line: #d9dee5; --accent: #2f6fb0; --accent-bg: #e6f0fa;
+  --ok: #2e8b57; --ok-bg: #e5f4ec; --warn-bg: #fff4dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6e9ed; --sub: #9aa5b1;
+    --line: #333c46; --accent: #6aa7e0; --accent-bg: #1f3347;
+    --ok: #5cc48a; --ok-bg: #1d3328; --warn-bg: #3a3220;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 48px; max-width: 480px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 14px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 8px 0 2px; }
+input, textarea, select { width: 100%; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+textarea { min-height: 72px; resize: vertical; }
+button { font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 4px 4px 0 0; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.chips button { background: var(--accent-bg); border-color: var(--accent); }
+.note { font-size: 13px; color: var(--sub); }
+.box { background: var(--accent-bg); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+.warn { background: var(--warn-bg); }
+.ok { background: var(--ok-bg); }
+.row { display: flex; gap: 8px; align-items: center; }
+.row > * { flex: 1; }
+.hidden { display: none; }
+.big { font-size: 28px; font-weight: 600; text-align: center; }
+.log { font-size: 13px; color: var(--sub); }
+</style>
+</head>
+<body>
+<header>
+  <h1>聞く前に整える 質問の下ごしらえツール <small>A3xB2-1</small></h1>
+</header>
+<main>
+  <div class="card">
+    <div class="row">
+      <select id="persona" aria-label="利用者">
+        <option value="B">Bさん（材料の選び方）</option>
+        <option value="A">Aさん（熱解析の設定）</option>
+      </select>
+      <button id="sample" class="primary">サンプルを読み込む</button>
+    </div>
+    <div class="note">質問に答えるのは先輩です。このツールは質問の準備だけを支えます。</div>
+    <label><input type="checkbox" id="urgent" style="width:auto"> 急ぎ（「わからない点」だけで質問文を作る）</label>
+    <div class="note" id="stopwatch">所要時間: 0:00（入力を始めると計測、質問文ができると止まります）</div>
+  </div>
+
+  <div class="card" id="step1">
+    <h2>1. 知りたいこと</h2>
+    <textarea id="want" placeholder="例: 材料の選び方"></textarea>
+    <button id="narrowBtn">範囲を確かめる</button>
+    <div id="narrowBox" class="box warn hidden">
+      <div id="narrowMsg"></div>
+      <label>いまの業務で必要なのはどの部分ですか？</label>
+      <div class="chips" id="narrowChips"></div>
+      <input id="narrowOwn" placeholder="自分の言葉で絞る（例: この筐体で使える樹脂の候補）">
+      <button id="narrowApply">この内容に絞る</button>
+    </div>
+    <div id="feel" class="box ok hidden">
+      絞り込み後:「<span id="narrowed"></span>」<br>
+      これなら聞けそうですか？
+      <button data-feel="聞ける">聞ける</button>
+      <button data-feel="まだ広い">まだ広い</button>
+      <button data-feel="聞きにくい">聞きにくい</button>
+      <div class="log" id="feelLog"></div>
+    </div>
+  </div>
+
+  <div class="card" id="step2">
+    <h2>2. 調べた範囲（一行ずつ）</h2>
+    <label>見た資料</label><input id="src">
+    <label>わかったこと</label><input id="found">
+    <button id="addRes">一行追加</button>
+    <ul id="resList" class="note"></ul>
+  </div>
+
+  <div class="card">
+    <h2>3. わからない点（一つだけ）</h2>
+    <textarea id="unknown"></textarea>
+  </div>
+
+  <div class="card" id="step4">
+    <h2>4. 聞く相手とタイミング</h2>
+    <label>相手（分野に詳しい人を複数示します）</label>
+    <select id="who"></select>
+    <label>タイミング</label>
+    <select id="when">
+      <option>相手が忙しそうでない時間（午後の早め）</option>
+      <option>朝の始業直後</option>
+      <option>締め切り明けの翌日</option>
+    </select>
+    <label>方法</label>
+    <select id="how"><option>チャット</option><option>対面</option></select>
+  </div>
+
+  <div class="card">
+    <button id="make" class="primary">質問文の候補をつくる</button>
+    <div id="qBox" class="hidden">
+      <label>候補です。自分の言葉に直してください</label>
+      <textarea id="qText" style="min-height:130px"></textarea>
+      <button id="copy">コピーする（送信はしません）</button>
+      <div class="note" id="copied"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>抱え込み時計</h2>
+    <div class="row">
+      <select id="limit">
+        <option value="30">30分</option><option value="60" selected>1時間</option>
+        <option value="120">2時間</option><option value="240">4時間</option>
+      </select>
+      <button id="startClock">調べ始める</button>
+    </div>
+    <label><input type="checkbox" id="fast" style="width:auto"> デモ速度（1秒＝1分）</label>
+    <div class="big" id="clock">0分</div>
+    <div class="box hidden" id="clockMsg"></div>
+    <div class="note">目安であり、責める表示ではありません。時間の決め方（種類別）は下で試せます。</div>
+    <div class="chips">
+      <button data-kind="30">設定値・操作手順</button>
+      <button data-kind="120">考え方・選び方</button>
+      <button data-kind="240">原因の切り分け</button>
+    </div>
+  </div>
+</main>
+<script>
+const SAMPLES = {
+  B: {
+    want: "材料の選び方",
+    narrow: ["この筐体で使える樹脂の候補", "耐熱が必要な部分の材料", "コストを抑えられる材料"],
+    res: [["社内の材料基準", "使える樹脂は10種類にまとまっている"], ["過去の類似筐体の図面", "ABS系が多い"]],
+    unknown: "耐熱80度が必要な場合、基準内のどれが候補になるのか",
+    whoList: ["機械設計の先輩 Cさん", "機械設計の先輩 Dさん", "材料担当の Eさん"],
+  },
+  A: {
+    want: "熱解析の設定",
+    narrow: ["境界条件の設定値", "メッシュの粗さの決め方", "発熱量の入力単位"],
+    res: [["解析ツールのマニュアル", "境界条件は表面ごとに指定する"], ["社内の解析事例", "自然対流の係数は5〜10が多い"]],
+    unknown: "自然対流の熱伝達率を、この筐体ではいくつにすればよいか",
+    whoList: ["熱設計の先輩 Fさん", "解析担当の Gさん", "熱設計の先輩 Hさん"],
+  },
+};
+const $ = id => document.getElementById(id);
+let rows = [], t0 = null, swTimer = null, clockTimer = null;
+
+function startWatch() {
+  if (t0) return;
+  t0 = Date.now();
+  swTimer = setInterval(() => showWatch(), 500);
+}
+function showWatch(done) {
+  const s = Math.floor((Date.now() - t0) / 1000);
+  const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, "0");
+  $("stopwatch").textContent = `所要時間: ${mm}:${ss}` + (done ? (s <= 180 ? "（3分以内でした）" : "（3分を超えました）") : "");
+}
+document.querySelectorAll("textarea,input,select").forEach(e => e.addEventListener("input", startWatch));
+
+function fillWho() {
+  const p = SAMPLES[$("persona").value];
+  $("who").innerHTML = p.whoList.map(n => `<option>${n}</option>`).join("");
+}
+function renderRes() {
+  $("resList").innerHTML = rows.map(r => `<li>${r[0]} → ${r[1]}</li>`).join("");
+}
+$("persona").onchange = fillWho;
+fillWho();
+
+$("sample").onclick = () => {
+  const p = SAMPLES[$("persona").value];
+  $("want").value = p.want;
+  rows = p.res.slice();
+  renderRes();
+  $("unknown").value = p.unknown;
+  startWatch();
+};
+
+$("narrowBtn").onclick = () => {
+  const p = SAMPLES[$("persona").value];
+  const w = $("want").value.trim();
+  if (!w) return;
+  startWatch();
+  const broad = w.length <= 10;
+  $("narrowBox").classList.remove("hidden");
+  $("narrowMsg").textContent = broad
+    ? `「${w}」は範囲が広めです。先輩が答えやすい大きさに絞りましょう。`
+    : "十分具体的です。このまま進めても、さらに絞ってもかまいません。";
+  $("narrowChips").innerHTML = p.narrow.map(n => `<button>${n}</button>`).join("");
+  $("narrowChips").querySelectorAll("button").forEach(b => b.onclick = () => { $("narrowOwn").value = b.textContent; });
+};
+$("narrowApply").onclick = () => {
+  const v = $("narrowOwn").value.trim();
+  if (!v) return;
+  $("want").value = v;
+  $("narrowed").textContent = v;
+  $("feel").classList.remove("hidden");
+  $("narrowBox").classList.add("hidden");
+};
+document.querySelectorAll("[data-feel]").forEach(b => b.onclick = () => {
+  $("feelLog").textContent = `記録: 「${b.dataset.feel}」（この端末のこの画面だけに表示）`;
+});
+
+$("addRes").onclick = () => {
+  const s = $("src").value.trim(), f = $("found").value.trim();
+  if (!s || !f) return;
+  rows.push([s, f]);
+  $("src").value = ""; $("found").value = "";
+  renderRes();
+};
+
+$("urgent").onchange = () => {
+  ["step1", "step2", "step4"].forEach(id => $(id).classList.toggle("hidden", $("urgent").checked));
+};
+
+$("make").onclick = () => {
+  const u = $("unknown").value.trim();
+  if (!u) { $("unknown").focus(); return; }
+  let q;
+  if ($("urgent").checked) {
+    q = `お忙しいところすみません。${u}がわからないのですが、教えていただけますか。`;
+  } else {
+    const w = $("want").value.trim() || "（知りたいこと）";
+    const res = rows.map(r => `${r[0]}を見て${r[1]}`).join("、");
+    q = `${w}について、${res || "（調べた範囲）"}ところまではわかりました。${u}がわからないのですが、教えていただけますか。`;
+    q += `\n\n（宛先: ${$("who").value} / ${$("when").value} / ${$("how").value}）`;
+  }
+  $("qText").value = q;
+  $("qBox").classList.remove("hidden");
+  if (t0) { clearInterval(swTimer); showWatch(true); }
+};
+$("copy").onclick = () => {
+  $("qText").select();
+  try { document.execCommand("copy"); } catch (e) {}
+  $("copied").textContent = "コピーしました。送るかどうかはご自身で決めてください。";
+};
+
+function drawClock(min, limit) {
+  $("clock").textContent = `${min}分`;
+  const msg = $("clockMsg");
+  msg.classList.remove("hidden");
+  if (min >= limit) {
+    msg.className = "box ok";
+    msg.textContent = "そろそろ聞いてよい頃です。ここまでの調べた範囲を質問文にしてみましょう。";
+  } else {
+    msg.className = "box";
+    msg.textContent = `目安まであと${limit - min}分。まだ調べていて大丈夫です。`;
+  }
+}
+$("startClock").onclick = () => {
+  clearInterval(clockTimer);
+  const limit = +$("limit").value;
+  let min = 0;
+  drawClock(0, limit);
+  const step = $("fast").checked ? 1000 : 60000;
+  clockTimer = setInterval(() => {
+    min++;
+    drawClock(min, limit);
+    if (min >= limit) clearInterval(clockTimer);
+  }, step);
+};
+document.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => {
+  $("limit").value = b.dataset.kind;
+});
+</script>
+</body>
+</html>

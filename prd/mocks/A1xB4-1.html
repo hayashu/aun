@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1xB4-1 制約カード学習</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #657080;
+  --line: #d9dee5; --accent: #2f6fb0; --accent-bg: #e6f0fa;
+  --warn-bg: #fff4e0; --ok-bg: #e8f5ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6eaef; --sub: #98a3b0;
+    --line: #333c46; --accent: #6aa7e0; --accent-bg: #223548;
+    --warn-bg: #3a3020; --ok-bg: #1f3326;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { font-size: 14px; margin: 0; }
+header small { color: var(--sub); }
+nav { display: flex; gap: 4px; padding: 8px 16px; overflow-x: auto; }
+nav button { flex: 1; white-space: nowrap; }
+main { padding: 0 16px 32px; max-width: 480px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px; margin: 12px 0; }
+.say { background: var(--accent-bg); border-radius: 8px; padding: 10px; font-weight: 600; }
+.warn { background: var(--warn-bg); border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 13px; }
+.ok { background: var(--ok-bg); border-radius: 6px; padding: 8px; margin: 8px 0; }
+button { font: inherit; padding: 8px 10px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); border-radius: 6px; cursor: pointer; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.row button { flex: 1; }
+input, textarea, select { width: 100%; font: inherit; padding: 8px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; margin: 4px 0; }
+.sub { color: var(--sub); font-size: 13px; }
+.bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+h2 { font-size: 15px; margin: 16px 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>「電気側でなんとかならない？」の裏を読む制約カード学習</h1>
+  <small>A1xB4-1 / モック（端末内にのみ保存）</small>
+</header>
+<nav>
+  <button data-tab="quiz">設問</button>
+  <button data-tab="book">事情帳</button>
+  <button data-tab="own">言われた言葉</button>
+  <button data-tab="weak">分野別</button>
+</nav>
+<main id="app"></main>
+
+<script>
+const KEY = "a1xb4-1";
+const READS = ["相談（一緒に考えたい）", "断り（こちらは動かせない）", "保留（まだ決まっていない）"];
+
+const SCENES = [
+  { id: 1, field: "機械", who: "機械の担当者",
+    say: "うーん、電気側でなんとかならないかな",
+    context: "筐体に通気口を追加してほしい、と頼んだ直後の返事。",
+    cards: [
+      { title: "金型の発注時期", body: "金型がすでに発注済みなら、機械側の変更は次の試作まで難しい。" },
+      { title: "強度試験の日程", body: "形状を変えると強度試験をやり直す必要があり、日程が詰まっている。" }],
+    asks: ["金型の発注はもう済んでいますか", "次の試作で変更できる範囲はどこまでですか"],
+    maybeConsult: "本当に相談の場合もある。その場合は「機械側で変えられる余地はありますか」と聞けば、一緒に考える流れになる。" },
+  { id: 2, field: "機械", who: "機械の担当者",
+    say: "その材料は今ちょっと厳しいかもしれないです",
+    context: "放熱のためにアルミ材への変更を相談したときの返事。",
+    cards: [
+      { title: "材料の在庫", body: "指定材料の在庫がなく、納期が数週間かかる場合がある。" },
+      { title: "調達の最小ロット", body: "試作数が少ないと、材料を単品で買えないことがある。" }],
+    asks: ["在庫がない、ということでしょうか", "納期が合えば、変更は可能ですか"],
+    maybeConsult: "価格や納期を調べている最中という意味の保留もありうる。いつまでに答えが出るかを聞くとよい。" },
+  { id: 3, field: "電気", who: "電気の担当者",
+    say: "基板は検討はしますが、少し時間をください",
+    context: "コネクタ位置の変更を機械側から頼んだときの返事。",
+    cards: [
+      { title: "基板の改版回数", body: "改版は回数に上限があることが多く、今回は使いたくない可能性がある。" },
+      { title: "部品の調達期間", body: "部品の納期が長く、変更すると全体が遅れる場合がある。" }],
+    asks: ["今の版で、変更しやすい範囲はありますか", "回答はいつ頃いただけそうですか"],
+    maybeConsult: "本当に検討中のこともある。「いつまでに」を聞けば、待つ期間が決まる。" }
+];
+
+const state = Object.assign({ tab: "quiz", idx: 0, answers: {}, own: [], useful: {} },
+  JSON.parse(localStorage.getItem(KEY) || "{}"));
+state.tab = "quiz";
+let draftOwn = { text: "", field: "機械", read: null };
+
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+function el(html) { document.getElementById("app").innerHTML = html; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function render() {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === state.tab));
+  ({ quiz: viewQuiz, book: viewBook, own: viewOwn, weak: viewWeak })[state.tab]();
+}
+
+function viewQuiz() {
+  const s = SCENES[state.idx];
+  const a = state.answers[s.id];
+  let h = `<p class="sub">設問 ${state.idx + 1} / ${SCENES.length}　分野: ${s.field}</p>
+    <div class="card"><div class="sub">${esc(s.context)}</div>
+    <p>${s.who}が言った。</p><div class="say">「${esc(s.say)}」</div>
+    <h2>この返事の真意は、どれに近い？</h2><div class="row">`;
+  READS.forEach((r, i) => {
+    h += `<button class="${a && a.read === i ? "on" : ""}" ${a ? "disabled" : ""} onclick="pick(${i})">${r}</button>`;
+  });
+  h += `</div>`;
+  if (!a) h += `<p class="sub">選ぶと、ありうる事情が表示されます。正解はなく、候補の一つとして示します。</p>`;
+  h += `</div>`;
+  if (a) h += revealHtml(s, a);
+  h += `<div class="row"><button onclick="move(-1)">前へ</button><button onclick="move(1)">次へ</button></div>
+    <div class="row"><button onclick="loadSample()">サンプルを読み込む</button><button onclick="resetAll()">リセット</button></div>`;
+  el(h);
+}
+
+function revealHtml(s, a) {
+  let h = `<div class="card"><h2>あなたの読み: ${READS[a.read]}</h2>
+    <div class="warn">以下は「ありうる事情の候補」です。相手個人の状況は、確かめるまでわかりません。</div>`;
+  s.cards.forEach(c => { h += `<div class="ok"><b>制約カード: ${esc(c.title)}</b><br>${esc(c.body)}</div>`; });
+  h += `<div class="sub">${esc(s.maybeConsult)}</div>
+    <h2>確かめる一言を選ぶ</h2><div class="row" style="flex-direction:column">`;
+  s.asks.forEach((q, i) => {
+    h += `<button class="${a.ask === i ? "on" : ""}" onclick="pickAsk(${i})">${esc(q)}</button>`;
+  });
+  h += `</div>`;
+  if (a.ask !== undefined) {
+    h += `<label class="sub">自分の言葉に直す</label>
+      <textarea rows="2" oninput="saveWords(this.value)">${esc(a.words || "")}</textarea>`;
+  }
+  h += `<h2>「そういう事情があったのか」と納得できましたか</h2><div class="row">
+    <button class="${a.nattoku === 1 ? "on" : ""}" onclick="nat(1)">納得した</button>
+    <button class="${a.nattoku === 0 ? "on" : ""}" onclick="nat(0)">しっくりこない</button></div>
+    <p class="sub">制約カードは「事情帳」に追加されました。</p></div>`;
+  return h;
+}
+
+function pick(i) { state.answers[SCENES[state.idx].id] = { read: i }; save(); render(); }
+function pickAsk(i) { state.answers[SCENES[state.idx].id].ask = i; save(); render(); }
+function saveWords(v) { state.answers[SCENES[state.idx].id].words = v; save(); }
+function nat(v) { state.answers[SCENES[state.idx].id].nattoku = v; save(); render(); }
+function move(d) { state.idx = (state.idx + d + SCENES.length) % SCENES.length; render(); }
+function setTab(t) { state.tab = t; render(); }
+
+function viewBook() {
+  let h = `<h2>隣の分野の事情帳</h2><p class="sub">答えた設問のカードが分野ごとにたまります。</p>`;
+  const fields = {};
+  SCENES.forEach(s => { if (state.answers[s.id]) (fields[s.field] = fields[s.field] || []).push(s); });
+  if (!Object.keys(fields).length) h += `<div class="card sub">まだカードがありません。設問に答えてください。</div>`;
+  Object.keys(fields).forEach(f => {
+    h += `<h2>${f}の事情</h2>`;
+    fields[f].forEach(s => s.cards.forEach(c => {
+      const k = s.id + c.title;
+      h += `<div class="card"><b>${esc(c.title)}</b><br>${esc(c.body)}
+        <div class="sub">確かめる一言: ${esc(s.asks[0])}</div>
+        <div class="row"><button class="${state.useful[k] ? "on" : ""}" onclick="toggleUse('${k}')">次の打ち合わせで使えそう</button></div></div>`;
+    }));
+  });
+  el(h);
+}
+function toggleUse(k) { state.useful[k] = !state.useful[k]; save(); render(); }
+
+function viewOwn() {
+  let h = `<h2>自分が言われた言葉を読み解く</h2>
+    <p class="sub">入力した内容はこの端末にだけ残り、送信されません。</p>
+    <div class="card"><label class="sub">実際に言われた言葉</label>
+    <textarea rows="2" oninput="draftOwn.text=this.value">${esc(draftOwn.text)}</textarea>
+    <label class="sub">相手の分野</label>
+    <select onchange="draftOwn.field=this.value;render()">
+      ${["機械", "電気"].map(f => `<option ${draftOwn.field === f ? "selected" : ""}>${f}</option>`).join("")}</select>
+    <h2>先に、真意を選ぶ</h2><div class="row" style="flex-direction:column">
+    ${READS.map((r, i) => `<button class="${draftOwn.read === i ? "on" : ""}" onclick="draftOwn.read=${i};render()">${r}</button>`).join("")}
+    </div></div>`;
+  if (draftOwn.read !== null) {
+    h += `<div class="card"><b>あなたの読み: ${READS[draftOwn.read]}</b>
+      <div class="warn">${draftOwn.field}分野でよくある事情の候補です。当てはまるかは確かめるまでわかりません。</div>`;
+    SCENES.filter(s => s.field === draftOwn.field).forEach(s => s.cards.forEach(c => {
+      h += `<div class="ok"><b>${esc(c.title)}</b><br>${esc(c.body)}</div>`;
+    }));
+    h += `<div class="ok">本当に相談の可能性もあります。</div>
+      <b>確かめる一言の例</b><ul>${SCENES.filter(s => s.field === draftOwn.field)
+        .flatMap(s => s.asks).map(q => `<li>${esc(q)}</li>`).join("")}</ul>
+      <button onclick="saveOwn()">この言葉を記録する</button></div>`;
+  }
+  state.own.forEach(o => { h += `<div class="card sub">記録: 「${esc(o.text)}」（${o.field}・${READS[o.read]}）</div>`; });
+  el(h);
+}
+function saveOwn() {
+  if (!draftOwn.text.trim()) return;
+  state.own.push({ ...draftOwn }); save();
+  draftOwn = { text: "", field: draftOwn.field, read: null }; render();
+}
+
+function viewWeak() {
+  let h = `<h2>分野別: まだ想定できていない事情</h2>
+    <p class="sub">人の評価ではなく、どの分野の事情を学ぶとよいかの目安です。「断り」「保留」と読めた割合を示します。</p>`;
+  ["機械", "電気"].forEach(f => {
+    const done = SCENES.filter(s => s.field === f && state.answers[s.id]);
+    const hit = done.filter(s => state.answers[s.id].read !== 0).length;
+    const pct = done.length ? Math.round(100 * hit / done.length) : 0;
+    h += `<div class="card"><b>${f}</b>　回答 ${done.length} 件
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="sub">${done.length ? `事情を想定できた設問: ${hit} / ${done.length}` : "未回答"}</div>
+      ${done.length && hit < done.length ? `<div class="warn">${f}の事情帳を見返すと、想定できる幅が広がります。</div>` : ""}</div>`;
+  });
+  el(h);
+}
+
+function loadSample() {
+  state.answers = {
+    1: { read: 0, ask: 0, words: "金型はもう発注済みでしょうか。変えられる範囲を知りたいです。", nattoku: 1 },
+    2: { read: 1, ask: 0, words: "在庫の都合でしょうか。", nattoku: 1 },
+    3: { read: 2, ask: 1, words: "回答はいつ頃になりそうですか。", nattoku: 0 } };
+  state.own = [{ text: "それは一度持ち帰りますね", field: "電気", read: 2 }];
+  save(); render();
+}
+function resetAll() { localStorage.removeItem(KEY); location.reload(); }
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+render();
+</script>
+</body>
+</html>

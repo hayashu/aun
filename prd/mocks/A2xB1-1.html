@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>資料チェッカー（A2xB1-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --sub: #5c6577;
+  --line: #dde1e8; --accent: #2f6fdb; --accent-bg: #e6eefc;
+  --new: #1f8a4c; --new-bg: #e3f4ea; --gen: #8a6d1f; --gen-bg: #f8f0d8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --card: #1e232c; --text: #e8ebf0; --sub: #9aa3b5;
+    --line: #333a47; --accent: #6b9cf0; --accent-bg: #23324f;
+    --new: #5ccf8a; --new-bg: #1f3a2b; --gen: #e0c46c; --gen-bg: #3a3320;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  padding: 0 16px 40px; max-width: 480px; margin: 0 auto;
+}
+header { padding: 12px 0 8px; }
+header h1 { font-size: 16px; margin: 0; }
+header small { color: var(--sub); }
+nav { display: flex; gap: 6px; margin: 8px 0 12px; }
+nav button { flex: 1; padding: 8px 4px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); color: var(--text); font-size: 13px; }
+nav button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 14px; margin: 0 0 8px; }
+.note { color: var(--sub); font-size: 12px; margin: 4px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chips button { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); font-size: 14px; }
+.chips button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--accent);
+  background: var(--accent); color: #fff; font-size: 14px; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.item { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+.item:first-of-type { border-top: 0; }
+.item input { margin-top: 5px; width: 18px; height: 18px; flex: none; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; white-space: nowrap; }
+.tag.mine { background: var(--new-bg); color: var(--new); }
+.tag.gen { background: var(--gen-bg); color: var(--gen); }
+.flash { animation: fl 2s; }
+@keyframes fl { from { background: var(--new-bg); } to { background: transparent; } }
+input[type=text], input[type=number], select {
+  width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 15px; margin-bottom: 8px; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; min-width: 0; }
+.msg { color: var(--new); font-size: 13px; min-height: 20px; }
+.bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; margin: 4px 0 8px; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td, th { padding: 4px 2px; text-align: left; border-top: 1px solid var(--line); }
+.hide { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>部署の資料の「暗黙の型」チェッカー</h1>
+  <small>PRD A2xB1-1 / モック（個人用・データはこのページ内のみ）</small>
+</header>
+<nav id="nav">
+  <button data-v="check" class="on">作る前に確かめる</button>
+  <button data-v="note">指摘を記録</button>
+  <button data-v="time">時間の記録</button>
+</nav>
+<div class="note">
+  <button class="btn ghost" id="sample">サンプルを読み込む</button>
+  チェック項目は構成と形式のみ。中身の評価・自動作成はしません。
+</div>
+
+<section id="v-check">
+  <div class="card">
+    <h2>1. 提出先と目的を選ぶ</h2>
+    <div class="chips" id="aud"></div>
+    <div class="chips" id="pur"></div>
+  </div>
+  <div class="card hide" id="list">
+    <h2 id="listTitle"></h2>
+    <div class="chips" id="phase">
+      <button data-p="before" class="on">作る前</button>
+      <button data-p="after">作り終えたあと</button>
+    </div>
+    <div id="items"></div>
+    <div class="note" id="stat"></div>
+    <div class="bar"><i id="barFill" style="width:0"></i></div>
+    <button class="btn" id="done">確認できた</button>
+    <div class="msg" id="doneMsg"></div>
+  </div>
+</section>
+
+<section id="v-note" class="hide">
+  <div class="card">
+    <h2>受けた指摘を一行で書く</h2>
+    <input type="text" id="nText" placeholder="例：前回の数字と比べられるようにして">
+    <div class="row">
+      <select id="nAud"></select>
+      <select id="nPur"></select>
+    </div>
+    <button class="btn" id="nAdd">記録する</button>
+    <div class="msg" id="nMsg"></div>
+    <div class="note">記録は「指摘の一行」と「提出先・目的」だけです。</div>
+  </div>
+  <div class="card">
+    <h2>記録した指摘</h2>
+    <div id="nList" class="note">まだありません。</div>
+  </div>
+</section>
+
+<section id="v-time" class="hide">
+  <div class="card">
+    <h2>資料1つぶんの記録</h2>
+    <input type="text" id="tName" placeholder="資料名（例：評価結果の報告）">
+    <div class="row">
+      <input type="number" id="tHours" min="0" step="0.5" placeholder="かかった時間(h)">
+      <input type="number" id="tRev" min="0" step="1" placeholder="作り直し回数">
+    </div>
+    <button class="btn" id="tAdd">記録する</button>
+  </div>
+  <div class="card">
+    <h2>減っていく様子</h2>
+    <div id="tList" class="note">まだありません。</div>
+    <div id="tSum"></div>
+  </div>
+</section>
+
+<script>
+const AUD = ["課長", "部長", "他部署"];
+const PUR = ["報告", "相談", "承認"];
+const GENERIC = [
+  { t: "1枚目に結論を置く", phase: "before" },
+  { t: "枚数の上限を決めてから作り始める", phase: "before" },
+  { t: "数字には前回比を付ける", phase: "after" },
+  { t: "使う色を絞る", phase: "after" }
+];
+let state = { aud: null, pur: null, phase: "before", notes: [], times: [], checked: {}, newId: null, openedAt: 0 };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function chips(el, arr, key) {
+  el.innerHTML = "";
+  arr.forEach((v) => {
+    const b = document.createElement("button");
+    b.textContent = v;
+    b.className = state[key] === v ? "on" : "";
+    b.onclick = () => {
+      state[key] = v;
+      state.checked = {};
+      state.openedAt = Date.now();
+      $("doneMsg").textContent = "";
+      render();
+    };
+    el.appendChild(b);
+  });
+}
+
+function itemsFor() {
+  const mine = state.notes
+    .filter((n) => n.aud === state.aud && n.pur === state.pur)
+    .map((n) => ({ t: n.text, mine: true, id: n.id, phase: "after" }));
+  const mineTexts = mine.map((m) => m.t);
+  const gen = GENERIC.filter((g) => !mineTexts.includes(g.t));
+  // 本人の記録を先に、一般的な項目はその後ろ
+  return mine.concat(gen.map((g) => ({ ...g, mine: false })));
+}
+
+function renderCheck() {
+  chips($("aud"), AUD, "aud");
+  chips($("pur"), PUR, "pur");
+  const ready = state.aud && state.pur;
+  $("list").classList.toggle("hide", !ready);
+  if (!ready) return;
+  $("listTitle").textContent = "2. " + state.aud + "向け・" + state.pur + "のチェック項目";
+  document.querySelectorAll("#phase button").forEach((b) => b.classList.toggle("on", b.dataset.p === state.phase));
+  const all = itemsFor();
+  const shown = all.filter((i) => i.mine || i.phase === state.phase || state.phase === "after");
+  $("items").innerHTML = shown.map((i) => {
+    const key = state.aud + state.pur + i.t;
+    const cls = i.id && i.id === state.newId ? "item flash" : "item";
+    return '<label class="' + cls + '"><input type="checkbox" data-k="' + esc(key) + '"' +
+      (state.checked[key] ? " checked" : "") + '><span>' + esc(i.t) +
+      '<span class="tag ' + (i.mine ? "mine" : "gen") + '">' + (i.mine ? "自分の記録" : "一般") + "</span></span></label>";
+  }).join("");
+  document.querySelectorAll("#items input").forEach((c) => {
+    c.onchange = () => { state.checked[c.dataset.k] = c.checked; renderCheck(); };
+  });
+  const n = shown.filter((i) => state.checked[state.aud + state.pur + i.t]).length;
+  const mineCount = shown.filter((i) => i.mine).length;
+  $("stat").textContent = "確かめた項目 " + n + " / " + shown.length +
+    "（うち自分の記録 " + mineCount + "、一般 " + (shown.length - mineCount) + "）";
+  $("barFill").style.width = shown.length ? (n / shown.length * 100) + "%" : "0";
+}
+
+function fillSelects() {
+  $("nAud").innerHTML = AUD.map((a) => "<option>" + a + "</option>").join("");
+  $("nPur").innerHTML = PUR.map((p) => "<option>" + p + "</option>").join("");
+}
+
+function renderNotes() {
+  $("nList").innerHTML = state.notes.length
+    ? '<table>' + state.notes.map((n) => "<tr><td>" + esc(n.text) + "</td><td>" + n.aud + "・" + n.pur + "</td></tr>").join("") + "</table>"
+    : "まだありません。";
+}
+
+function renderTimes() {
+  const t = state.times;
+  $("tList").innerHTML = t.length
+    ? '<table><tr><th>資料</th><th>時間</th><th>作り直し</th></tr>' +
+      t.map((r) => "<tr><td>" + esc(r.name) + "</td><td>" + r.h + "h</td><td>" + r.rev + "回</td></tr>").join("") + "</table>"
+    : "まだありません。";
+  if (t.length < 2) { $("tSum").innerHTML = ""; return; }
+  const first = t[0], last = t[t.length - 1];
+  const saved = Math.max(0, first.h - last.h);
+  $("tSum").innerHTML = '<div class="note" style="margin-top:8px">最初の資料 ' + first.h + "h → 直近 " + last.h +
+    "h。ものづくりに回せた時間：約 " + saved + " 時間。作り直し " + first.rev + "回 → " + last.rev + "回</div>";
+}
+
+function render() { renderCheck(); renderNotes(); renderTimes(); }
+
+document.querySelectorAll("#nav button").forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll("#nav button").forEach((x) => x.classList.toggle("on", x === b));
+    ["check", "note", "time"].forEach((v) => $("v-" + v).classList.toggle("hide", v !== b.dataset.v));
+  };
+});
+document.querySelectorAll("#phase button").forEach((b) => {
+  b.onclick = () => { state.phase = b.dataset.p; renderCheck(); };
+});
+$("done").onclick = () => {
+  const s = Math.round((Date.now() - state.openedAt) / 1000);
+  $("doneMsg").textContent = "提出先を選んでから " + s + " 秒で確認できました。";
+};
+$("nAdd").onclick = () => {
+  const text = $("nText").value.trim();
+  if (!text) { $("nMsg").textContent = "指摘を一行で書いてください。"; return; }
+  const n = { id: "n" + Date.now(), text, aud: $("nAud").value, pur: $("nPur").value };
+  state.notes.unshift(n);
+  state.newId = n.id;
+  $("nText").value = "";
+  $("nMsg").textContent = "「" + n.aud + "・" + n.pur + "」のチェック項目に加わりました。次回から確認できます。";
+  render();
+};
+$("tAdd").onclick = () => {
+  const name = $("tName").value.trim();
+  if (!name || $("tHours").value === "") return;
+  state.times.push({ name, h: +$("tHours").value, rev: +($("tRev").value || 0) });
+  ["tName", "tHours", "tRev"].forEach((i) => { $(i).value = ""; });
+  renderTimes();
+};
+$("sample").onclick = () => {
+  state.notes = [
+    { id: "s1", text: "部長向けは3枚以内にする", aud: "部長", pur: "報告" },
+    { id: "s2", text: "結論を1枚目に置く", aud: "部長", pur: "報告" },
+    { id: "s3", text: "数字には前回の値を並べる", aud: "部長", pur: "報告" },
+    { id: "s4", text: "色は2色までにする", aud: "課長", pur: "報告" }
+  ];
+  state.times = [
+    { name: "評価結果の報告（1本目）", h: 16, rev: 3 },
+    { name: "試作基板の状況報告", h: 8, rev: 1 },
+    { name: "月次の進捗報告", h: 4, rev: 0 }
+  ];
+  state.aud = "部長"; state.pur = "報告"; state.openedAt = Date.now(); state.checked = {};
+  render();
+};
+fillSelects();
+render();
+</script>
+</body>
+</html>

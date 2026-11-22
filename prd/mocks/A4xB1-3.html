@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A4xB1-3 評価観点の公開と次の機会</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1d2330; --sub: #5d6676;
+  --line: #dde1e8; --accent: #2f6fdd; --ok: #1f8a4c; --more: #c26a00;
+  --okbg: #e6f4ec; --morebg: #fdf0dc; --accbg: #e8f0fd;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --card: #1e232c; --text: #e8ebf0; --sub: #9aa3b2;
+    --line: #333a46; --accent: #6ea0f5; --ok: #5fcf8a; --more: #f0a850;
+    --okbg: #1c3326; --morebg: #3a2c15; --accbg: #1d2a42;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 14px; }
+header small { color: var(--sub); }
+main { max-width: 420px; margin: 0 auto; padding: 12px 16px 40px; }
+.roles { display: flex; gap: 6px; margin-bottom: 12px; }
+.roles button { flex: 1; padding: 8px 4px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); border-radius: 8px; font-size: 13px; }
+.roles button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 6px; }
+.note { font-size: 12px; color: var(--sub); margin: 4px 0 8px; }
+.crit { border-top: 1px solid var(--line); padding: 8px 0; }
+.crit:first-of-type { border-top: 0; }
+input, textarea, select { width: 100%; padding: 8px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+.btn { padding: 9px 14px; border: 0; border-radius: 8px; background: var(--accent);
+  color: #fff; font: inherit; margin-top: 8px; }
+.btn.ghost { background: var(--card); color: var(--accent); border: 1px solid var(--accent); }
+.btn:disabled { opacity: .4; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+.tag.ok { background: var(--okbg); color: var(--ok); }
+.tag.more { background: var(--morebg); color: var(--more); }
+.banner { background: var(--accbg); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.row { display: flex; gap: 6px; }
+.row button { flex: 1; padding: 7px; border: 1px solid var(--line); background: var(--bg);
+  color: var(--text); border-radius: 6px; font: inherit; }
+.row button.ok { background: var(--okbg); border-color: var(--ok); color: var(--ok); }
+.row button.more { background: var(--morebg); border-color: var(--more); color: var(--more); }
+.empty { color: var(--sub); text-align: center; padding: 16px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>試作の評価観点と「次の機会」保証</h1>
+  <small>PRD A4xB1-3 / モック</small>
+</header>
+<main>
+  <div class="roles" id="roles"></div>
+  <button class="btn ghost" id="sample" style="margin:0 0 12px;width:100%">サンプルを読み込む</button>
+  <div id="view"></div>
+</main>
+<script>
+const DEADLINE = '2026-11-29';
+let role = 'B';
+let criteria = { '治具': [], '評価基板': [], '筐体の試作': [] };
+let proto = null;     // {type, title, plan:{}, round, judged:{}, reasons:{}, status}
+let proposals = [];   // 観点の見直し提案
+
+const SAMPLE_CRITERIA = {
+  '治具': ['片手で扱えるか', '工具なしで部品を交換できるか', '強度は十分か', '材料費は予算内か'],
+  '評価基板': ['確かめたい項目をすべて測定できるか', '手順書なしで再現できるか', '部品の入手性に問題はないか'],
+  '筐体の試作': ['組み立てが工具なしでできるか', '寸法公差が図面どおりか', '現場で持ち運べるか']
+};
+
+function $(s) { return document.querySelector(s); }
+function esc(t) { return String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function setRole(r) { role = r; render(); }
+
+function loadSample() {
+  criteria = JSON.parse(JSON.stringify(SAMPLE_CRITERIA));
+  proto = { type: '治具', title: '評価治具の次期版', plan: {}, round: 1,
+            judged: {}, reasons: {}, status: 'planning' };
+  proposals = [];
+  render();
+}
+
+function render() {
+  $('#roles').innerHTML = [['B', 'Bさん（若手）'], ['M', '課長（上司）'], ['L', 'チームリーダー']]
+    .map(([k, n]) => `<button class="${role === k ? 'on' : ''}" onclick="setRole('${k}')">${n}</button>`).join('');
+  $('#view').innerHTML = role === 'L' ? leaderView() : role === 'B' ? youngView() : bossView();
+}
+
+/* ---- チームリーダー: 評価観点の一覧 ---- */
+function leaderView() {
+  let h = `<div class="card"><h2>評価観点の一覧</h2>
+    <p class="note">観点は最低限の条件です。観点以外の工夫も、評価の会話で取り上げます。1つの種類に3〜5個まで。</p></div>`;
+  for (const t in criteria) {
+    const list = criteria[t];
+    h += `<div class="card"><h2>${esc(t)}</h2>`;
+    h += list.length ? list.map((c, i) => `<div class="crit row" style="align-items:center">
+        <span style="flex:1">${esc(c)}</span>
+        <button style="flex:0 0 52px" onclick="delCrit('${t}',${i})">削除</button></div>`).join('')
+      : '<div class="empty">まだ観点がありません</div>';
+    if (list.length < 5) {
+      h += `<div class="row"><input id="add-${t}" placeholder="観点を追加"><button style="flex:0 0 52px" onclick="addCrit('${t}')">追加</button></div>`;
+    }
+    h += '</div>';
+  }
+  h += `<div class="card"><h2>観点の見直し提案</h2>`;
+  h += proposals.length ? proposals.map(p => `<div class="crit">
+      <span class="tag more">${esc(p.type)}</span> ${esc(p.text)}
+      <div class="row"><button onclick="acceptProp(${p.id})">一覧に追加</button>
+      <button onclick="dropProp(${p.id})">見送る</button></div></div>`).join('')
+    : '<div class="empty">提案はありません</div>';
+  return h + '</div>';
+}
+function addCrit(t) {
+  const v = $('#add-' + t).value.trim();
+  if (v && criteria[t].length < 5) criteria[t].push(v);
+  render();
+}
+function delCrit(t, i) { criteria[t].splice(i, 1); render(); }
+function acceptProp(id) {
+  const p = proposals.find(x => x.id === id);
+  if (criteria[p.type].length < 5) criteria[p.type].push(p.text);
+  dropProp(id);
+}
+function dropProp(id) { proposals = proposals.filter(x => x.id !== id); render(); }
+
+/* ---- Bさん: 試作前の確認 / 結果 / やり直し ---- */
+function activeIdx() {
+  const all = criteria[proto.type].map((_, i) => i);
+  return proto.round === 1 ? all : all.filter(i => proto.judged[i] === 'more_prev');
+}
+function youngView() {
+  if (!proto) return '<div class="card empty">試作が任されていません。「サンプルを読み込む」を押してください。</div>';
+  const list = criteria[proto.type];
+  let h = `<div class="card"><h2>${esc(proto.title)}</h2>
+    <span class="tag ok">${esc(proto.type)}</span>
+    <span class="note">${proto.round === 1 ? '1回目' : 'やり直し（1回保証）'}</span></div>`;
+  if (proto.status === 'planning') {
+    h += `<div class="card"><h2>試作の前に：この観点を見てください</h2>
+      <p class="note">どう満たすかを一行ずつ書いてから始めます。観点は最低限の条件で、ほかの工夫も歓迎です。</p>`;
+    activeIdx().forEach(i => {
+      h += `<div class="crit"><b>${esc(list[i])}</b>
+        <input value="${esc(proto.plan[i] || '')}" placeholder="どう満たすか（一行）"
+          oninput="proto.plan[${i}]=this.value;checkPlan()"></div>`;
+    });
+    h += `<button class="btn" id="go" onclick="showProto()" disabled>この方針で試作を始める</button></div>`;
+  } else if (proto.status === 'waiting') {
+    h += `<div class="card"><h2>試作中</h2><p class="note">できたら課長に見せましょう（課長の画面で観点ごとの判断を選びます）。</p>
+      ${planSummary(list)}</div>`;
+  } else {
+    h += resultView(list);
+  }
+  return h;
+}
+function planSummary(list) {
+  return activeIdx().map(i => `<div class="crit"><b>${esc(list[i])}</b><br>
+    <span class="note">${esc(proto.plan[i] || '')}</span></div>`).join('');
+}
+function checkPlan() {
+  const ok = activeIdx().every(i => (proto.plan[i] || '').trim());
+  $('#go').disabled = !ok;
+}
+function showProto() { proto.status = 'waiting'; render(); }
+
+function resultView(list) {
+  let h = `<div class="card"><h2>観点ごとの結果</h2><p class="note">点数は付きません。満たしたかどうかだけを示します。</p>`;
+  list.forEach((c, i) => {
+    const j = proto.judged[i];
+    const more = j === 'more' || j === 'more_prev';
+    h += `<div class="crit"><span class="tag ${more ? 'more' : 'ok'}">${more ? 'もう一歩' : '満たしている'}</span> ${esc(c)}
+      ${more ? `<div class="note">課長の一言：${esc(proto.reasons[i] || '')}</div>` : ''}</div>`;
+  });
+  h += '</div>';
+  const hasMore = Object.values(proto.judged).some(v => v === 'more');
+  if (hasMore && proto.round === 1) {
+    h += `<div class="banner"><b>やり直しの機会が設定されました</b><br>
+      期限：${DEADLINE}。直すのは「もう一歩」の観点だけです。やり直しは一度保証されます。
+      <br><button class="btn" onclick="startRetry()">直す観点の方針を書く</button></div>`;
+  } else {
+    h += `<div class="banner">${hasMore ? '保証されたやり直しは使い切りました。次は課長と相談して決めましょう。' : 'すべての観点を満たしています。'}</div>`;
+  }
+  h += proposalForm();
+  return h;
+}
+function startRetry() {
+  for (const i in proto.judged) if (proto.judged[i] === 'more') proto.judged[i] = 'more_prev';
+  proto.round = 2; proto.plan = {}; proto.status = 'planning'; render();
+}
+function proposalForm() {
+  return `<div class="card"><h2>観点の見直しを提案する</h2>
+    <p class="note">観点を満たしても使われなかった、観点にない理由で指摘された、というときに。</p>
+    <textarea id="prop" rows="2" placeholder="追加してほしい観点"></textarea>
+    <button class="btn ghost" onclick="sendProp()">リーダーに提案する</button></div>`;
+}
+function sendProp() {
+  const t = $('#prop').value.trim();
+  if (!t) return;
+  proposals.push({ id: Date.now(), type: proto.type, text: t });
+  $('#prop').value = '';
+  alert('提案を送りました（リーダーの画面に届きます）');
+}
+
+/* ---- 課長: 観点ごとの判断 ---- */
+function bossView() {
+  if (!proto || proto.status === 'planning') {
+    return '<div class="card empty">Bさんから見せられた試作はありません。</div>';
+  }
+  const list = criteria[proto.type];
+  if (proto.status === 'judged') {
+    return `<div class="card empty">判断を送りました。Bさんの画面に結果が表示されます。</div>`;
+  }
+  let h = `<div class="card"><h2>${esc(proto.title)}（${proto.round === 1 ? '1回目' : 'やり直し'}）</h2>
+    <p class="note">観点ごとに選びます。点数は付かず、人事評価には使いません。「もう一歩」には一行の理由を。</p>`;
+  activeIdx().forEach(i => {
+    const j = proto.judged[i];
+    h += `<div class="crit"><b>${esc(list[i])}</b>
+      <div class="note">Bさんの方針：${esc(proto.plan[i] || '')}</div>
+      <div class="row">
+        <button class="${j === 'ok' ? 'ok' : ''}" onclick="judge(${i},'ok')">満たしている</button>
+        <button class="${j === 'more' ? 'more' : ''}" onclick="judge(${i},'more')">もう一歩</button></div>
+      ${j === 'more' ? `<input style="margin-top:6px" placeholder="理由（一行）" value="${esc(proto.reasons[i] || '')}"
+        oninput="proto.reasons[${i}]=this.value;checkJudge()">` : ''}</div>`;
+  });
+  return h + `<button class="btn" id="send" onclick="sendJudge()" disabled>判断を送る</button></div>`;
+}
+function judge(i, v) { proto.judged[i] = v; render(); checkJudge(); }
+function checkJudge() {
+  const b = $('#send');
+  if (!b) return;
+  b.disabled = !activeIdx().every(i => proto.judged[i] === 'ok' ||
+    (proto.judged[i] === 'more' && (proto.reasons[i] || '').trim()));
+}
+function sendJudge() { proto.status = 'judged'; render(); }
+
+render();
+$('#sample').onclick = loadSample;
+</script>
+</body>
+</html>

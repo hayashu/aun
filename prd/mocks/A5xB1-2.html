@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作り手つなぎ（A5xB1-2）</title>
+<style>
+:root {
+  --bg:#f6f7f9; --card:#fff; --text:#1d2430; --sub:#5d6675; --line:#dde1e8;
+  --accent:#2b6cb0; --accent-t:#fff; --soft:#e6f0fa; --ok:#2f855a; --warn:#b7791f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#14171c; --card:#1e232b; --text:#e8ebf0; --sub:#9aa4b2; --line:#323945;
+    --accent:#63a4e6; --accent-t:#10151b; --soft:#1f3042; --ok:#68d391; --warn:#ecc94b;
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 -apple-system,"Hiragino Sans",sans-serif; }
+.wrap { max-width:420px; margin:0 auto; padding:0 16px 40px; }
+header { padding:12px 0 8px; }
+header h1 { font-size:15px; margin:0; }
+header small { color:var(--sub); }
+.roles, .tabs { display:flex; gap:6px; margin:8px 0; }
+.roles button, .tabs button, .chip {
+  flex:1; padding:7px 4px; border:1px solid var(--line); background:var(--card);
+  color:var(--text); border-radius:8px; font-size:13px; cursor:pointer;
+}
+.roles button.on, .tabs button.on, .chip.on { background:var(--accent); color:var(--accent-t); border-color:var(--accent); }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.chip { flex:none; padding:4px 10px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin:10px 0; }
+.card h3 { margin:0; font-size:15px; }
+.meta { color:var(--sub); font-size:12px; }
+.tag { display:inline-block; background:var(--soft); color:var(--accent); border-radius:4px; padding:0 6px; font-size:12px; margin:2px 4px 2px 0; }
+.status { font-size:12px; font-weight:bold; }
+.ok { color:var(--ok); } .warn { color:var(--warn); }
+input, select, textarea {
+  width:100%; padding:8px; margin:4px 0 8px; font-size:15px; background:var(--bg);
+  color:var(--text); border:1px solid var(--line); border-radius:8px;
+}
+button.main { width:100%; padding:10px; border:0; border-radius:8px; background:var(--accent); color:var(--accent-t); font-size:15px; cursor:pointer; }
+button.sub { padding:7px 12px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); font-size:13px; cursor:pointer; margin-right:6px; }
+.note { background:var(--soft); border-radius:8px; padding:8px 10px; font-size:13px; margin:10px 0; }
+.sample { width:100%; margin:6px 0; }
+h2 { font-size:14px; margin:16px 0 4px; }
+.empty { color:var(--sub); text-align:center; padding:20px 0; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>作り手つなぎ <small>PRD A5xB1-2</small></h1>
+    <small>他部署の作り手と1対1で30分、ものづくりの相談</small>
+  </header>
+  <div class="roles" id="roles"></div>
+  <button class="sub sample" id="sampleBtn">サンプルを読み込む</button>
+  <div id="view"></div>
+</div>
+
+<script>
+const FIELDS = ["基板", "治具", "3Dプリント", "筐体", "配線・はんだ"];
+const ME = "Bさん（製品開発部）";
+let state = { role: "seeker", tab: "find", filter: "すべて", target: null, makers: [], reqs: [] };
+
+const SAMPLE = {
+  makers: [
+    { id: 1, name: "田中 健", dept: "試作部門", years: 12, bg: "電気電子出身", fields: ["基板", "配線・はんだ"],
+      slots: 1, cap: 2, hours: "月1回30分（水曜午後）", msg: "毎日基板を作っています。若手の相談に乗りたいです。" },
+    { id: 2, name: "佐藤 美咲", dept: "生産技術部門", years: 8, bg: "機械出身", fields: ["治具", "3Dプリント"],
+      slots: 2, cap: 2, hours: "月1回30分（金曜午前）", msg: "治具づくりの最初の一歩から一緒に考えます。" },
+    { id: 3, name: "ワン リー", dept: "試作部門", years: 5, bg: "機械出身", fields: ["筐体", "3Dプリント"],
+      slots: 0, cap: 1, hours: "月1回30分", msg: "筐体の試作が専門です。" }
+  ],
+  reqs: [
+    { id: 1, makerId: 1, text: "基板づくりを始めたい。最初に何を作ればよいですか", status: "done",
+      mode: "オンライン", when: "12/3（水）14:00", step: "ブレッドボードでLチカ回路を作る", from: ME },
+    { id: 2, makerId: 2, text: "治具を自分で設計してみたい", status: "pending", from: "Aさん（製品開発部）" }
+  ]
+};
+
+function maker(id) { return state.makers.find(m => m.id === id); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function setRole(r) { state.role = r; state.tab = r === "seeker" ? "find" : "inbox"; render(); }
+
+function renderRoles() {
+  const items = [["seeker", "相談する人"], ["maker", "作り手"], ["boss", "直属の上司"]];
+  document.getElementById("roles").innerHTML = items.map(([k, t]) =>
+    `<button class="${state.role === k ? "on" : ""}" onclick="setRole('${k}')">${t}</button>`).join("");
+}
+
+function tabs(list) {
+  return `<div class="tabs">${list.map(([k, t]) =>
+    `<button class="${state.tab === k ? "on" : ""}" onclick="state.tab='${k}';state.target=null;render()">${t}</button>`).join("")}</div>`;
+}
+
+function makerCard(m, withBtn) {
+  const full = m.slots <= 0;
+  return `<div class="card">
+    <h3>${esc(m.name)}</h3>
+    <div class="meta">${esc(m.dept)}・経験${m.years}年・${esc(m.bg)}</div>
+    <div>${m.fields.map(f => `<span class="tag">${esc(f)}</span>`).join("")}</div>
+    <div style="margin:4px 0">${esc(m.msg)}</div>
+    <div class="meta">相談に乗れる時間：${esc(m.hours)}<br>
+      今月の残り枠：<b class="${full ? "warn" : "ok"}">${m.slots} / ${m.cap}</b></div>
+    ${withBtn ? `<div style="margin-top:8px"><button class="sub" onclick="pick(${m.id})">${full ? "この人に相談（枠なし・紹介を依頼）" : "この人に相談したい"}</button></div>` : ""}
+  </div>`;
+}
+
+function pick(id) { state.target = id; render(); }
+
+function viewFind() {
+  if (state.target) {
+    const m = maker(state.target);
+    return `<h2>相談したいことを一行で</h2>${makerCard(m, false)}
+      <input id="oneLine" maxlength="60" placeholder="例：基板づくりを始めたい。何から作ればよい？">
+      <div class="note">内容と相手は、あなたと作り手だけが見られます。直属の上司には知らされません。相談は練習や行動の相談です（異動の相談は人事の窓口へ）。</div>
+      <button class="main" onclick="apply()">30分の相談を申し込む</button>
+      <button class="sub" style="margin-top:8px" onclick="state.target=null;render()">一覧にもどる</button>`;
+  }
+  const chips = ["すべて", ...FIELDS].map(f =>
+    `<button class="chip ${state.filter === f ? "on" : ""}" onclick="state.filter='${f}';render()">${f}</button>`).join("");
+  const list = state.makers.filter(m => state.filter === "すべて" || m.fields.includes(state.filter));
+  return `<h2>分野から作り手を選ぶ</h2><div class="chips">${chips}</div>` +
+    (list.length ? list.map(m => makerCard(m, true)).join("") : `<div class="empty">この分野の作り手はまだいません</div>`);
+}
+
+function apply() {
+  const text = document.getElementById("oneLine").value.trim();
+  if (!text) { alert("相談したいことを一行書いてください"); return; }
+  state.reqs.push({ id: Date.now(), makerId: state.target, text, status: "pending", from: ME });
+  state.target = null; state.tab = "mine"; render();
+}
+
+function viewMine() {
+  const mine = state.reqs.filter(r => r.from === ME);
+  if (!mine.length) return `<div class="empty">まだ相談はありません</div>`;
+  return mine.map(r => {
+    const m = maker(r.makerId);
+    let body = "";
+    if (r.status === "pending") body = `<span class="status warn">返事を待っています</span>`;
+    if (r.status === "referred") {
+      const alt = maker(r.altId);
+      body = `<span class="status warn">${esc(m.name)}さんから別の作り手の紹介</span>
+        <div>${makerCard(alt, false)}</div>
+        <button class="sub" onclick="reapply(${r.id})">${esc(alt.name)}さんに申し込む</button>`;
+    }
+    if (r.status === "accepted") body = `<span class="status ok">承諾されました。日時を決めましょう</span>
+      <select id="mode${r.id}"><option>対面</option><option>オンライン</option></select>
+      <input id="when${r.id}" placeholder="日時（例：12/10（水）14:00）">
+      <button class="sub" onclick="schedule(${r.id})">日時を決める</button>`;
+    if (r.status === "scheduled") body = `<span class="status ok">30分の相談：${esc(r.when)}（${r.mode}）</span><br>
+      <button class="sub" onclick="finish(${r.id})">相談が終わった</button>`;
+    if (r.status === "done") body = `<span class="status ok">相談済み（${esc(r.when)}・${r.mode}）</span>` + stepBox(r);
+    return `<div class="card"><div class="meta">相手：${esc(m.name)}（${esc(m.dept)}）</div>
+      <div style="margin:4px 0">「${esc(r.text)}」</div>${body}</div>`;
+  }).join("");
+}
+
+function stepBox(r) {
+  if (r.step) return `<div class="note">次にやること：${esc(r.step)}<br><span class="meta">作り手にも共有されています</span></div>`;
+  return `<input id="step${r.id}" placeholder="次にやることを一行で（空でもOK）">
+    <button class="sub" onclick="setStep(${r.id})">次の一歩を共有する</button>`;
+}
+
+function reapply(id) {
+  const r = state.reqs.find(x => x.id === id);
+  r.makerId = r.altId; r.status = "pending"; render();
+}
+function schedule(id) {
+  const r = state.reqs.find(x => x.id === id);
+  const when = document.getElementById("when" + id).value.trim();
+  if (!when) { alert("日時を入力してください"); return; }
+  r.when = when; r.mode = document.getElementById("mode" + id).value; r.status = "scheduled";
+  maker(r.makerId).slots = Math.max(0, maker(r.makerId).slots - 1); render();
+}
+function finish(id) { state.reqs.find(x => x.id === id).status = "done"; render(); }
+function setStep(id) {
+  const v = document.getElementById("step" + id).value.trim();
+  if (!v) { alert("一行書いてください"); return; }
+  state.reqs.find(x => x.id === id).step = v; render();
+}
+
+function viewMakerInbox() {
+  const mid = 1; // この画面では田中さんとして操作
+  const list = state.reqs.filter(r => r.makerId === mid);
+  const others = state.makers.filter(m => m.id !== mid);
+  let html = `<div class="note">田中 健さん（試作部門）として表示しています。</div>`;
+  if (!list.length) return html + `<div class="empty">届いた申込はありません</div>`;
+  html += list.map(r => {
+    let act = "";
+    if (r.status === "pending") act = `<button class="sub" onclick="accept(${r.id})">承諾する</button>
+      <select id="alt${r.id}">${others.map(m => `<option value="${m.id}">${esc(m.name)}（${esc(m.dept)}）</option>`).join("")}</select>
+      <button class="sub" onclick="refer(${r.id})">この人を紹介する</button>`;
+    else if (r.status === "accepted") act = `<span class="status ok">承諾済み（日時の返事待ち）</span>`;
+    else if (r.status === "referred") act = `<span class="status warn">別の作り手を紹介しました</span>`;
+    else if (r.status === "scheduled") act = `<span class="status ok">${esc(r.when)}（${r.mode}）</span>`;
+    else if (r.status === "done") act = `<span class="status ok">相談済み</span>` + (r.step ? `<div class="note">共有された次の一歩：${esc(r.step)}<br><span class="meta">次の相談のきっかけにできます</span></div>` : "");
+    return `<div class="card"><div class="meta">${esc(r.from)} から</div>
+      <div style="margin:4px 0">「${esc(r.text)}」</div>${act}</div>`;
+  }).join("");
+  return html;
+}
+function accept(id) { state.reqs.find(x => x.id === id).status = "accepted"; render(); }
+function refer(id) {
+  const r = state.reqs.find(x => x.id === id);
+  r.altId = Number(document.getElementById("alt" + id).value); r.status = "referred"; render();
+}
+
+function viewMakerReg() {
+  return `<h2>相談に乗れる作り手として登録</h2>
+    <input id="rName" placeholder="お名前">
+    <input id="rDept" placeholder="所属部署（例：試作部門）">
+    <div class="meta">得意な分野（複数選べます）</div>
+    <div class="chips" id="rFields">${FIELDS.map(f => `<button class="chip" onclick="this.classList.toggle('on')">${f}</button>`).join("")}</div>
+    <input id="rHours" placeholder="相談に乗れる時間（例：月1回30分）">
+    <input id="rMsg" placeholder="ひとこと（例：毎日基板を作っています）">
+    <label class="meta">月の相談件数の上限</label>
+    <select id="rCap"><option>1</option><option selected>2</option><option>3</option></select>
+    <button class="main" onclick="register()">登録する</button>`;
+}
+function register() {
+  const name = document.getElementById("rName").value.trim();
+  const fields = [...document.querySelectorAll("#rFields .on")].map(b => b.textContent);
+  if (!name || !fields.length) { alert("お名前と得意な分野を入れてください"); return; }
+  const cap = Number(document.getElementById("rCap").value);
+  state.makers.push({ id: Date.now(), name, dept: document.getElementById("rDept").value || "（未入力）",
+    years: "-", bg: "登録したばかり", fields, slots: cap, cap,
+    hours: document.getElementById("rHours").value || "未設定", msg: document.getElementById("rMsg").value || "" });
+  state.tab = "inbox"; state.role = "seeker"; state.filter = "すべて"; state.tab = "find"; render();
+}
+
+function viewBoss() {
+  const n = state.reqs.length;
+  return `<div class="card"><h3>部門の相談（上司ビュー）</h3>
+    <div class="note">ものづくり相談の内容と相手は、本人と作り手だけが見られます。ここには表示されません。</div>
+    <div class="meta">表示される情報：この仕組みが社内にあること（部門長への説明用）のみ。<br>
+    ※ 実際の件数 ${n} 件の内訳は、上司には見えません。</div></div>`;
+}
+
+function render() {
+  renderRoles();
+  let html = "";
+  if (state.role === "seeker") {
+    html = tabs([["find", "作り手を探す"], ["mine", "自分の相談"]]) + (state.tab === "mine" ? viewMine() : viewFind());
+  } else if (state.role === "maker") {
+    html = tabs([["inbox", "届いた申込"], ["reg", "作り手の登録"]]) + (state.tab === "reg" ? viewMakerReg() : viewMakerInbox());
+  } else {
+    html = viewBoss();
+  }
+  if (!state.makers.length && state.role === "seeker") html += `<div class="empty">作り手がいません。「サンプルを読み込む」を押すか、作り手として登録してください。</div>`;
+  document.getElementById("view").innerHTML = html;
+}
+
+document.getElementById("sampleBtn").onclick = () => {
+  state.makers = JSON.parse(JSON.stringify(SAMPLE.makers));
+  state.reqs = JSON.parse(JSON.stringify(SAMPLE.reqs));
+  state.target = null; state.filter = "すべて"; render();
+};
+render();
+</script>
+</body>
+</html>

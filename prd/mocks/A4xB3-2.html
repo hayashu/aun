@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>経緯たどりシート A4xB3-2</title>
+<style>
+:root {
+  --bg: #f6f6f3; --card: #ffffff; --text: #222; --sub: #666; --line: #ddd;
+  --b: #2563a8; --b-bg: #e4eefa; --j: #b85c00; --j-bg: #fdeedd;
+  --hit: #fff6c9; --mark: #c0392b; --ok: #2e7d4f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a; --card: #222427; --text: #eee; --sub: #a0a0a0; --line: #3a3d41;
+    --b: #7db4f0; --b-bg: #1f3248; --j: #f0a860; --j-bg: #44301a;
+    --hit: #4a4320; --mark: #ff8a7a; --ok: #6fcf97;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+.wrap { max-width: 420px; margin: 0 auto; padding: 0 16px 40px; }
+header { padding: 12px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 10px 0; }
+h2 { font-size: 14px; margin: 0 0 6px; }
+.note { color: var(--sub); font-size: 12px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button, select, input, textarea { font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+textarea, input[type=text] { width: 100%; }
+button { cursor: pointer; }
+button.primary { background: var(--b); color: #fff; border-color: var(--b); }
+.roles { display: flex; gap: 8px; }
+.roles button { flex: 1; }
+.roles button.on.b { background: var(--b-bg); border-color: var(--b); color: var(--b); font-weight: 700; }
+.roles button.on.j { background: var(--j-bg); border-color: var(--j); color: var(--j); font-weight: 700; }
+.tabs { display: flex; gap: 6px; margin: 10px 0; }
+.tabs button { flex: 1; }
+.tabs button.on { border-color: var(--text); font-weight: 700; }
+.day { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; background: var(--card); }
+.day.hit { background: var(--hit); }
+.dh { display: flex; justify-content: space-between; padding: 4px 10px; font-size: 12px;
+  color: var(--sub); border-bottom: 1px dashed var(--line); }
+.dh b { color: var(--text); }
+.flag { color: var(--mark); font-weight: 700; }
+.plan { color: var(--ok); font-weight: 700; }
+.ev { display: flex; gap: 6px; padding: 6px 10px; align-items: flex-start; }
+.ev .who { font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 6px; white-space: nowrap; }
+.ev.b .who { background: var(--b-bg); color: var(--b); }
+.ev.j .who { background: var(--j-bg); color: var(--j); }
+.ev .txt { flex: 1; word-break: break-word; }
+.ev .kind { font-size: 11px; color: var(--sub); display: block; }
+.ev .del { padding: 0 6px; font-size: 12px; }
+.empty { padding: 4px 10px; color: var(--sub); font-size: 12px; }
+.chip { font-size: 12px; padding: 3px 8px; border-radius: 12px; }
+.sum li { margin: 2px 0; }
+.opts button.sel { border-color: var(--ok); color: var(--ok); font-weight: 700; }
+.hide { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>遅れた仕事の経緯たどりシート</h1>
+    <small>A4xB3-2 / モック（2人だけが見る想定・責任の欄はありません）</small>
+  </header>
+
+  <div class="card">
+    <div class="note">いま操作する人</div>
+    <div class="roles" id="roles"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="load">サンプルを読み込む</button>
+      <button id="clear">空にする</button>
+    </div>
+  </div>
+
+  <div class="card" id="job"></div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <section id="vTimeline">
+    <div class="card" id="guide"></div>
+    <div class="card" id="form"></div>
+    <div id="summary"></div>
+    <div id="days"></div>
+  </section>
+
+  <section id="vNext" class="hide">
+    <div class="card">
+      <h2>次の仕事で変えることを一つだけ</h2>
+      <div class="note">誰が悪いかは決めません。次にやることを一つだけ、2人で決めます。</div>
+      <div id="examples" class="row" style="margin:8px 0"></div>
+      <textarea id="nextText" rows="3" placeholder="例: 別の仕事を頼むときは、元の仕事の締め切りを一緒に見直す"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="saveNext">この内容で決める</button>
+        <span class="note" id="nextState"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>このモックの感想（確かめたいこと）</h2>
+      <div id="qs"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const DAYS = ["10/6(月)","10/7(火)","10/8(水)","10/9(木)","10/10(金)",
+              "10/13(火)","10/14(火)","10/15(水)","10/16(木)","10/17(金)"];
+const PLAN_END = 4; // 予定は1週間（10/10まで）
+const KINDS = {
+  b: ["作業を進めた", "予定より時間がかかった"],
+  j: ["別の仕事を頼んだ", "情報が遅れて届いた", "方針を変えた", "その他の出来事"]
+};
+const EXAMPLES_J = ["別の仕事を頼んだ（資料作成など）", "他部署からの情報が遅れて届いた", "途中で方針や仕様を変えた"];
+const NEXT_EXAMPLES = ["別の仕事を頼むときは、元の仕事の締め切りを一緒に見直す",
+  "届く予定の情報は、前日に届いているか2人で確認する",
+  "着手3日目に、進み具合を5分だけ話す"];
+const QS = ["遅れ始めた時点の重なりが、ひと目でわかった",
+  "自分だけのせいではなかったと感じられた（部下として）",
+  "責められている感じがしなかった（上司として）"];
+const SAMPLE = [
+  {d:0, r:"b", k:"作業を進めた", t:"評価資料の構成を決めた"},
+  {d:1, r:"b", k:"作業を進めた", t:"評価データの整理を開始"},
+  {d:2, r:"b", k:"予定より時間がかかった", t:"評価表の項目整理が想定より時間がかかった"},
+  {d:2, r:"j", k:"別の仕事を頼んだ", t:"部会向けの別資料を依頼（1回目）"},
+  {d:3, r:"j", k:"情報が遅れて届いた", t:"機械側の測定データが届かない（結果4日遅れ）"},
+  {d:3, r:"b", k:"予定より時間がかかった", t:"グラフ作成を想定の倍の時間かけた"},
+  {d:4, r:"b", k:"作業を進めた", t:"ドラフトは7割まで。予定日には終わらず"},
+  {d:5, r:"j", k:"情報が遅れて届いた", t:"測定データがようやく届いた"},
+  {d:6, r:"j", k:"別の仕事を頼んだ", t:"別の資料作成を依頼（2回目）"},
+  {d:7, r:"b", k:"作業を進めた", t:"届いたデータを反映してやり直し"},
+  {d:9, r:"b", k:"作業を進めた", t:"評価資料を提出（予定の2倍の2週間）"}
+];
+let S = load() || {role:"b", events:[], next:"", tab:"t", ans:{}};
+function load() { try { return JSON.parse(sessionStorage.getItem("a4b32")); } catch (e) { return null; } }
+function save() { sessionStorage.setItem("a4b32", JSON.stringify(S)); }
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const roleName = r => r === "b" ? "部下（Bさん）" : "上司（課長）";
+
+function delayDay() {
+  const hit = S.events.filter(e => e.r === "b" && e.k === "予定より時間がかかった")
+    .map(e => e.d);
+  if (hit.length) return Math.min(...hit);
+  return S.events.length ? PLAN_END + 1 : -1;
+}
+function inWindow(d, dd) { return dd >= 0 && Math.abs(d - dd) <= 1; }
+
+function renderTop() {
+  $("roles").innerHTML = ["b","j"].map(r =>
+    `<button class="${r} ${S.role===r?"on":""}" data-r="${r}">${roleName(r)}</button>`).join("");
+  $("job").innerHTML = `<h2>仕事: 製品評価資料の作成</h2>
+    <div class="note">予定: 1週間（10/6〜10/10） / 実際: 10/17まで（約2週間）<br>
+    最初の15分で、2人が知っていることを日付に書き足していきます。</div>`;
+  $("tabs").innerHTML = [["t","1. 時間軸"],["n","2. 次の対策"]].map(([k,l]) =>
+    `<button class="${S.tab===k?"on":""}" data-t="${k}">${l}</button>`).join("");
+  $("vTimeline").classList.toggle("hide", S.tab !== "t");
+  $("vNext").classList.toggle("hide", S.tab !== "n");
+}
+
+function renderForm() {
+  const j = S.role === "j";
+  const mine = S.events.filter(e => e.r === S.role).length;
+  $("guide").innerHTML = j
+    ? `<h2>上司が書くこと</h2><div class="note">その期間に頼んだことや、届いた情報を思い出して書きます。例:</div>
+       <ul class="note" style="margin:4px 0 0;padding-left:18px">${EXAMPLES_J.map(x=>`<li>${x}</li>`).join("")}</ul>
+       ${mine ? "" : `<div class="note" style="margin-top:6px">まだ上司の書き込みはありません。</div>`}`
+    : `<h2>部下が書くこと</h2><div class="note">作業の進み具合と、時間がかかった作業を日付に書きます。</div>`;
+  $("form").innerHTML = `<div class="row">
+      <select id="fd">${DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join("")}</select>
+      <select id="fk">${KINDS[S.role].map(k=>`<option>${k}</option>`).join("")}</select>
+    </div>
+    <input type="text" id="ft" placeholder="${roleName(S.role)}として知っていること" style="margin:8px 0">
+    <button class="primary" id="add">日付に書き込む</button>`;
+}
+
+function renderSummary() {
+  const dd = delayDay();
+  if (dd < 0) { $("summary").innerHTML = ""; return; }
+  const near = S.events.filter(e => inWindow(e.d, dd));
+  const cnt = {};
+  near.forEach(e => { const k = e.r === "b" ? "部下の作業" : e.k; cnt[k] = (cnt[k] || 0) + 1; });
+  const li = Object.keys(cnt).map(k => `<li>${k}: ${cnt[k]}件</li>`).join("");
+  $("summary").innerHTML = `<div class="card"><h2>重なりの表示</h2>
+    <div class="note"><span class="flag">遅れ始め: ${DAYS[dd]}</span>（前後1営業日を黄色で強調）</div>
+    <ul class="sum" style="margin:6px 0 0;padding-left:18px">${li || "<li>この前後の書き込みはまだありません</li>"}</ul>
+    <div class="note" style="margin-top:6px">件数は目安です。原因の割合や責任は示しません。</div></div>`;
+}
+
+function renderDays() {
+  const dd = delayDay();
+  $("days").innerHTML = DAYS.map((label, i) => {
+    const evs = S.events.map((e, idx) => ({...e, idx})).filter(e => e.d === i);
+    const marks = (i === PLAN_END ? `<span class="plan">予定の終わり</span> ` : "")
+      + (i === dd ? `<span class="flag">▼遅れ始め</span>` : "");
+    const body = evs.length ? evs.map(e => `<div class="ev ${e.r}">
+        <span class="who">${e.r==="b"?"部下":"上司"}</span>
+        <span class="txt"><span class="kind">${e.k}</span>${esc(e.t)}</span>
+        ${e.r===S.role?`<button class="del" data-del="${e.idx}" aria-label="削除">×</button>`:""}
+      </div>`).join("") : `<div class="empty">書き込みなし</div>`;
+    return `<div class="day ${inWindow(i, dd)?"hit":""}">
+      <div class="dh"><b>${label}</b><span>${marks}</span></div>${body}</div>`;
+  }).join("");
+}
+
+function renderNext() {
+  $("examples").innerHTML = NEXT_EXAMPLES.map((x,i) =>
+    `<button class="chip" data-ex="${i}">${esc(x)}</button>`).join("");
+  $("nextText").value = S.next;
+  $("nextState").textContent = S.next ? "決定済み（変更できます）" : "";
+  $("qs").innerHTML = QS.map((q,i) => `<div style="margin-bottom:8px"><div>${q}</div>
+    <div class="opts row">${["そう思う","どちらでもない","そう思わない"].map(a =>
+      `<button class="${S.ans[i]===a?"sel":""}" data-q="${i}" data-a="${a}">${a}</button>`).join("")}</div></div>`).join("");
+}
+
+function render() { renderTop(); renderForm(); renderSummary(); renderDays(); renderNext(); save(); }
+
+document.addEventListener("click", ev => {
+  const t = ev.target.closest("button"); if (!t) return;
+  if (t.dataset.r) S.role = t.dataset.r;
+  else if (t.dataset.t) S.tab = t.dataset.t;
+  else if (t.id === "add") {
+    const txt = $("ft").value.trim(); if (!txt) return;
+    S.events.push({d:+$("fd").value, r:S.role, k:$("fk").value, t:txt});
+  }
+  else if (t.dataset.del) S.events.splice(+t.dataset.del, 1);
+  else if (t.id === "load") S.events = JSON.parse(JSON.stringify(SAMPLE));
+  else if (t.id === "clear") { S.events = []; S.next = ""; S.ans = {}; }
+  else if (t.dataset.ex) $("nextText").value = NEXT_EXAMPLES[+t.dataset.ex];
+  else if (t.id === "saveNext") S.next = $("nextText").value.trim();
+  else if (t.dataset.q) S.ans[t.dataset.q] = t.dataset.a;
+  else return;
+  const keep = t.dataset.ex ? $("nextText").value : null;
+  render();
+  if (keep !== null) $("nextText").value = keep;
+});
+render();
+</script>
+</body>
+</html>

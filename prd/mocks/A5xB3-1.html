@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ミニプロジェクト練習帳 (A5xB3-1)</title>
+<style>
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --text: #22282a; --sub: #667073;
+  --line: #dde1dc; --accent: #2f7d6d; --accent-text: #ffffff; --soft: #e4f1ed; --warn: #b4651e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161a1b; --card: #202627; --text: #e6eae8; --sub: #98a3a5;
+    --line: #333c3e; --accent: #5cb9a6; --accent-text: #102420; --soft: #1f3330; --warn: #e0a15f;
+  }
+  .card, input, textarea, select { background: #202627; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 16px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 420px; margin: 0 auto; }
+nav { display: flex; gap: 4px; margin-bottom: 12px; }
+nav button { flex: 1; padding: 8px 2px; font-size: 13px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; }
+nav button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 8px 0 2px; }
+input, textarea, select { width: 100%; padding: 8px; font: inherit; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--card); }
+textarea { min-height: 60px; }
+button.main { width: 100%; padding: 10px; margin-top: 10px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; }
+button.sub { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; }
+.note { font-size: 12px; color: var(--sub); }
+.chip { display: inline-block; padding: 4px 10px; margin: 0 6px 6px 0; border: 1px solid var(--line); border-radius: 16px; font-size: 13px; background: transparent; color: var(--text); }
+.chip.on { background: var(--soft); border-color: var(--accent); }
+.ms { border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 8px; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; min-width: 0; }
+.bar { height: 8px; background: var(--soft); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.habit { border-left: 4px solid var(--warn); padding: 4px 10px; margin: 8px 0; }
+.log { font-size: 13px; padding: 2px 0; }
+.timer { float: right; font-size: 12px; color: var(--sub); }
+</style>
+</head>
+<body>
+<header>
+  <h1>ミニプロジェクト練習帳 <small>A5xB3-1</small></h1>
+  <small>業務の外で、2週間で一周。自分のための練習です。評価・提出はありません。</small>
+</header>
+<main>
+  <nav id="nav"></nav>
+  <div id="view"></div>
+</main>
+<script>
+const TOPICS = ["個人のものづくり", "資格の勉強の一章", "自宅の片付け", "料理の練習"];
+const EXAMPLE = "例：「3日で調べる→5日で作る→3日で直す→3日で仕上げる」のように、最初の区切りを小さくする";
+const SAMPLE_PAST = [
+  { topic: "自宅の片付け", goal: "クローゼットを空にして整理する", reviewed: true, revised: false,
+    ms: [{ t: "全部出す", plan: 3, act: 6 }, { t: "仕分け", plan: 7, act: 9 }, { t: "収納", plan: 14, act: 15 }],
+    next: "最初の区切りを半分の量にする" },
+  { topic: "資格の勉強の一章", goal: "第3章の問題を全部解く", reviewed: true, revised: false,
+    ms: [{ t: "読む", plan: 4, act: 7 }, { t: "問題前半", plan: 9, act: 11 }, { t: "問題後半", plan: 14, act: 14 }],
+    next: "途中で一度、日付を見直す日を決める" }
+];
+const SAMPLE_NOW = { topic: "料理の練習", goal: "週末に作れる煮込み料理を3品覚える", reviewed: false, revised: false,
+  ms: [{ t: "レシピ選び", plan: 3, basis: "3品決まっている", act: "" },
+       { t: "1品目を作る", plan: 7, basis: "写真が撮れている", act: "" },
+       { t: "2品目を作る", plan: 11, basis: "写真が撮れている", act: "" },
+       { t: "3品目を作る", plan: 14, basis: "写真が撮れている", act: "" }],
+  logs: [{ d: 1, s: "レシピを5つ候補に絞った" }, { d: 2, s: "材料を買った" }, { d: 4, s: "候補を3つに決めた（少し遅れた）" }] };
+let S = JSON.parse(localStorage.getItem("a5b31") || "null") || { past: [], now: null, tab: "setup", start: null };
+const save = () => localStorage.setItem("a5b31", JSON.stringify(S));
+const $ = (h) => { const d = document.createElement("div"); d.innerHTML = h; return d; };
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const TABS = [["setup", "1 準備"], ["daily", "2 毎日"], ["review", "3 振り返り"], ["habit", "4 癖と業務"]];
+
+function render() {
+  const nav = document.getElementById("nav");
+  nav.innerHTML = TABS.map(([k, v]) => `<button class="${S.tab === k ? "on" : ""}" onclick="go('${k}')">${v}</button>`).join("");
+  const v = document.getElementById("view");
+  v.innerHTML = "";
+  v.append(S.tab === "setup" ? setupView() : S.tab === "daily" ? dailyView() : S.tab === "review" ? reviewView() : habitView());
+}
+function go(t) { S.tab = t; save(); render(); }
+function loadSample() {
+  S.past = JSON.parse(JSON.stringify(SAMPLE_PAST));
+  S.now = JSON.parse(JSON.stringify(SAMPLE_NOW));
+  S.start = Date.now(); save(); render();
+}
+function resetAll() { localStorage.removeItem("a5b31"); S = { past: [], now: null, tab: "setup", start: null }; render(); }
+
+function setupView() {
+  const n = S.now || { topic: "", goal: "", ms: [] };
+  const el = $(`
+    <div class="card"><button class="sub" onclick="loadSample()">サンプルを読み込む</button>
+      <button class="sub" onclick="resetAll()">空にする</button>
+      <p class="note">練習は希望する人だけが行うものです。業務の評価には関係しません。業務とは関係ない題材を選ぶのがおすすめです。</p></div>
+    <div class="card"><h2>題材を選ぶ <span class="timer" id="tm"></span></h2>
+      ${TOPICS.map((t) => `<button class="chip ${n.topic === t ? "on" : ""}" onclick="pick('${t}')">${t}</button>`).join("")}
+      <label>ゴール（一文で）</label>
+      <input id="goal" value="${esc(n.goal)}" placeholder="2週間後にどうなっていたいか">
+    </div>
+    <div class="card"><h2>区切りに分ける（3〜4個）</h2>
+      <p class="note">${EXAMPLE}</p>
+      <div id="mslist"></div>
+      <button class="sub" onclick="addMs()">＋ 区切りを足す</button>
+      <button class="main" onclick="startProj()">この計画で2週間を始める</button>
+      <p class="note" id="msg"></p>
+    </div>`);
+  setTimeout(() => { drawMs(); tick(); }, 0);
+  return el;
+}
+function pick(t) { S.now = S.now || { goal: "", ms: [], logs: [] }; S.now.topic = t; if (!S.start) S.start = Date.now(); keepGoal(); save(); render(); }
+function keepGoal() { const g = document.getElementById("goal"); if (g && S.now) S.now.goal = g.value; }
+function drawMs() {
+  const box = document.getElementById("mslist"); if (!box) return;
+  S.now = S.now || { topic: "", goal: "", ms: [], logs: [] };
+  if (!S.now.ms.length) S.now.ms = [{ t: "", plan: "", basis: "", act: "" }, { t: "", plan: "", basis: "", act: "" }, { t: "", plan: "", basis: "", act: "" }];
+  box.innerHTML = S.now.ms.map((m, i) => `<div class="ms"><b>区切り ${i + 1}</b>
+    <input value="${esc(m.t)}" placeholder="区切りの名前" oninput="S.now.ms[${i}].t=this.value">
+    <div class="row"><div><label>終わった基準</label><input value="${esc(m.basis)}" placeholder="何ができたら終わり？" oninput="S.now.ms[${i}].basis=this.value"></div>
+    <div><label>予定日（何日目）</label><input type="number" min="1" max="14" value="${esc(m.plan)}" oninput="S.now.ms[${i}].plan=+this.value"></div></div></div>`).join("");
+}
+function addMs() { keepGoal(); if (S.now.ms.length < 4) S.now.ms.push({ t: "", plan: "", basis: "", act: "" }); save(); drawMs(); }
+function tick() {
+  const t = document.getElementById("tm"); if (!t) return;
+  if (S.start) { const s = Math.floor((Date.now() - S.start) / 1000); t.textContent = `経過 ${Math.floor(s / 60)}分${s % 60}秒（目安10分）`; }
+  setTimeout(tick, 1000);
+}
+function startProj() {
+  keepGoal();
+  const n = S.now; const ok = n && n.topic && n.goal && n.ms.filter((m) => m.t && m.plan).length >= 3;
+  const msg = document.getElementById("msg");
+  if (!ok) { msg.textContent = "題材・ゴール・区切り3つ以上（名前と予定日）を入れてください。"; return; }
+  n.ms = n.ms.filter((m) => m.t && m.plan); n.logs = n.logs || [];
+  const s = Math.round((Date.now() - S.start) / 60000 * 10) / 10;
+  n.setupMin = s; save();
+  msg.textContent = `準備にかかった時間：${s}分。毎日の一言へ進みます。`;
+  setTimeout(() => go("daily"), 900);
+}
+
+function dailyView() {
+  if (!S.now || !S.now.logs) return $(`<div class="card">先に「準備」で計画を作るか、サンプルを読み込んでください。</div>`);
+  const n = S.now;
+  const days = new Set(n.logs.map((l) => l.d)).size;
+  return $(`<div class="card"><h2>${esc(n.topic)}：${esc(n.goal)}</h2>
+      <div class="bar"><i style="width:${Math.round(days / 14 * 100)}%"></i></div>
+      <p class="note">一言を書いた日：${days} / 14 日（書けない日があっても大丈夫です）</p>
+      <div class="row"><input id="dd" type="number" min="1" max="14" placeholder="何日目" style="max-width:90px">
+      <input id="ds" placeholder="今日進んだことを一行"></div>
+      <button class="main" onclick="addLog()">書く</button></div>
+    <div class="card">${n.logs.slice().sort((a, b) => b.d - a.d).map((l) => `<div class="log"><b>${l.d}日目</b> ${esc(l.s)}</div>`).join("") || "まだありません"}</div>
+    <div class="card"><h2>区切りの見直し</h2><p class="note">途中で日付を直してもかまいません。</p>
+      <button class="sub" onclick="reviseMs()">区切りの日付を見直した</button> ${n.revised ? "<span class='note'>記録しました</span>" : ""}</div>`);
+}
+function addLog() {
+  const d = +document.getElementById("dd").value, s = document.getElementById("ds").value.trim();
+  if (!d || !s) return; S.now.logs.push({ d, s }); save(); render();
+}
+function reviseMs() { S.now.revised = true; save(); render(); }
+
+function reviewView() {
+  if (!S.now || !S.now.ms.length || !S.now.logs) return $(`<div class="card">先に計画を作るか、サンプルを読み込んでください。</div>`);
+  const n = S.now;
+  if (n.reviewed) return $(`<div class="card"><h2>振り返りは済んでいます</h2><p>次に変えること：${esc(n.next)}</p><button class="main" onclick="go('habit')">計画の癖を見る</button></div>`);
+  return $(`<div class="card"><h2>振り返り（3つの問い）</h2>
+    <label>問1 ゴールに届いたか</label>
+    <select id="q1"><option>届いた</option><option>だいたい届いた</option><option>届かなかった</option></select>
+    <label>問2 どの区切りで予定とずれたか（実際に終わった日を入れる）</label>
+    ${n.ms.map((m, i) => `<div class="row"><div style="padding-top:8px">${esc(m.t)}（予定${m.plan}日目）</div>
+      <input type="number" min="1" max="30" placeholder="実際の日" value="${esc(m.act)}" oninput="S.now.ms[${i}].act=+this.value"></div>`).join("")}
+    <label>問3 次に変えること（必ず一つ書いて終わります）</label>
+    <textarea id="q3" placeholder="例：最初の区切りを半分の量にする"></textarea>
+    <button class="main" onclick="finishReview()">振り返りを終える</button>
+    <p class="note" id="rmsg">ずれは失敗ではなく、次の計画の材料です。</p></div>`);
+}
+function finishReview() {
+  const n = S.now, q3 = document.getElementById("q3").value.trim();
+  if (!q3 || n.ms.some((m) => !m.act)) { document.getElementById("rmsg").textContent = "実際の日と「次に変えること」を入れてください。"; return; }
+  n.next = q3; n.reviewed = true; save(); go("habit");
+}
+
+function habits() {
+  const all = S.past.concat(S.now && S.now.reviewed ? [S.now] : []);
+  const out = [];
+  if (all.length < 2) return { all, out };
+  const gap = (m) => m.act - m.plan;
+  const firstBig = all.filter((p) => gap(p.ms[0]) >= 2).length;
+  if (firstBig >= 2) out.push(`最初の区切りが大きすぎる（${all.length}回中${firstBig}回、最初の区切りが2日以上ずれた）`);
+  const norev = all.filter((p) => !p.revised).length;
+  if (norev >= 2) out.push(`途中で区切りを見直さない（${all.length}回中${norev}回、見直しの記録なし）`);
+  return { all, out };
+}
+function habitView() {
+  const { all, out } = habits();
+  if (all.length < 2) return $(`<div class="card">振り返りが済んだミニプロジェクトが2つ以上たまると、癖が見えます。いまは${all.length}つです。サンプルを読み込んで、振り返りまで進めてみてください。</div>`);
+  return $(`<div class="card"><h2>計画の癖（${all.length}周分）</h2>
+      <p class="note">点数ではなく、傾向のメモです。</p>
+      ${out.map((h) => `<div class="habit">${esc(h)}</div>`).join("") || "<p>はっきりした癖は、まだ見えていません。</p>"}
+      <h2 style="margin-top:12px">これまでの「次に変えること」</h2>
+      ${all.map((p) => `<div class="log">${esc(p.topic)}：${esc(p.next)}</div>`).join("")}</div>
+    <div class="card"><h2>業務への持ち込み</h2>
+      <p class="note">業務の仕事を受けたときに見返すメモです。</p>
+      <label>いま受けそうな業務の仕事を一言で</label>
+      <input id="work" placeholder="例：新しい試験治具の設計" oninput="document.getElementById('ask').hidden=!this.value">
+      <div id="ask" hidden>
+        ${out.map((h) => `<div class="habit">${esc(h.split("（")[0])}：この仕事でも、最初の区切りを小さくできますか。途中で見直す日をいつにしますか。</div>`).join("")}
+        <p>問い：練習で見つけた癖は、この仕事のどの場面に当てはまりそうですか。</p>
+        <textarea placeholder="次はこう変えてみる（自分用のメモ）"></textarea></div></div>`);
+}
+render();
+</script>
+</body>
+</html>

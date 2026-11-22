@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>毎朝2分の朝会 モック A3xB3-3</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #6b7785;
+  --line: #dde2e8; --accent: #2f6fb5; --accent-bg: #e6f0fa;
+  --warn: #b4531a; --warn-bg: #fdf0e6; --ok: #2b7a4b; --ok-bg: #e5f4ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6eaee; --sub: #98a4b0;
+    --line: #333c46; --accent: #6aa7e6; --accent-bg: #223548;
+    --warn: #f0a070; --warn-bg: #3a2a1e; --ok: #6cc590; --ok-bg: #1f3427;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+.wrap { max-width: 420px; margin: 0 auto; padding: 0 16px 48px; }
+header { padding: 12px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+button { font: inherit; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); cursor: pointer; }
+button.pri { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: .4; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 10px 0; }
+.card h2 { font-size: 14px; margin: 0 0 6px; }
+label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+input[type=text] { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--accent-bg); color: var(--accent); }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.tag.ok { background: var(--ok-bg); color: var(--ok); }
+.sub { color: var(--sub); font-size: 13px; }
+.clock { font-size: 40px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.clock.over { color: var(--warn); }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); }
+.bar.over > div { background: var(--warn); }
+.hidden { display: none; }
+.note { font-size: 12px; color: var(--sub); margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>毎朝2分で「昨日・今日・詰まり」を共有する朝会</h1>
+    <small>PRD A3xB3-3 / モック</small>
+  </header>
+  <div class="row" id="roles"></div>
+  <div class="row" style="margin-top:8px" id="tabs"></div>
+  <div class="row" style="margin-top:8px">
+    <button id="sample">サンプルを読み込む</button>
+    <button id="reset">空に戻す</button>
+  </div>
+  <main id="view"></main>
+  <p class="note">詰まりの数は個人別に集計せず、評価には使いません。進捗率も扱いません。</p>
+</div>
+
+<script>
+const MEMBERS = ["Aさん", "Bさん", "Cさん（先輩）", "Dさん（リーダー）"];
+const EXAMPLES = "例：情報待ち／やり方がわからない／判断待ち";
+const SAMPLE = {
+  entries: {
+    "Aさん": { y: "部品の仕様書を読んだ", t: "試験計画を書く", b: "購買の納期回答を1週間待っている（誰に聞くか不明）", silent: false },
+    "Bさん": { y: "ノイズ評価の準備", t: "評価の続き", b: "測定器の設定がわからず3日目", silent: true },
+    "Cさん（先輩）": { y: "レビュー対応", t: "設計変更の確認", b: "なし", silent: false },
+    "Dさん（リーダー）": { y: "部門会議", t: "予算資料", b: "なし", silent: false }
+  },
+  stuck: [
+    { id: 1, who: "Bさん", text: "測定器の設定がわからず3日目", days: 3, helpers: [], resolved: false },
+    { id: 2, who: "Aさん", text: "購買の納期回答を待っている", days: 1, helpers: [], resolved: false }
+  ]
+};
+const S = { role: MEMBERS[1], tab: "input", entries: {}, stuck: [], nextId: 10,
+  order: [], idx: 0, running: false, sec: 0, total: 0, fast: false, timer: null, started: false };
+
+function el(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function fmt(s) { return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); }
+
+function loadSample() {
+  S.entries = JSON.parse(JSON.stringify(SAMPLE.entries));
+  S.stuck = JSON.parse(JSON.stringify(SAMPLE.stuck));
+  resetMeeting();
+}
+function resetMeeting() {
+  clearInterval(S.timer);
+  Object.assign(S, { order: [], idx: 0, running: false, sec: 0, total: 0, started: false });
+}
+
+function renderNav() {
+  el("roles").innerHTML = MEMBERS.map(m =>
+    `<button class="${m === S.role ? "on" : ""}" data-role="${m}">${m}</button>`).join("");
+  const tabs = [["input", "① 一行入力"], ["meet", "② 朝会"], ["list", "③ 詰まり一覧"]];
+  el("tabs").innerHTML = tabs.map(([k, n]) =>
+    `<button class="${k === S.tab ? "pri" : ""}" data-tab="${k}">${n}</button>`).join("");
+}
+
+function viewInput() {
+  const e = S.entries[S.role] || { y: "", t: "", b: "", silent: false };
+  return `<div class="card"><h2>${esc(S.role)} の一行入力</h2>
+    <label>昨日やったこと</label><input type="text" id="iy" value="${esc(e.y)}">
+    <label>今日やること</label><input type="text" id="it" value="${esc(e.t)}">
+    <label>詰まっていること（なければ「なし」）</label>
+    <input type="text" id="ib" value="${esc(e.b)}" placeholder="${EXAMPLES}">
+    <label style="display:flex;gap:6px;align-items:center;color:var(--text)">
+      <input type="checkbox" id="is" ${e.silent ? "checked" : ""}> 詰まりは読み上げず、一覧に載せるだけにする</label>
+    <div class="row" style="margin-top:10px"><button class="pri" id="save">保存</button></div></div>
+    <div class="card"><h2>入力済み</h2>${MEMBERS.map(m =>
+      `<div class="sub">${esc(m)}：${S.entries[m] ? "入力済み" : "未入力"}</div>`).join("")}</div>`;
+}
+
+function saveInput() {
+  const b = el("ib").value.trim() || "なし";
+  S.entries[S.role] = { y: el("iy").value.trim(), t: el("it").value.trim(), b, silent: el("is").checked };
+  S.stuck = S.stuck.filter(s => !(s.who === S.role && s.fromEntry && !s.resolved));
+  if (b !== "なし") S.stuck.push({ id: S.nextId++, who: S.role, text: b, days: 0, helpers: [], resolved: false, fromEntry: true });
+  render();
+}
+
+function startMeeting() {
+  const names = MEMBERS.filter(m => S.entries[m]);
+  S.order = names.sort(() => Math.random() - 0.5);
+  Object.assign(S, { idx: 0, sec: 0, total: 0, started: true, running: false });
+  render();
+}
+
+function tick() {
+  const step = S.fast ? 20 : 1;
+  S.sec += step; S.total += step;
+  render();
+}
+function toggleClock() {
+  S.running = !S.running;
+  clearInterval(S.timer);
+  if (S.running) S.timer = setInterval(tick, 1000);
+  render();
+}
+function nextPerson() {
+  S.idx++; S.sec = 0;
+  if (S.idx >= S.order.length) { S.running = false; clearInterval(S.timer); }
+  render();
+}
+
+function helpBox(s) {
+  const done = s.helpers.map(h => `<div class="tag ok">${esc(h.name)} が手伝う → 朝会のあと ${esc(h.time)} から5分</div>`).join(" ");
+  const can = !s.resolved && s.who !== S.role && !s.helpers.some(h => h.name === S.role);
+  return `${done}${can ? `<div class="row" style="margin-top:6px">
+    <button class="pri" data-help="${s.id}">${esc(S.role)}：手伝える</button></div>` : ""}`;
+}
+
+function viewMeet() {
+  if (!S.started) {
+    const n = MEMBERS.filter(m => S.entries[m]).length;
+    return `<div class="card"><h2>進行の画面</h2>
+      <p class="sub">入力済み ${n} 人。順番は毎回ランダムに変わります。</p>
+      <button class="pri" id="start" ${n ? "" : "disabled"}>朝会を始める</button></div>`;
+  }
+  const budget = 600, over = S.total > budget;
+  const bar = `<div class="bar ${over ? "over" : ""}"><div style="width:${Math.min(100, S.total / budget * 100)}%"></div></div>
+    <div class="sub">全体 ${fmt(S.total)} / 10:00 ${over ? "（10分を超えました）" : ""}</div>`;
+  const ctl = `<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="fast" ${S.fast ? "checked" : ""}>
+    デモ速度（20倍）</label>`;
+  if (S.idx >= S.order.length) {
+    return `<div class="card"><h2>朝会おわり</h2>${bar}
+      <p>${over ? "10分を超えました。" : "10分以内に収まりました。"}議論は朝会のあとの5分で。</p>
+      <button id="again">もう一度（順番を変える）</button></div>${ctl}`;
+  }
+  const name = S.order[S.idx], e = S.entries[name], limit = 120;
+  const mine = S.stuck.filter(s => s.who === name && !s.resolved && s.text === e.b);
+  const stuckPart = e.b === "なし" ? `<p class="sub">詰まり：なし</p>`
+    : e.silent ? `<p class="sub">詰まりあり（本人の希望で読み上げず、一覧に載せました）</p>`
+    : `<p><b>詰まり：</b>${esc(e.b)}</p>${mine.map(helpBox).join("")}`;
+  return `<div class="card"><h2>${S.idx + 1} / ${S.order.length}人目：${esc(name)}</h2>
+    <div class="clock ${S.sec > limit ? "over" : ""}">${fmt(S.sec)}</div>
+    <div class="sub" style="text-align:center">1人2分 ${S.sec > limit ? "（超過）" : ""}</div>
+    <p><b>昨日：</b>${esc(e.y)}<br><b>今日：</b>${esc(e.t)}</p>${stuckPart}
+    <div class="row"><button id="clk">${S.running ? "一時停止" : "時計を動かす"}</button>
+    <button class="pri" id="next">次の人へ</button></div></div>
+    <div class="card">${bar}</div>${ctl}
+    <p class="sub">表示中の人を選んでいる視点：${esc(S.role)}。手伝える人は役割を切り替えて押してください。</p>`;
+}
+
+function viewList() {
+  const open = S.stuck.filter(s => !s.resolved), done = S.stuck.filter(s => s.resolved);
+  const item = s => `<div class="card"><div class="row"><b>${esc(s.who)}</b>
+    <span class="tag ${s.days >= 3 ? "warn" : ""}">${s.days}日目${s.days >= 3 ? "（3日以上）" : ""}</span></div>
+    <div>${esc(s.text)}</div>${helpBox(s)}
+    ${s.who === S.role && !s.resolved ? `<div class="row" style="margin-top:6px"><button data-done="${s.id}">解消</button></div>` : ""}</div>`;
+  return `<h2 style="font-size:14px;margin:14px 0 0">未解消 ${open.length}件</h2>
+    ${open.map(item).join("") || '<p class="sub">なし</p>'}
+    <h2 style="font-size:14px;margin:14px 0 0">解消済み ${done.length}件</h2>
+    ${done.map(s => `<div class="sub">${esc(s.who)}：${esc(s.text)}（解消）</div>`).join("")}`;
+}
+
+function render() {
+  renderNav();
+  const v = { input: viewInput, meet: viewMeet, list: viewList }[S.tab]();
+  const active = document.activeElement && document.activeElement.id;
+  el("view").innerHTML = v;
+  if (active && el(active) && el(active).type === "text") el(active).focus();
+}
+
+document.addEventListener("click", ev => {
+  const d = ev.target.dataset, id = ev.target.id;
+  if (d.role) { S.role = d.role; render(); }
+  else if (d.tab) { S.tab = d.tab; render(); }
+  else if (d.help) {
+    const s = S.stuck.find(x => x.id == d.help);
+    const times = ["9:30", "9:45", "10:00", "10:30"];
+    const taken = s.helpers.length;
+    s.helpers.push({ name: S.role, time: times[taken % times.length] });
+    render();
+  }
+  else if (d.done) { S.stuck.find(x => x.id == d.done).resolved = true; render(); }
+  else if (id === "sample") { loadSample(); render(); }
+  else if (id === "reset") { S.entries = {}; S.stuck = []; resetMeeting(); render(); }
+  else if (id === "save") saveInput();
+  else if (id === "start" || id === "again") startMeeting();
+  else if (id === "clk") toggleClock();
+  else if (id === "next") nextPerson();
+});
+document.addEventListener("change", ev => {
+  if (ev.target.id === "fast") { S.fast = ev.target.checked; render(); }
+});
+render();
+</script>
+</body>
+</html>

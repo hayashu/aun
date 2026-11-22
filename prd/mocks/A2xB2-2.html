@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>聞いてよかった質問リスト（A2xB2-2）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1f2933; --sub: #667085;
+  --line: #e1e5ea; --accent: #2f6fb5; --accent-bg: #e6f0fa; --ok: #2e7d5b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e8ebee; --sub: #9aa4b0;
+    --line: #333c46; --accent: #6aa7e6; --accent-bg: #23364a; --ok: #5cc79a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabs button { flex: 1; }
+button { font: inherit; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--text); }
+button.on, button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.mark.on { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 10px; }
+.q { font-weight: 600; margin: 0 0 4px; }
+.note { color: var(--sub); font-size: 13px; margin: 0 0 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.row button { font-size: 13px; padding: 6px 10px; }
+.tag { display: inline-block; font-size: 12px; background: var(--accent-bg);
+  color: var(--accent); border-radius: 10px; padding: 0 8px; margin-right: 4px; }
+input, select { width: 100%; font: inherit; padding: 8px; margin: 4px 0 10px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+label { font-size: 13px; color: var(--sub); }
+h2 { font-size: 14px; margin: 16px 0 8px; }
+.ok { color: var(--ok); }
+.hint { font-size: 12px; color: var(--sub); }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>聞いてよかった質問リスト <small>A2xB2-2</small></h1>
+</header>
+<main>
+  <div class="tabs">
+    <button id="tabJr" class="on">若手（Bさん）</button>
+    <button id="tabSr">先輩</button>
+  </div>
+  <button id="sample" style="width:100%;margin-bottom:12px">サンプルを読み込む</button>
+  <div id="view"></div>
+</main>
+<script>
+var role = 'jr';
+var seniors = [
+  { name: '田中先輩', field: '設計審査' },
+  { name: '佐藤先輩', field: '設計審査' },
+  { name: '鈴木先輩', field: '図面・規格' }
+];
+var questions = [];
+var requests = [];
+var proposals = [];
+var feel = { yes: 0, no: 0 };
+var timer = { start: null, last: null };
+var sending = null;
+
+var SAMPLE = [
+  { text: 'DR2って何の略ですか', field: '設計審査', by: '田中先輩', say: '僕も1年目に聞いた', me: 5 },
+  { text: '一般公差はどの規格を見ればいいですか', field: '図面・規格', by: '鈴木先輩', say: '毎年みんな聞く', me: 3 },
+  { text: 'DR3の提出期限は誰が決めますか', field: '設計審査', by: '佐藤先輩', say: '後輩によく聞かれる', me: 2 },
+  { text: '図面の改訂記号の読み方を教えてください', field: '図面・規格', by: '鈴木先輩', say: '僕も1年目に聞いた', me: 4 }
+];
+var SAYS = ['僕も1年目に聞いた', '毎年みんな聞く', '後輩によく聞かれる'];
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+function pendingOf(name) {
+  return requests.filter(function (r) { return r.to === name && !r.done; }).length;
+}
+
+function renderJr() {
+  var h = '<p class="note">答えは載っていません。先輩も昔聞いた質問です。聞いてかまいません。</p>';
+  h += '<div class="card"><b>この一覧を見て、どう感じましたか</b><div class="row" style="margin-top:6px">';
+  h += '<button data-feel="yes">聞いていいんだ（' + feel.yes + '）</button>';
+  h += '<button data-feel="no">まだ聞きにくい（' + feel.no + '）</button></div></div>';
+  if (!questions.length) h += '<p class="hint">まだ質問がありません。「サンプルを読み込む」を押してください。</p>';
+  questions.forEach(function (q, i) {
+    h += '<div class="card"><p class="q">' + esc(q.text) + '</p>';
+    h += '<p class="note"><span class="tag">' + esc(q.field) + '</span>' + esc(q.by) + '：「' + esc(q.say) + '」</p>';
+    h += '<div class="row"><button class="mark' + (q.mine ? ' on' : '') + '" data-me="' + i + '">自分もそう思った ' + q.me + '</button>';
+    h += '<button class="primary" data-ask="' + i + '">この質問を聞く</button></div>';
+    if (sending === i) h += askPanel(q, i);
+    h += '</div>';
+  });
+  h += '<h2>聞いたら加える</h2><div class="card">';
+  h += '<label>先輩に聞いて解決した質問（答えは書かない）</label>';
+  h += '<input id="pq" placeholder="例：DRの「R」は何ですか">';
+  h += '<button id="pbtn">リストに加える提案を送る</button></div>';
+  var mine = requests.filter(function (r) { return r.from === 'jr'; });
+  if (mine.length) {
+    h += '<h2>送った「聞きたい」</h2>';
+    mine.forEach(function (r) { h += '<p class="note">・' + esc(r.text) + ' → ' + esc(r.to) + '</p>'; });
+  }
+  return h;
+}
+
+function askPanel(q, i) {
+  var h = '<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">';
+  h += '<p class="note">送り先を選んでください（同じ分野の先輩）</p>';
+  seniors.filter(function (s) { return s.field === q.field; }).forEach(function (s) {
+    var n = pendingOf(s.name);
+    var full = n >= 3;
+    h += '<div class="row" style="margin-bottom:6px"><button data-send="' + i + '|' + esc(s.name) + '"' + (full ? ' disabled' : '') + '>';
+    h += esc(s.name) + '（未回答 ' + n + '件）</button>';
+    if (full) h += '<span class="hint">未回答が多いので他の先輩へ</span>';
+    h += '</div>';
+  });
+  return h + '</div>';
+}
+
+function renderSr() {
+  var h = '<div class="card"><b>昔聞いた質問を登録（答えは書きません）</b>';
+  h += '<label>質問（一行）</label><input id="sq" placeholder="例：DRって何の略ですか">';
+  h += '<label>分野</label><select id="sf"><option>設計審査</option><option>図面・規格</option></select>';
+  h += '<label>先輩の一言</label><div class="row" style="margin:4px 0 10px">';
+  SAYS.forEach(function (s, i) { h += '<button data-say="' + i + '" class="say">' + s + '</button>'; });
+  h += '</div><button class="primary" id="sbtn" style="width:100%">登録する</button>';
+  h += '<p class="hint" id="tm">入力を始めると時間を計ります。</p></div>';
+  h += '<h2>後輩からの「聞きたい」</h2>';
+  var inbox = requests.filter(function (r) { return r.from === 'jr'; });
+  if (!inbox.length) h += '<p class="hint">まだありません。</p>';
+  inbox.forEach(function (r, i) {
+    h += '<div class="card"><p class="q">' + esc(r.text) + '</p><p class="note">宛先：' + esc(r.to) + '</p>';
+    h += r.done ? '<span class="ok">返事済み</span>' : '<button data-done="' + requests.indexOf(r) + '">口頭やチャットで返事した</button>';
+    h += '</div>';
+  });
+  h += '<h2>リストへの追加提案</h2>';
+  if (!proposals.length) h += '<p class="hint">まだありません。</p>';
+  proposals.forEach(function (p, i) {
+    h += '<div class="card"><p class="q">' + esc(p.text) + '</p>';
+    h += p.ok ? '<span class="ok">追加済み</span>' : '<button data-ok="' + i + '">リストに加える</button>';
+    h += '</div>';
+  });
+  return h;
+}
+
+function render() {
+  document.getElementById('tabJr').className = role === 'jr' ? 'on' : '';
+  document.getElementById('tabSr').className = role === 'sr' ? 'on' : '';
+  document.getElementById('view').innerHTML = role === 'jr' ? renderJr() : renderSr();
+}
+
+var chosenSay = 0;
+document.addEventListener('click', function (e) {
+  var d = e.target.dataset || {};
+  if (e.target.id === 'tabJr') { role = 'jr'; render(); return; }
+  if (e.target.id === 'tabSr') { role = 'sr'; render(); return; }
+  if (e.target.id === 'sample') {
+    questions = SAMPLE.map(function (s) { return Object.assign({ mine: false }, s); });
+    render();
+    return;
+  }
+  if (d.feel) { feel[d.feel]++; render(); return; }
+  if (d.me !== undefined) {
+    var q = questions[+d.me];
+    q.mine = !q.mine;
+    q.me += q.mine ? 1 : -1;
+    render();
+    return;
+  }
+  if (d.ask !== undefined) { sending = sending === +d.ask ? null : +d.ask; render(); return; }
+  if (d.send) {
+    var p = d.send.split('|');
+    requests.push({ text: questions[+p[0]].text, to: p[1], from: 'jr', done: false });
+    sending = null;
+    render();
+    return;
+  }
+  if (e.target.id === 'pbtn') {
+    var t = document.getElementById('pq').value.trim();
+    if (t) { proposals.push({ text: t, ok: false }); render(); }
+    return;
+  }
+  if (d.say !== undefined) {
+    chosenSay = +d.say;
+    document.querySelectorAll('.say').forEach(function (b, i) { b.className = 'say' + (i === chosenSay ? ' on' : ''); });
+    return;
+  }
+  if (e.target.id === 'sbtn') { register(); return; }
+  if (d.done !== undefined) { requests[+d.done].done = true; render(); return; }
+  if (d.ok !== undefined) {
+    var pr = proposals[+d.ok];
+    pr.ok = true;
+    questions.push({ text: pr.text, field: '設計審査', by: '提案（先輩承認）', say: '聞いたら加える', me: 0, mine: false });
+    render();
+  }
+});
+
+document.addEventListener('input', function (e) {
+  if (e.target.id === 'sq' && !timer.start) timer.start = Date.now();
+});
+
+function register() {
+  var input = document.getElementById('sq');
+  var text = input.value.trim();
+  if (!text) return;
+  var sec = timer.start ? Math.round((Date.now() - timer.start) / 1000) : 0;
+  questions.push({
+    text: text, field: document.getElementById('sf').value, by: '先輩（あなた）',
+    say: SAYS[chosenSay], me: 0, mine: false
+  });
+  timer.start = null;
+  render();
+  document.getElementById('tm').textContent = '';
+  var note = document.getElementById('tm');
+  note.textContent = '登録しました。かかった時間：' + sec + '秒' + (sec <= 60 ? '（1分以内）' : '（1分超）');
+}
+
+render();
+</script>
+</body>
+</html>

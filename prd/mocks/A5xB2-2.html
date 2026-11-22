@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>斜めの先輩 相談モック (A5xB2-2)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #66707c;
+  --line: #dde1e6; --accent: #2f6f6a; --accent-bg: #e3f0ee; --warn: #b4540a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171a; --card: #1e2227; --text: #e6e9ec; --sub: #98a2ad;
+    --line: #333a42; --accent: #6cc3bb; --accent-bg: #213735; --warn: #f0a25c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.wrap { max-width: 420px; margin: 0 auto; padding: 0 16px 48px; }
+header { padding: 14px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button, select, textarea, input { font: inherit; color: var(--text); }
+button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 8px 12px; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.on { background: var(--accent-bg); border-color: var(--accent); }
+button.small { padding: 4px 10px; font-size: 13px; }
+select, textarea, input[type=text] { width: 100%; background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px; margin: 4px 0 10px; }
+textarea { min-height: 70px; resize: vertical; }
+.tabs { display: flex; gap: 6px; margin: 10px 0; }
+.tabs button { flex: 1; padding: 8px 4px; font-size: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 10px 0; }
+.card h3 { margin: 0 0 6px; font-size: 15px; }
+.sub { color: var(--sub); font-size: 13px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); margin-right: 4px; }
+.warn { color: var(--warn); }
+label { font-size: 13px; color: var(--sub); }
+.note { background: var(--accent-bg); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.ans { border-left: 3px solid var(--accent); padding-left: 10px; margin: 8px 0; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>斜めの先輩 相談</h1>
+    <small>PRD A5xB2-2 / 他部署のベテランへ匿名で技術の質問</small>
+  </header>
+  <div class="row">
+    <button id="roleY" class="small">若手（質問する人）</button>
+    <button id="roleS" class="small">斜めの先輩（答える人）</button>
+    <button id="load" class="small primary">サンプルを読み込む</button>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script>
+const FIELDS = ['金型', '熱', '材料', '回路'];
+const DEPTS = ['製品開発部', '金型部門', '設計技術部', '品質保証部', '生産技術部'];
+const SCENES = ['会議で言われた', '図面を見て気づいた', '自分で調べたが分からない'];
+const DEPTH = ['言葉の意味', '自分の設計との関係', '数値の目安'];
+const TEMPLATE = ['ひとことで言うと', 'たとえ話・図の説明', '設計で気をつけること', '数値の目安'];
+
+let S = { role: 'young', tab: 'ask', me: 0, seniors: [], qs: [], faq: [], rr: {}, draft: {} };
+
+function sample() {
+  S.seniors = [
+    { name: '山本さん', dept: '金型部門', fields: ['金型'], cap: 3 },
+    { name: '高橋さん', dept: '設計技術部', fields: ['熱', '材料'], cap: 2 },
+    { name: '中村さん', dept: '品質保証部', fields: ['材料', '回路'], cap: 2 },
+    { name: '小林さん', dept: '生産技術部', fields: ['回路', '金型'], cap: 1 },
+  ];
+  S.qs = [];
+  S.faq = [{
+    id: 1, field: '熱', text: '放熱設計で「熱抵抗」とは何ですか。単位の意味から知りたいです。',
+    answer: 'ひとことで言うと: 1Wの熱が流れたとき温度が何度上がるかの値です。\n数値の目安: 単位はK/W。小さいほど熱が逃げやすいです。',
+    checked: true,
+  }];
+  S.rr = {};
+  render();
+}
+
+function assign(q) {
+  const cands = S.seniors
+    .map((s, i) => ({ s, i }))
+    .filter(x => x.s.fields.includes(q.field) && x.s.dept !== q.dept);
+  const load = i => S.qs.filter(z => z.to === i && z.status !== 'done' && z.status !== 'declined').length;
+  const open = cands.filter(x => load(x.i) < x.s.cap);
+  if (!open.length) return -1;
+  const k = S.rr[q.field] || 0;
+  S.rr[q.field] = k + 1;
+  return open[k % open.length].i;
+}
+
+function el(html) { const d = document.createElement('div'); d.innerHTML = html; return d; }
+function opts(arr, sel) { return arr.map(v => `<option ${v === sel ? 'selected' : ''}>${v}</option>`).join(''); }
+function esc(t) { return String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+function render() {
+  document.getElementById('roleY').classList.toggle('on', S.role === 'young');
+  document.getElementById('roleS').classList.toggle('on', S.role === 'senior');
+  const app = document.getElementById('app');
+  app.innerHTML = S.role === 'young' ? youngView() : seniorView();
+  bind(app);
+}
+
+function tabs(list) {
+  return '<div class="tabs">' + list.map(([k, l]) =>
+    `<button data-tab="${k}" class="${S.tab === k ? 'on' : ''}">${l}</button>`).join('') + '</div>';
+}
+
+function youngView() {
+  let h = tabs([['ask', '質問する'], ['mine', '自分の質問'], ['faq', '質問集']]);
+  if (S.tab === 'ask') {
+    h += `<div class="note">名前と所属は、答える先輩には伝わりません。質問者は記録されず、評価にも使われません。技術の質問だけ送れます。業務の判断に関わる問い合わせは既存の窓口へ。</div>
+    <div class="card">
+      <label>分野</label><select id="f">${opts(FIELDS)}</select>
+      <label>どんな場面で気になりましたか</label><select id="sc">${opts(SCENES)}</select>
+      <label>知りたいこと</label>
+      <div class="row" id="dp">${DEPTH.map((d, i) => `<button class="small ${i === 0 ? 'on' : ''}" data-d="${d}">${d}</button>`).join('')}</div>
+      <label>質問</label><textarea id="t" placeholder="例: ドラフト角とは何ですか。なぜ必要ですか。"></textarea>
+      <label>あなたの部署（同じ部署の先輩に割り当てないためだけに使います）</label>
+      <select id="dept">${opts(DEPTS)}</select>
+      <button class="primary" id="send">匿名で送る</button>
+    </div>`;
+  }
+  if (S.tab === 'mine') {
+    h += S.qs.length ? S.qs.map(qCardYoung).join('') : '<p class="sub">まだ質問はありません。</p>';
+  }
+  if (S.tab === 'faq') {
+    h += S.faq.length ? S.faq.map(f => `<div class="card"><span class="tag">${f.field}</span>${f.checked ? '<span class="tag">別の先輩が確認済み</span>' : ''}
+      <p>${esc(f.text)}</p><div class="ans">${esc(f.answer)}</div></div>`).join('') : '<p class="sub">質問集はまだ空です。</p>';
+  }
+  return h;
+}
+
+function qCardYoung(q) {
+  const s = q.to >= 0 ? S.seniors[q.to] : null;
+  const who = s ? `${s.dept}の先輩（${q.field}）` : '割り当て待ち（該当する先輩がいません）';
+  let h = `<div class="card"><span class="tag">${q.field}</span><span class="sub">${who}</span><p>${esc(q.text)}</p>`;
+  const st = { open: '回答待ち', done: '回答あり', declined: '先輩が見送りました' }[q.status];
+  h += `<div class="sub">状態: ${st}</div>`;
+  if (q.status === 'declined') h += '<p class="sub warn">技術の質問として扱えないため見送られました。別の言い方で送り直せます。</p>';
+  if (q.answer) h += `<div class="ans">${esc(q.answer)}</div>`;
+  if (q.followup) h += `<div class="sub">追加の質問: ${esc(q.followup)}</div>`;
+  if (q.answer2) h += `<div class="ans">${esc(q.answer2)}</div>`;
+  if (q.status === 'done' && !q.followup) {
+    h += `<textarea id="fu${q.id}" placeholder="追加の質問は一度だけ送れます（匿名のまま）"></textarea>
+      <button class="small" data-fu="${q.id}">追加の質問を送る</button> `;
+  }
+  if (q.status === 'done' && !q.published) {
+    h += `<hr><label>質問集に載せますか（許可した場合だけ載ります。細部は一般化します）</label>
+      <textarea id="pb${q.id}">${esc(generalize(q))}</textarea>
+      <button class="small" data-pub="${q.id}">質問集に匿名で載せる</button>`;
+  }
+  if (q.published) h += '<div class="sub">質問集に掲載済み</div>';
+  return h + '</div>';
+}
+
+function generalize(q) {
+  return q.text.replace(/うちの|自分の|私の/g, '').replace(/[A-Z]-?\d+/g, '〇〇');
+}
+
+function seniorView() {
+  const s = S.seniors[S.me];
+  let h = '<label>先輩を切り替え</label><select id="me">' +
+    S.seniors.map((x, i) => `<option value="${i}" ${i === S.me ? 'selected' : ''}>${x.name}（${x.dept}）</option>`).join('') + '</select>';
+  if (!s) return h + '<p class="sub">「サンプルを読み込む」を押してください。</p>';
+  h += tabs([['inbox', '受け取った質問'], ['reg', '登録']]);
+  if (S.tab !== 'inbox' && S.tab !== 'reg') S.tab = 'inbox';
+  if (S.tab === 'reg') {
+    h += `<div class="card"><h3>${s.name}の登録</h3><label>得意な分野</label>
+      <div class="row">${FIELDS.map(f => `<button class="small ${s.fields.includes(f) ? 'on' : ''}" data-fld="${f}">${f}</button>`).join('')}</div>
+      <label>答えられる頻度（件まで）</label>
+      <select id="cap">${[1, 2, 3, 5].map(n => `<option ${n === s.cap ? 'selected' : ''}>${n}</option>`).join('')}</select>
+      <p class="sub">上限を超えると、新しい質問は割り当てられません。</p></div>`;
+  } else {
+    const mine = S.qs.filter(q => q.to === S.me);
+    h += mine.length ? mine.map(qCardSenior).join('') : '<p class="sub">受け取った質問はありません。</p>';
+  }
+  return h;
+}
+
+function qCardSenior(q) {
+  let h = `<div class="card"><span class="tag">${q.field}</span><span class="tag">${q.scene}</span><span class="tag">知りたい: ${q.depth}</span>
+    <p>${esc(q.text)}</p><p class="sub">質問者は匿名です。背景が分からなくても答えられるよう、場面と知りたい内容を添えています。</p>`;
+  if (q.status === 'open') {
+    h += `<div class="sub">答え方のひな形（空欄は飛ばして構いません）</div>` +
+      TEMPLATE.map((t, i) => `<label>${t}</label><input type="text" id="a${q.id}_${i}">`).join('') +
+      `<div class="row"><button class="primary small" data-ans="${q.id}">答える</button>
+       <button class="small" data-dec="${q.id}">技術の質問ではないので見送る</button></div>`;
+  }
+  if (q.answer) h += `<div class="ans">${esc(q.answer)}</div>`;
+  if (q.followup) {
+    h += `<div class="sub">追加の質問（一度だけ）: ${esc(q.followup)}</div>`;
+    if (!q.answer2) h += `<textarea id="b${q.id}"></textarea><button class="small primary" data-ans2="${q.id}">返す</button>`;
+    else h += `<div class="ans">${esc(q.answer2)}</div>`;
+  }
+  if (q.published && !q.checked) h += `<button class="small" data-chk="${q.id}">別の先輩として内容を確認した</button>`;
+  return h + '</div>';
+}
+
+function bind(app) {
+  const $ = id => document.getElementById(id);
+  app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+  let depth = DEPTH[0];
+  app.querySelectorAll('[data-d]').forEach(b => b.onclick = () => {
+    depth = b.dataset.d;
+    app.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b));
+  });
+  if ($('send')) $('send').onclick = () => {
+    const text = $('t').value.trim();
+    if (!text) { $('t').focus(); return; }
+    const q = { id: Date.now(), field: $('f').value, scene: $('sc').value, depth, text, dept: $('dept').value, status: 'open' };
+    q.to = assign(q);
+    S.qs.push(q); S.tab = 'mine'; render();
+  };
+  if ($('me')) $('me').onchange = e => { S.me = +e.target.value; render(); };
+  if ($('cap')) $('cap').onchange = e => { S.seniors[S.me].cap = +e.target.value; };
+  app.querySelectorAll('[data-fld]').forEach(b => b.onclick = () => {
+    const f = S.seniors[S.me].fields, k = b.dataset.fld;
+    S.seniors[S.me].fields = f.includes(k) ? f.filter(x => x !== k) : f.concat(k);
+    render();
+  });
+  const byId = id => S.qs.find(q => q.id === +id);
+  app.querySelectorAll('[data-ans]').forEach(b => b.onclick = () => {
+    const q = byId(b.dataset.ans);
+    const parts = TEMPLATE.map((t, i) => [t, $(`a${q.id}_${i}`).value.trim()]).filter(p => p[1]);
+    if (!parts.length) return;
+    q.answer = parts.map(p => p[0] + ': ' + p[1]).join('\n'); q.status = 'done'; render();
+  });
+  app.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => { byId(b.dataset.dec).status = 'declined'; render(); });
+  app.querySelectorAll('[data-fu]').forEach(b => b.onclick = () => {
+    const v = $('fu' + b.dataset.fu).value.trim();
+    if (v) { byId(b.dataset.fu).followup = v; render(); }
+  });
+  app.querySelectorAll('[data-ans2]').forEach(b => b.onclick = () => {
+    const v = $('b' + b.dataset.ans2).value.trim();
+    if (v) { byId(b.dataset.ans2).answer2 = v; render(); }
+  });
+  app.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => {
+    const q = byId(b.dataset.pub);
+    q.published = true;
+    S.faq.unshift({ id: q.id, field: q.field, text: $('pb' + q.id).value, answer: q.answer, checked: false });
+    render();
+  });
+  app.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => {
+    const q = byId(b.dataset.chk); q.checked = true;
+    const f = S.faq.find(x => x.id === q.id); if (f) f.checked = true;
+    render();
+  });
+}
+
+document.getElementById('roleY').onclick = () => { S.role = 'young'; S.tab = 'ask'; render(); };
+document.getElementById('roleS').onclick = () => { S.role = 'senior'; S.tab = 'inbox'; render(); };
+document.getElementById('load').onclick = () => {
+  sample();
+  S.qs.push({ id: 1, field: '金型', scene: '会議で言われた', depth: '自分の設計との関係', dept: '製品開発部',
+    text: '会議で「このボスはドラフト角が足りない」と言われました。ドラフト角とは何で、自分の設計のどこを直せばよいですか。',
+    status: 'open', to: 0 });
+  render();
+};
+render();
+</script>
+</body>
+</html>

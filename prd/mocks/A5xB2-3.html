@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>輪講運営キット A5xB2-3</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #667085;
+  --line: #d9dee5; --accent: #2f6fdb; --accent-t: #ffffff; --ok: #1d8a55; --warn: #c2410c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6e9ee; --sub: #98a2b3;
+    --line: #333c47; --accent: #6b9bf2; --accent-t: #0f1419; --ok: #4cc58a; --warn: #f59e66;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 system-ui, sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 14px; }
+header small { color: var(--sub); }
+main { max-width: 420px; margin: 0 auto; padding: 12px 16px 40px; }
+.roles, .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+button.on { background: var(--accent); color: var(--accent-t); border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-t); border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+.sub { color: var(--sub); font-size: 13px; }
+input, textarea, select { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--text); }
+.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.badge { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--sub); }
+.badge.ok { color: var(--ok); border-color: var(--ok); }
+.timer { font-size: 44px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.phase { text-align: center; font-weight: 600; }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 6px 0; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.pt { border-top: 1px solid var(--line); padding: 8px 0; }
+.pt:first-of-type { border-top: 0; }
+.cnt { color: var(--warn); font-weight: 600; }
+.hide { display: none; }
+label.chk { display: flex; gap: 6px; align-items: center; font-size: 13px; margin: 6px 0; }
+label.chk input { width: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>若手の輪講運営キット <small>A5xB2-3</small></h1>
+  <small>モック。理解度や説明の出来は評価しません。</small>
+</header>
+<main>
+  <div class="roles" id="roles"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+  <div class="row"><button id="sample">サンプルを読み込む</button><button id="reset">空にする</button></div>
+</main>
+<script>
+const SAMPLE = {
+  book: '筐体設計の基礎',
+  chapters: [
+    { n: 1, title: '材料の選び方', who: 'Aさん', date: '11/25', done: true },
+    { n: 2, title: '板金と樹脂の使い分け', who: 'Bさん', date: '12/02', done: true },
+    { n: 3, title: '応力集中', who: 'Cさん', date: '12/09', done: false },
+    { n: 4, title: '熱抵抗の計算', who: 'Aさん', date: '12/16', done: false }
+  ],
+  points: [
+    { id: 1, ch: 3, text: '応力集中係数がなぜ穴の形で変わるのかわからない', who: 'Bさん', anon: false, me: ['Bさん', 'Dさん', 'Eさん'], status: 'open' },
+    { id: 2, ch: 3, text: 'ノッチとフィレットの違いが図から読み取れない', who: '匿名', anon: true, me: ['Aさん'], status: 'open' },
+    { id: 3, ch: 3, text: '安全率はどのくらい見込むのが普通か', who: 'Aさん', anon: false, me: [], status: 'open' },
+    { id: 4, ch: 2, text: 'ボス部のリブ厚の目安', who: '匿名', anon: true, me: ['Bさん'], status: 'solved' }
+  ],
+  questions: [
+    { id: 1, text: '穴の形で応力集中係数が変わる理由を、直感的に説明してほしい', from: 'ch3 の点1', answer: '' },
+    { id: 2, text: '安全率の社内の目安はあるか', from: 'ch3 の点3', answer: '製品区分ごとの目安表が設計基準書にあります。次回、該当ページを共有します。' }
+  ]
+};
+const EMPTY = { book: '', chapters: [], points: [], questions: [] };
+const ROLES = ['Aさん', 'Bさん', 'Cさん', 'ベテラン'];
+const TABS = ['担当', '事前登録', '進行', 'ベテラン', '記録'];
+let S = JSON.parse(JSON.stringify(EMPTY));
+let role = 'Bさん', tab = '担当', cur = 3;
+let T = { phase: 0, left: 900, run: false, scale: 1, h: null };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const chTitle = (n) => { const c = S.chapters.find((x) => x.n === n); return c ? '第' + n + '章 ' + c.title : '第' + n + '章'; };
+const nextId = (a) => a.reduce((m, x) => Math.max(m, x.id), 0) + 1;
+
+function renderNav() {
+  $('roles').innerHTML = ROLES.map((r) => '<button class="' + (r === role ? 'on' : '') + '" data-role="' + r + '">' + r + '</button>').join('');
+  $('tabs').innerHTML = TABS.map((t) => '<button class="' + (t === tab ? 'on' : '') + '" data-tab="' + t + '">' + t + '</button>').join('');
+}
+
+function viewPlan() {
+  if (!S.chapters.length) return '<div class="card sub">教科書が未設定です。「サンプルを読み込む」を押してください。</div>';
+  const rows = S.chapters.map((c) =>
+    '<div class="pt row"><div>第' + c.n + '章 ' + esc(c.title) + '<div class="sub">' + c.date + ' ・ 担当 ' + c.who + '</div></div>' +
+    (c.done ? '<span class="badge ok">読了</span>' : '<button data-skip="' + c.n + '">休み→翌週</button>') + '</div>').join('');
+  return '<div class="card"><h2>教科書：' + esc(S.book) + '</h2>' + rows + '</div>' +
+    '<div class="card sub">説明は要点だけで15分以内。休んだ回は翌週にずらします。</div>';
+}
+
+function viewRegister() {
+  const list = S.points.filter((p) => p.ch === cur);
+  const opts = S.chapters.map((c) => '<option value="' + c.n + '"' + (c.n === cur ? ' selected' : '') + '>第' + c.n + '章 ' + esc(c.title) + '</option>').join('');
+  const items = list.map((p) => {
+    const mine = p.me.includes(role);
+    return '<div class="pt"><div>' + esc(p.text) + '</div><div class="row"><span class="sub">' + (p.anon ? '匿名' : p.who) +
+      ' ・ <span class="cnt">同じ点で止まった人 ' + p.me.length + '人</span></span>' +
+      '<button data-me="' + p.id + '">' + (mine ? '私も（取消）' : '私も止まった') + '</button></div></div>';
+  }).join('') || '<div class="sub">まだ登録がありません。</div>';
+  return '<div class="card"><h2>わからなかった点を書く</h2><select id="chSel">' + opts + '</select>' +
+    '<textarea id="ptText" rows="2" placeholder="読んでわからなかった点"></textarea>' +
+    '<label class="chk"><input type="checkbox" id="ptAnon">匿名で登録する</label>' +
+    '<button class="primary" id="ptAdd">登録</button></div>' +
+    '<div class="card"><h2>' + chTitle(cur) + ' の登録済み</h2>' + items + '</div>';
+}
+
+function fmt(s) {
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+}
+
+function viewRun() {
+  const names = ['説明（担当者）', '議論（皆で考える）', '終了'];
+  const total = T.phase === 0 ? 900 : 900;
+  const list = S.points.filter((p) => p.ch === cur && p.status === 'open').sort((a, b) => b.me.length - a.me.length);
+  const items = list.map((p) => '<div class="pt"><div>' + esc(p.text) + '</div><div class="row">' +
+    '<span class="cnt">' + p.me.length + '人が同じ点で止まっています</span>' +
+    '<span><button data-solve="' + p.id + '">解決</button> <button data-ask="' + p.id + '">ベテランへ</button></span></div></div>').join('') ||
+    '<div class="sub">未解決のわからない点はありません。</div>';
+  return '<div class="card"><div class="phase">' + chTitle(cur) + ' ／ ' + names[T.phase] + '</div>' +
+    '<div class="timer" id="clock">' + fmt(T.left) + '</div>' +
+    '<div class="bar"><i id="bar" style="width:' + (T.phase > 1 ? 100 : (1 - T.left / total) * 100) + '%"></i></div>' +
+    '<div class="row"><button class="primary" id="tgo">' + (T.run ? '一時停止' : '開始') + '</button>' +
+    '<button id="tnext">次へ</button><button id="trst">戻す</button></div>' +
+    '<label class="chk">速度 <select id="tscale" style="width:auto"><option value="1">通常</option><option value="30">30倍（試用）</option></select></label></div>' +
+    '<div class="card"><h2>わからない点の一覧（多い順）</h2>' + items + '</div>';
+}
+
+function viewVet() {
+  const answerArea = (q) => {
+    if (q.answer) return '<div>回答：' + esc(q.answer) + '</div>';
+    if (role !== 'ベテラン') return '<span class="badge">回答待ち</span>';
+    return '<textarea id="ans' + q.id + '" rows="2" placeholder="次の輪講で共有する答え"></textarea>' +
+      '<button data-ans="' + q.id + '">回答する</button>';
+  };
+  const inbox = S.questions.map((q) => '<div class="pt"><div>' + esc(q.text) + '</div><div class="sub">' +
+    esc(q.from) + '</div>' + answerArea(q) + '</div>').join('');
+  return '<div class="card"><h2>ベテランへの質問</h2><div class="sub">輪講で解決しなかった点だけを送ります。答えは次の輪講で共有します。</div>' +
+    (inbox || '<div class="sub">質問はありません。</div>') + '</div>';
+}
+
+function viewLog() {
+  const done = S.chapters.filter((c) => c.done);
+  const solved = S.points.filter((p) => p.status === 'solved');
+  const open = S.points.filter((p) => p.status === 'open');
+  return '<div class="card"><h2>読み進めの記録</h2><div>読み終えた章：<b>' + done.length + '</b> / ' + S.chapters.length + '</div>' +
+    done.map((c) => '<div class="sub">第' + c.n + '章 ' + esc(c.title) + '</div>').join('') + '</div>' +
+    '<div class="card"><h2>解決したわからない点（' + solved.length + '）</h2>' +
+    (solved.map((p) => '<div class="pt">' + esc(p.text) + '<div class="sub">' + chTitle(p.ch) + '</div></div>').join('') || '<div class="sub">まだありません。</div>') +
+    '</div><div class="card sub">未解決 ' + open.length + '件。個人の理解度は記録しません。</div>';
+}
+
+function render() {
+  renderNav();
+  const v = { '担当': viewPlan, '事前登録': viewRegister, '進行': viewRun, 'ベテラン': viewVet, '記録': viewLog }[tab];
+  $('view').innerHTML = v();
+  const sel = $('tscale');
+  if (sel) sel.value = T.scale;
+}
+
+function tick() {
+  T.left -= T.scale;
+  if (T.left <= 0) {
+    if (T.phase === 0) { T.phase = 1; T.left = 900; } else { T.phase = 2; T.left = 0; stop(); }
+    render();
+    return;
+  }
+  $('clock').textContent = fmt(T.left);
+  $('bar').style.width = (1 - T.left / 900) * 100 + '%';
+}
+function stop() { clearInterval(T.h); T.h = null; T.run = false; }
+
+document.addEventListener('click', (e) => {
+  const d = e.target.dataset, id = e.target.id;
+  if (d.role) role = d.role;
+  else if (d.tab) tab = d.tab;
+  else if (d.skip) {
+    const c = S.chapters.find((x) => x.n === +d.skip);
+    c.date += '（翌週へ）';
+  } else if (d.me) {
+    const p = S.points.find((x) => x.id === +d.me);
+    const i = p.me.indexOf(role);
+    if (i >= 0) p.me.splice(i, 1); else p.me.push(role);
+  } else if (d.solve) S.points.find((x) => x.id === +d.solve).status = 'solved';
+  else if (d.ask) {
+    const p = S.points.find((x) => x.id === +d.ask);
+    S.questions.push({ id: nextId(S.questions), text: p.text, from: chTitle(p.ch) + ' の点' + p.id, answer: '' });
+    p.status = 'asked';
+    tab = 'ベテラン';
+  } else if (d.ans) {
+    const v = $('ans' + d.ans).value.trim();
+    if (v) S.questions.find((x) => x.id === +d.ans).answer = v;
+  } else if (id === 'ptAdd') {
+    const text = $('ptText').value.trim();
+    if (!text) return;
+    const anon = $('ptAnon').checked;
+    S.points.push({ id: nextId(S.points), ch: cur, text, who: role, anon, me: [role], status: 'open' });
+  } else if (id === 'tgo') {
+    if (T.run) stop(); else if (T.phase < 2) { T.run = true; T.h = setInterval(tick, 1000); }
+  } else if (id === 'tnext') {
+    stop();
+    if (T.phase < 2) { T.phase++; T.left = T.phase === 2 ? 0 : 900; }
+  } else if (id === 'trst') { stop(); T = { phase: 0, left: 900, run: false, scale: T.scale, h: null }; }
+  else if (id === 'sample') { S = JSON.parse(JSON.stringify(SAMPLE)); cur = 3; }
+  else if (id === 'reset') { S = JSON.parse(JSON.stringify(EMPTY)); }
+  else return;
+  render();
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'chSel') { cur = +e.target.value; render(); }
+  if (e.target.id === 'tscale') T.scale = +e.target.value;
+});
+render();
+</script>
+</body>
+</html>

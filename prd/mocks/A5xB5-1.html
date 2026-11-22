@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>壊してもいい仮想ベンチ（A5xB5-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #6b7785;
+  --line: #d9dee4; --accent: #2b6cb0; --ok: #2f855a; --warn: #c05621;
+  --burn-bg: #fff3e6; --ok-bg: #e8f5ee; --led-off: #cbd2d9;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e6e9ed; --sub: #93a0ad;
+    --line: #333c46; --accent: #63a4e8; --ok: #5fc08a; --warn: #f0a068;
+    --burn-bg: #3a2a1c; --ok-bg: #1b3326; --led-off: #4a5560;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); font-size: 11px; }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+h2 { margin: 0 0 8px; font-size: 14px; }
+button {
+  font: inherit; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.sel { border-color: var(--accent); outline: 2px solid var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > * { flex: 1 1 auto; }
+.sub { color: var(--sub); font-size: 12px; }
+input[type=range] { width: 100%; }
+.circuit { display: flex; align-items: center; justify-content: space-around; padding: 8px 0; text-align: center; font-size: 12px; }
+.part { border: 2px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 76px; }
+.part.burnt { border-color: var(--warn); background: var(--burn-bg); }
+.led { width: 26px; height: 26px; border-radius: 50%; margin: 2px auto; background: var(--led-off); }
+.wire { height: 2px; flex: 0 0 14px; background: var(--line); }
+.result { border-radius: 8px; padding: 10px; margin-top: 8px; background: var(--ok-bg); }
+.result.burn { background: var(--burn-bg); }
+.result b { display: block; margin-bottom: 4px; }
+.task { padding: 8px 0; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: flex-start; }
+.task:first-of-type { border-top: 0; }
+.task .mark { width: 20px; flex: 0 0 20px; text-align: center; color: var(--ok); }
+.task.cur { font-weight: 600; }
+.note { font-size: 12px; color: var(--sub); border-left: 3px solid var(--line); padding-left: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>壊してもいい仮想ベンチ</h1>
+  <small>PRD A5xB5-1 ／ 練習用モック（設計の検証には使いません）</small>
+</header>
+<main>
+  <div class="card">
+    <div class="row">
+      <button id="btnSample">サンプルを読み込む</button>
+      <button id="btnUndo" disabled>元に戻す</button>
+    </div>
+    <p class="sub" style="margin:8px 0 0">壊しても何も失いません。壊れたら「元に戻す」でやり直せます。</p>
+  </div>
+
+  <div class="card">
+    <h2>仮想ベンチ（電源 → 抵抗 → LED）</h2>
+    <div class="circuit">
+      <div class="part">電源<br><b id="vOut">5.0 V</b></div>
+      <div class="wire"></div>
+      <div class="part" id="partR">抵抗<br><b id="rOut">330 Ω</b><br><span class="sub">定格 0.25W</span></div>
+      <div class="wire"></div>
+      <div class="part" id="partL">LED<div class="led" id="led"></div><span class="sub">順電圧2.0V／定格20mA</span></div>
+    </div>
+    <label>電源の電圧：<b id="vLbl"></b>
+      <input type="range" id="vIn" min="1" max="12" step="0.5" value="5"></label>
+    <label>抵抗の値：<b id="rLbl"></b>
+      <input type="range" id="rIn" min="1" max="1000" step="1" value="330"></label>
+  </div>
+
+  <div class="card">
+    <h2>1. 予想する</h2>
+    <p class="sub" style="margin-top:0">値を決めたら、試す前に「どうなると思うか」を選んでください。</p>
+    <div class="row" id="guess">
+      <button data-g="dark">暗い／光らない</button>
+      <button data-g="ok">ちょうどよく光る</button>
+      <button data-g="burn">焼ける</button>
+    </div>
+    <h2 style="margin-top:12px">2. 試す</h2>
+    <button class="primary" id="btnTry" style="width:100%" disabled>この値で試す</button>
+    <div id="result"></div>
+    <p class="sub" id="count" style="margin-bottom:0"></p>
+  </div>
+
+  <div class="card">
+    <h2>練習課題（好きな順で、何度でも）</h2>
+    <div id="tasks"></div>
+    <div id="real"></div>
+  </div>
+
+  <p class="note">この仮想ベンチは理想的な条件で単純に計算しています。実物では部品のばらつきや発熱があるため、定格に余裕を持たせてください。試した回数は自分の記録用で、点数にはしません。</p>
+</main>
+<script>
+const LED = { vf: 2.0, rated: 20 };     // mA
+const R_POWER = 0.25;                   // W
+const TASKS = [
+  { id: 1, text: "LEDを光らせる（1mA以上、焼かない）",
+    ok: r => !r.burnt && r.mA >= 1,
+    hint: "ヒント：電流 = (電源電圧 − 2.0V) ÷ 抵抗" },
+  { id: 2, text: "LEDを焼かずに一番明るく光らせる（15〜20mA）",
+    ok: r => !r.burnt && r.mA >= 15 && r.mA <= 20,
+    hint: "ヒント：20mAを超えると焼けます。20mAぎりぎりを狙う抵抗値は？" },
+  { id: 3, text: "電源9Vで、焼かずに光らせる（5mA以上）",
+    ok: r => !r.burnt && r.mA >= 5 && r.v === 9,
+    hint: "電圧を9Vにして、抵抗を計算で決めてみましょう" },
+];
+const state = { v: 5, r: 330, guess: null, tries: 0, done: {}, history: [], last: null };
+
+function calc(v, r) {
+  const mA = v > LED.vf ? (v - LED.vf) / r * 1000 : 0;
+  const watt = (mA / 1000) ** 2 * r;
+  return { v, r, mA, watt, ledBurnt: mA > LED.rated, rBurnt: watt > R_POWER,
+           get burnt() { return this.ledBurnt || this.rBurnt; } };
+}
+const $ = id => document.getElementById(id);
+
+function drawBench(res) {
+  $("vLbl").textContent = state.v + " V";
+  $("rLbl").textContent = state.r + " Ω";
+  $("vOut").textContent = state.v.toFixed(1) + " V";
+  $("rOut").textContent = state.r + " Ω";
+  $("vIn").value = state.v; $("rIn").value = state.r;
+  const led = $("led");
+  const lit = res && !res.burnt && res.mA > 0;
+  led.style.background = lit ? "hsl(48,100%," + (80 - Math.min(res.mA, 20) * 1.5) + "%)" : "";
+  $("partL").classList.toggle("burnt", !!(res && res.ledBurnt));
+  $("partR").classList.toggle("burnt", !!(res && res.rBurnt));
+}
+
+function explain(res) {
+  if (res.ledBurnt) {
+    const pct = Math.round(res.mA / LED.rated * 100);
+    return { burn: true, title: "LEDが焼けました。ここが限界のしるしです。",
+      body: "LEDに " + res.mA.toFixed(1) + "mA 流れました（定格 " + LED.rated + "mA の " + pct + "%）。" +
+            "抵抗が小さすぎて電流を絞れなかったことが原因です。抵抗を約 " +
+            Math.ceil((res.v - LED.vf) / LED.rated * 1000) + "Ω 以上にすると、定格内に収まります。" };
+  }
+  if (res.rBurnt) {
+    return { burn: true, title: "抵抗が熱くなりすぎました。",
+      body: "抵抗で " + res.watt.toFixed(2) + "W 消費しました（定格 " + R_POWER + "W の " +
+            Math.round(res.watt / R_POWER * 100) + "%）。" };
+  }
+  if (res.mA === 0) return { burn: false, title: "光りませんでした。",
+    body: "電源電圧がLEDの順電圧2.0V以下のため、電流が流れません。" };
+  return { burn: false, title: "壊れずに動きました。",
+    body: "LEDに " + res.mA.toFixed(1) + "mA（定格の " + Math.round(res.mA / LED.rated * 100) + "%）流れています。" };
+}
+
+function actualKind(res) {
+  if (res.burnt) return "burn";
+  return res.mA >= 5 ? "ok" : "dark";
+}
+const KIND = { dark: "暗い／光らない", ok: "ちょうどよく光る", burn: "焼ける" };
+
+function renderResult(res) {
+  const e = explain(res);
+  const kind = actualKind(res);
+  const cmp = state.guess === kind ? "予想どおりでした。" : "予想とは違いました。差を見ると、次の値が決めやすくなります。";
+  $("result").innerHTML = '<div class="result' + (e.burn ? " burn" : "") + '"><b>' + e.title + "</b>" +
+    e.body + '<br><span class="sub">予想：' + KIND[state.guess] + " ／ 結果：" + KIND[kind] + "。" + cmp + "</span></div>";
+}
+
+function renderTasks() {
+  const cur = TASKS.find(t => !state.done[t.id]);
+  $("tasks").innerHTML = TASKS.map(t =>
+    '<div class="task' + (cur === t ? " cur" : "") + '"><span class="mark">' + (state.done[t.id] ? "✓" : "○") +
+    "</span><div>" + t.text + (cur === t ? '<div class="sub">' + t.hint + "</div>" : "") + "</div></div>").join("");
+  $("real").innerHTML = !cur
+    ? '<div class="result"><b>課題がひととおり終わりました。</b>次は実物で、同じ種類の試しを少しだけやってみませんか。抵抗は計算値より余裕のある大きめの値から始めると安心です。</div>'
+    : "";
+}
+
+function updateTryBtn() { $("btnTry").disabled = !state.guess; }
+
+function snapshot() { state.history.push({ v: state.v, r: state.r }); $("btnUndo").disabled = false; }
+
+$("vIn").oninput = e => { state.v = +e.target.value; drawBench(null); };
+$("rIn").oninput = e => { state.r = +e.target.value; drawBench(null); };
+$("vIn").onchange = $("rIn").onchange = () => { state.guess = null; clearGuess(); };
+
+function clearGuess() {
+  document.querySelectorAll("#guess button").forEach(b => b.classList.remove("sel"));
+  state.guess = null; updateTryBtn();
+}
+document.querySelectorAll("#guess button").forEach(b => {
+  b.onclick = () => { clearGuess(); b.classList.add("sel"); state.guess = b.dataset.g; updateTryBtn(); };
+});
+
+$("btnTry").onclick = () => {
+  const res = calc(state.v, state.r);
+  state.tries++;
+  state.last = res;
+  drawBench(res);
+  renderResult(res);
+  TASKS.forEach(t => { if (t.ok(res)) state.done[t.id] = true; });
+  $("count").textContent = "試した回数：" + state.tries + " 回（壊した回数も、学びのうちです）";
+  renderTasks();
+};
+
+$("btnUndo").onclick = () => {
+  const h = state.history.pop();
+  if (h) { state.v = h.v; state.r = h.r; }
+  $("btnUndo").disabled = state.history.length === 0;
+  $("result").innerHTML = ""; clearGuess(); drawBench(null);
+};
+
+// 値を変える操作の直前の状態を「元に戻す」用に保存
+["vIn", "rIn"].forEach(id => $(id).addEventListener("pointerdown", snapshot));
+
+$("btnSample").onclick = () => {
+  snapshot();
+  state.v = 5; state.r = 10; state.guess = null; state.done = {}; state.tries = 0;
+  $("result").innerHTML = ""; $("count").textContent = "";
+  clearGuess(); drawBench(null); renderTasks();
+  alert("サンプル：抵抗を 10Ω に小さくした状態です。「焼ける」を予想して試してみましょう。");
+};
+
+drawBench(null);
+renderTasks();
+</script>
+</body>
+</html>

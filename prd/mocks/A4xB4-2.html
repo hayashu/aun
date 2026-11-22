@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>理解の分かれ目シート A4xB4-2</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2430; --sub: #667085;
+  --line: #d9dde5; --accent: #2f6fbd; --accent-bg: #e6eef9;
+  --split: #c2570c; --split-bg: #fdf0e3; --same: #2e7d4f; --same-bg: #e5f3ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --card: #1e232b; --text: #e8eaee; --sub: #98a1b0;
+    --line: #333a46; --accent: #7aa9e6; --accent-bg: #23344d;
+    --split: #f0a05f; --split-bg: #3a2a1a; --same: #7fcf9f; --same-bg: #1c3426;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin: 10px 0; }
+.card h3 { margin: 0 0 6px; font-size: 15px; }
+.note { color: var(--sub); font-size: 13px; margin: 4px 0; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.roles button, .steps button { flex: 1; padding: 6px 2px; font-size: 13px; }
+input[type=text], textarea { width: 100%; font: inherit; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.side { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 14px; }
+.side b { display: block; font-size: 12px; color: var(--sub); }
+.chip { display: inline-block; padding: 1px 10px; border-radius: 12px; font-weight: 700;
+  background: var(--accent-bg); color: var(--accent); margin: 2px 0; }
+.split { border-color: var(--split); background: var(--split-bg); }
+.split .chip { background: var(--split); color: var(--bg); }
+.same-badge { color: var(--same); font-size: 13px; }
+.split-badge { color: var(--split); font-weight: 700; font-size: 13px; }
+.first { border: 2px solid var(--split); }
+.rec { border-left: 4px solid var(--same); }
+.pend { color: var(--sub); }
+</style>
+</head>
+<body>
+<header>
+  <h1>理解の分かれ目シート <small>A4xB4-2</small></h1>
+  <small>手戻りのあと、2人の「そのときの理解」を並べて、次の取り決めを決める</small>
+</header>
+<main>
+  <div class="row roles" id="roles"></div>
+  <div class="row steps" id="steps" style="margin-top:8px"></div>
+  <div id="view"></div>
+  <div class="card"><div class="row">
+    <button id="sample">サンプルを読み込む</button>
+    <button id="reset">最初から</button>
+  </div></div>
+</main>
+<script>
+const ROLES = { m: "機械の担当者", e: "Bさん（電気）", c: "調整役 Aさん" };
+const KINDS = ["確定", "相談", "参考"];
+const STEPNAMES = ["時点を選ぶ", "伏せて書く", "並べて見る", "取り決める", "記録"];
+const CANDIDATES = [
+  { id: 1, title: "チャット「開口部、ちょっと右に寄せます」", sum: "機械 → 電気。開口部の位置についての連絡" },
+  { id: 2, title: "試作1の振り返り会議", sum: "開口部の位置は後日あらためて、という話で終了" },
+  { id: 3, title: "筐体図面 Rev.B の受け渡し", sum: "機械から電気へ、最新版としてファイルを共有" },
+  { id: 4, title: "チャット「コネクタ位置、そのままで大丈夫です」", sum: "電気 → 機械。基板側の配置についての返信" },
+  { id: 5, title: "試作2の発注前の確認", sum: "発注の前日に、機械が部品表を送付" },
+];
+const AGREE_TIPS = [
+  "確定した変更は図面を改版して送る。チャットは相談に使う",
+  "チャットの冒頭に【確定】か【相談】を付ける",
+  "「そのまま」と返すときは、何をそのままにするかも書く",
+];
+const SAMPLE = {
+  points: [1, 2, 3, 4],
+  m: { 1: ["確定", "位置を変えると決めた。連絡のつもりで送った"],
+       2: ["参考", "位置は未定。あとで決める"],
+       3: ["参考", "最新版として共有した"],
+       4: ["確定", "配置は変えないという返事と受け取った"] },
+  e: { 1: ["相談", "寄せる案の相談。確定なら図面が来ると思った"],
+       2: ["参考", "位置は未定。あとで決める"],
+       3: ["参考", "いつもの共有。位置の変更は載っていないと思った"],
+       4: ["相談", "いまの配置で問題ないかの確認だと思った"] },
+};
+let S, role = "m", step = 0;
+
+function fresh() {
+  return { points: [], ans: { m: {}, e: {} }, done: { m: false, e: false }, target: null, records: S ? S.records : [] };
+}
+function esc(t) {
+  return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function title(id) { return CANDIDATES.find(c => c.id === id); }
+function bothDone() { return S.done.m && S.done.e; }
+function splits() {
+  return S.points.filter(id => S.ans.m[id] && S.ans.e[id] && S.ans.m[id].kind !== S.ans.e[id].kind);
+}
+
+function renderTabs() {
+  document.getElementById("roles").innerHTML = Object.keys(ROLES).map(k =>
+    `<button class="${k === role ? "on" : ""}" onclick="role='${k}';render()">${ROLES[k]}</button>`).join("");
+  document.getElementById("steps").innerHTML = STEPNAMES.map((n, i) =>
+    `<button class="${i === step ? "on" : ""}" onclick="step=${i};render()">${i + 1}. ${n}</button>`).join("");
+}
+
+function viewSelect() {
+  const ok = S.points.length >= 3 && S.points.length <= 5;
+  return `<div class="card"><h3>手戻りに関係する主なやりとりを3〜5個選ぶ</h3>
+    <p class="note">手戻り: 2回目の試作で、基板のコネクタが筐体の開口部と2mmずれていた。調整役が選んでもよい。</p>
+    ${CANDIDATES.map(c => `<div class="card" style="margin:6px 0">
+      <label><input type="checkbox" ${S.points.includes(c.id) ? "checked" : ""}
+        onchange="togglePoint(${c.id})"> <b>${c.title}</b></label>
+      <div class="note">${c.sum}</div></div>`).join("")}
+    <p class="note">選択中: ${S.points.length}個 ${ok ? "" : "（3〜5個で次へ進めます）"}</p>
+    <button class="primary" ${ok ? "" : "disabled"} onclick="step=1;render()">伏せて書くへ</button></div>`;
+}
+function togglePoint(id) {
+  const i = S.points.indexOf(id);
+  if (i >= 0) S.points.splice(i, 1);
+  else if (S.points.length < 5) S.points.push(id);
+  S.points.sort((a, b) => a - b);
+  render();
+}
+
+function viewWrite() {
+  if (!S.points.length) return `<div class="card">先に時点を選んでください。</div>`;
+  const status = ["m", "e"].map(k =>
+    `${ROLES[k]}: ${S.done[k] ? "書き終えた" : '<span class="pend">まだ</span>'}`).join(" / ");
+  if (role === "c") {
+    return `<div class="card"><h3>書き込みの進み具合</h3><p>${status}</p>
+      <p class="note">内容は、2人が書き終えるまで誰にも見えません。声かけは調整役から。</p></div>`;
+  }
+  if (S.done[role]) {
+    return `<div class="card"><h3>${ROLES[role]}は書き終えました</h3><p>${status}</p>
+      <p class="note">相手の答えは、並べて見るまで見えません。</p></div>`;
+  }
+  const rows = S.points.map(id => {
+    const a = S.ans[role][id] || { kind: "", text: "" };
+    return `<div class="card"><h3>${title(id).title}</h3>
+      <div class="note">やりとりの要約: ${title(id).sum}。これを見ながら、そのときの自分の理解を書く</div>
+      <div class="row" style="margin:6px 0">${KINDS.map(k =>
+        `<button class="${a.kind === k ? "on" : ""}" onclick="setKind(${id},'${k}')">${k}</button>`).join("")}</div>
+      <input type="text" placeholder="そのとき自分はこう理解していた（一行）" value="${esc(a.text)}"
+        oninput="setText(${id},this.value)"></div>`;
+  }).join("");
+  const ready = S.points.every(id => S.ans[role][id] && S.ans[role][id].kind);
+  return `<div class="card"><h3>${ROLES[role]}として書く</h3>
+    <p class="note">正しい答えはありません。いまの正解ではなく、そのときの自分の理解を書いてください。</p></div>${rows}
+    <button class="primary" ${ready ? "" : "disabled"} onclick="finish()">書き終えた（相手には見えません）</button>`;
+}
+function setKind(id, k) {
+  const a = S.ans[role][id] || (S.ans[role][id] = { kind: "", text: "" });
+  a.kind = k;
+  render();
+}
+function setText(id, t) {
+  const a = S.ans[role][id] || (S.ans[role][id] = { kind: "", text: "" });
+  a.text = t;
+}
+function finish() { S.done[role] = true; render(); }
+
+function viewCompare() {
+  if (!bothDone()) {
+    return `<div class="card"><h3>まだ並べられません</h3>
+      <p class="note">2人が書き終えると並べて見られます。（機械: ${S.done.m ? "済" : "未"} / Bさん: ${S.done.e ? "済" : "未"}）</p></div>`;
+  }
+  const sp = splits();
+  const first = sp[0];
+  const cards = S.points.map(id => {
+    const m = S.ans.m[id], e = S.ans.e[id], isSplit = sp.includes(id);
+    return `<div class="card ${id === first ? "first" : ""}">
+      <h3>${title(id).title}</h3>
+      <div class="${isSplit ? "split-badge" : "same-badge"}">
+        ${id === first ? "最初に分かれた時点 / " : ""}${isSplit ? "ここで理解が分かれた" : "同じ理解だった"}</div>
+      <div class="pair">
+        <div class="side ${isSplit ? "split" : ""}"><b>機械の担当者</b><span class="chip">${m.kind}</span><div>${esc(m.text)}</div></div>
+        <div class="side ${isSplit ? "split" : ""}"><b>Bさん（電気）</b><span class="chip">${e.kind}</span><div>${esc(e.text)}</div></div>
+      </div>
+      ${isSplit ? `<div style="margin-top:8px"><button onclick="pick(${id})">この時点について取り決める</button></div>` : ""}
+    </div>`;
+  }).join("");
+  return `<div class="card"><h3>分かれ目: ${sp.length}か所</h3>
+    <p class="note">どちらの受け取り方が正しいかは判定しません。同じやりとりが、2通りに見えていたということです。
+    分かれた時点が複数あるときは、2人で話して取り決める時点を選んでください（最初の時点が初期選択）。</p>
+    <p class="note">${sp.length ? "「次はどうすれば、同じやりとりが同じ意味で伝わるか」を決めましょう。" : "分かれた時点はありませんでした。"}</p></div>${cards}`;
+}
+function pick(id) { S.target = id; step = 3; render(); }
+
+function viewAgree() {
+  if (!bothDone()) return `<div class="card">並べて見たあとに決めます。</div>`;
+  const sp = splits();
+  if (!sp.length) return `<div class="card">分かれ目がないため、取り決めはありません。</div>`;
+  if (S.target == null) S.target = sp[0];
+  const t = title(S.target);
+  const saved = S.records.find(r => r.point === S.target && r.stamp === S.stamp);
+  return `<div class="card"><h3>次からの取り決めを一つ決める</h3>
+    <p class="note">対象の時点（どちらが悪いかではなく、次をどうするか）</p>
+    <div class="row" style="margin-bottom:6px">${sp.map(id =>
+      `<button class="${id === S.target ? "on" : ""}" onclick="S.target=${id};render()">時点${id}</button>`).join("")}</div>
+    <p><b>${t.title}</b><br>
+      機械: <span class="chip">${S.ans.m[S.target].kind}</span>
+      電気: <span class="chip">${S.ans.e[S.target].kind}</span></p>
+    <p class="note">例（押すと入力されます）</p>
+    <div class="row">${AGREE_TIPS.map((a, i) =>
+      `<button onclick="document.getElementById('ag').value=AGREE_TIPS[${i}]">${a}</button>`).join("")}</div>
+    <textarea id="ag" rows="3" style="margin-top:8px" placeholder="次からは…"></textarea>
+    <div style="margin-top:8px"><button class="primary" onclick="saveAgree()">この取り決めを記録する</button></div>
+    ${saved ? '<p class="same-badge">記録しました</p>' : ""}</div>`;
+}
+function saveAgree() {
+  const v = document.getElementById("ag").value.trim();
+  if (!v) return;
+  S.stamp = S.stamp || Date.now();
+  S.records.unshift({ point: S.target, ptitle: title(S.target).title, text: v, date: "2026-11-22", stamp: S.stamp });
+  step = 4;
+  render();
+}
+
+function viewRecords() {
+  const list = S.records.map(r => `<div class="card rec"><div class="note">${r.date} / ${esc(r.ptitle)}</div>
+    <div><b>${esc(r.text)}</b></div></div>`).join("");
+  return `<div class="card"><h3>取り決めの記録</h3>
+    <p class="note">次に同じ相手と仕事をするときに見返します。この記録を見られるのは2人と調整役だけで、評価には使われません。</p></div>
+    ${list || '<div class="card note">まだ記録はありません。</div>'}`;
+}
+
+function render() {
+  renderTabs();
+  const views = [viewSelect, viewWrite, viewCompare, viewAgree, viewRecords];
+  document.getElementById("view").innerHTML = views[step]();
+}
+document.getElementById("sample").onclick = () => {
+  S = fresh();
+  S.points = SAMPLE.points.slice();
+  ["m", "e"].forEach(k => {
+    S.points.forEach(id => { S.ans[k][id] = { kind: SAMPLE[k][id][0], text: SAMPLE[k][id][1] }; });
+    S.done[k] = true;
+  });
+  step = 2;
+  render();
+};
+document.getElementById("reset").onclick = () => { S = fresh(); step = 0; render(); };
+S = fresh();
+render();
+</script>
+</body>
+</html>

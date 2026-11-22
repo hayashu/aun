@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>説明ドリル（A5xB4-1）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1f2430;--sub:#667085;--line:#d9dde5;--acc:#2f6fed;--accfg:#fff;--mark:#ffe9a8;--ok:#1e8e5a}
+@media (prefers-color-scheme: dark){
+:root{--bg:#14171d;--card:#1e222b;--fg:#e8ebf1;--sub:#9aa3b2;--line:#343a47;--acc:#6b9bff;--accfg:#10131a;--mark:#6b5a1e;--ok:#4cc18a}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Hiragino Sans",sans-serif}
+header{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+header h1{margin:0;font-size:15px}
+header small{color:var(--sub)}
+main{padding:12px 16px 40px;max-width:480px;margin:0 auto}
+nav{display:flex;gap:4px;overflow-x:auto;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+nav button{flex:none;font-size:12px;padding:6px 8px}
+nav button.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin:12px 0}
+h2{font-size:15px;margin:0 0 8px}
+label{display:block;font-size:13px;color:var(--sub);margin:8px 0 2px}
+select,input,textarea,button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;width:100%}
+textarea{min-height:130px}
+button{width:auto;cursor:pointer}
+button.main{background:var(--acc);color:var(--accfg);border-color:var(--acc);margin-top:8px}
+button:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.note{font-size:12px;color:var(--sub)}
+.mk{background:var(--mark);border-radius:3px;padding:0 2px;cursor:pointer}
+.mk.off{background:none;text-decoration:underline dotted}
+.tip{background:var(--bg);border-left:3px solid var(--acc);padding:6px 8px;margin-top:6px;font-size:13px}
+.big{font-size:28px;font-weight:700;color:var(--ok)}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:12px;padding:0 8px;font-size:12px;color:var(--sub)}
+.bar{display:flex;justify-content:space-between;font-size:12px;color:var(--sub)}
+ul{padding-left:18px;margin:4px 0}
+</style>
+</head>
+<body>
+<header><h1>説明ドリル <small>A5xB4-1</small></h1>
+<small>別分野の人に1分で説明する練習を、本番の前に一人で</small></header>
+<nav id="nav"></nav>
+<main>
+<div class="bar"><span id="timer">経過 0:00（目標 10分以内）</span><span id="round">練習 1周目</span></div>
+<div id="view"></div>
+</main>
+<script>
+// 分野ごとの用語一覧（印の候補。判定は「通じにくいかもしれない」の目安）
+const DICT = {
+  '機械': {
+    'グラウンド':'基準になる電位。例: 建物の「1階の床」のように、高さを測る基準',
+    'リターンパス':'電流が戻る道。例: 水が流れて、排水管で元に戻る道',
+    'コモンモードノイズ':'配線全体が同じ向きに揺れるノイズ',
+    'インピーダンス':'電気の流れにくさ。例: 水道管の細さのようなもの',
+    'デカップリング':'電源の揺れを近くで受け止める工夫',
+    'リップル':'電圧の細かい波打ち'
+  },
+  '電気': {
+    '公差':'許される寸法のばらつき',
+    '剛性':'力を受けても変形しにくい度合い',
+    '共振':'特定の周期で大きく揺れる現象。例: ブランコを漕ぐタイミング',
+    '熱伝導':'熱の伝わりやすさ',
+    '応力':'材料の内側にかかる力'
+  },
+  'ソフト': {
+    'レジスタ':'設定値を入れる小さな箱',
+    '割り込み':'作業中に別の用事が入ること',
+    'タイミング':'いつ信号を出すかの順番'
+  },
+  '営業': {
+    'リードタイム':'注文から届くまでの期間',
+    '歩留まり':'作った中の良品の割合',
+    '仕様':'できることの決まり'
+  }
+};
+const SAMPLE = {
+  scene:'基板のノイズ対策', field:'機械',
+  text:'グラウンドのリターンパスが長いので、コモンモードノイズが出ます。インピーダンスを下げるために、デカップリングを追加したいです。'
+};
+const S = {step:0, scene:'ノイズ対策', field:'機械', text:'', marks:{}, tried:{}, hint:{},
+  rep:{}, rewrite:'', points:['','',''], checks:[false,false,false], book:[], meets:[],
+  start:null, round:1};
+const STEPS = ['1 書く','2 用語','3 言い換え','4 3つのこと','5 言い換え帳'];
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function touch(){ if(!S.start) S.start = Date.now(); }
+function findTerms(){
+  const d = DICT[S.field];
+  Object.keys(d).forEach(t => { if(S.text.includes(t) && !(t in S.marks)) S.marks[t] = true; });
+}
+function go(n){ S.step = n; render(); }
+
+function loadSample(){
+  S.scene = SAMPLE.scene; S.field = SAMPLE.field; S.text = SAMPLE.text; S.rewrite = '';
+  S.marks = {}; S.tried = {}; S.hint = {}; S.rep = {};
+  S.points = ['ノイズの原因は配線の戻り道が長いこと','電源の近くに部品を足したい','基板の変更に機械側の協力がいる'];
+  S.checks = [false,false,false];
+  S.book = [
+    {field:'機械', term:'インピーダンス', rep:'電気の通りにくさ。水道管の細さのようなもの'},
+    {field:'機械', term:'リップル', rep:'電圧の細かい波'}
+  ];
+  S.meets = [{name:'設計レビュー', date:'2026-12-03'}];
+  touch(); go(0);
+}
+
+function viewWrite(){
+  const opts = k => Object.keys(DICT).map(f =>
+    `<option ${f===S.field?'selected':''}>${f}</option>`).join('');
+  return `<div class="card"><h2>場面と聞き手</h2>
+  <label>説明したい仕事の場面</label>
+  <input id="scene" value="${esc(S.scene)}">
+  <label>聞き手の分野</label>
+  <select id="field">${opts()}</select></div>
+  <div class="card"><h2>1分の説明文（300字程度・自分で書く）</h2>
+  <textarea id="text" placeholder="聞き手に向けて、1分で話せる長さで書く">${esc(S.text)}</textarea>
+  <div class="note"><span id="cnt">${S.text.length}</span> / 300字</div>
+  <button class="main" id="next" ${S.text.trim()?'':'disabled'}>専門用語を確かめる</button></div>`;
+}
+function viewTerms(){
+  const d = DICT[S.field];
+  const keys = Object.keys(d).sort((a,b) => b.length - a.length);
+  let html = esc(S.text);
+  keys.forEach(t => {
+    if(!(t in S.marks)) return;
+    html = html.split(esc(t)).join(`<span class="mk ${S.marks[t]?'':'off'}" data-t="${esc(t)}">${esc(t)}</span>`);
+  });
+  const n = Object.values(S.marks).filter(Boolean).length;
+  return `<div class="card"><h2>${esc(S.field)}の人には通じにくいかも</h2>
+  <p>${html}</p>
+  <p class="note">印は候補です。タップで付け外しできます。通じると思う言葉は外してください。</p>
+  <p>印の数: <b>${n}</b></p>
+  <button class="main" id="next" ${n?'':'disabled'}>言い換える</button>
+  <button id="back">説明文に戻る</button></div>`;
+}
+function viewRep(){
+  const ts = Object.keys(S.marks).filter(t => S.marks[t]);
+  const items = ts.map(t => `<div class="card"><b>${esc(t)}</b> <span class="pill">${esc(S.field)}向け</span>
+    <label>自分の言い換え</label>
+    <input data-rep="${esc(t)}" value="${esc(S.rep[t]||'')}" placeholder="どう言えば伝わる？">
+    <div class="row" style="margin-top:6px">
+    <button data-try="${esc(t)}">試した（例を見る）</button>
+    <button data-save="${esc(t)}" ${S.rep[t]?'':'disabled'}>言い換え帳に入れる</button></div>
+    ${S.hint[t] ? `<div class="tip">例: ${esc(DICT[S.field][t])}<br><span class="note">たとえ方の一例です。正解ではありません。</span></div>` : ''}
+    </div>`).join('');
+  return `${items || '<div class="card">印の付いた言葉はありません。</div>'}
+  <div class="card"><h2>書き直した説明</h2>
+  <textarea id="rewrite">${esc(S.rewrite || S.text)}</textarea>
+  <button class="main" id="next">伝えたい3つのことへ</button></div>`;
+}
+function viewPoints(){
+  const rows = [0,1,2].map(i => `<label>伝えたいこと ${i+1}</label>
+    <input data-pt="${i}" value="${esc(S.points[i])}">
+    <label style="display:flex;gap:6px;align-items:center;color:var(--fg)">
+    <input type="checkbox" data-ck="${i}" style="width:auto" ${S.checks[i]?'checked':''}>説明に入っている</label>`).join('');
+  const ok = S.checks.filter(Boolean).length;
+  return `<div class="card"><h2>書き直した説明</h2><p>${esc(S.rewrite || S.text)}</p></div>
+  <div class="card"><h2>聞き手に伝えたい3つのこと</h2>${rows}
+  <p class="note">入っているかどうかは、自分で読み返して判断します。</p>
+  <p>入っている: ${ok} / 3</p>
+  <button class="main" id="again">もう一周する</button>
+  <button id="tobook">言い換え帳を見る</button></div>`;
+}
+function viewBook(){
+  const list = S.book.map((b,i) => `<div class="card"><span class="pill">${esc(b.field)}向け</span>
+    <b>${esc(b.term)}</b> → ${esc(b.rep)}
+    <button data-del="${i}" style="float:right;padding:2px 8px">削除</button></div>`).join('');
+  const meets = S.meets.map(m => `<li>${esc(m.date)} ${esc(m.name)}</li>`).join('');
+  return `<div class="card" style="text-align:center"><div class="big">${S.book.length}</div>
+  <div>件の言い換えがたまりました</div></div>
+  ${list || '<div class="card note">まだありません。言い換えを入れるとここにたまります。</div>'}
+  <div class="card"><h2>会議の前に見返す</h2>
+  <div class="row"><input id="mname" placeholder="会議名" style="flex:1 1 120px">
+  <input id="mdate" type="date" style="flex:1 1 120px"></div>
+  <button id="addm" style="margin-top:6px">予定を登録</button>
+  <ul>${meets}</ul><p class="note">登録した日の前に、この画面を見返します。</p></div>`;
+}
+
+function render(){
+  $('nav').innerHTML = STEPS.map((s,i) => `<button class="${i===S.step?'on':''}" data-s="${i}">${s}</button>`).join('')
+    + '<button id="smp">サンプルを読み込む</button>';
+  $('round').textContent = `練習 ${S.round}周目`;
+  const views = [viewWrite, viewTerms, viewRep, viewPoints, viewBook];
+  $('view').innerHTML = views[S.step]();
+  bind();
+}
+function bind(){
+  document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => go(+b.dataset.s));
+  $('smp').onclick = loadSample;
+  const next = $('next');
+  if(S.step===0){
+    $('scene').oninput = e => { S.scene = e.target.value; touch(); };
+    $('field').onchange = e => { S.field = e.target.value; S.marks = {}; };
+    $('text').oninput = e => {
+      S.text = e.target.value; touch();
+      $('cnt').textContent = S.text.length;
+      next.disabled = !S.text.trim();
+    };
+    next.onclick = () => { findTerms(); go(1); };
+  }
+  if(S.step===1){
+    document.querySelectorAll('.mk').forEach(m => m.onclick = () => { S.marks[m.dataset.t] = !S.marks[m.dataset.t]; render(); });
+    next.onclick = () => go(2);
+    $('back').onclick = () => go(0);
+  }
+  if(S.step===2){
+    document.querySelectorAll('[data-rep]').forEach(i => i.oninput = e => {
+      S.rep[i.dataset.rep] = e.target.value;
+      i.parentNode.querySelector('[data-save]').disabled = !e.target.value.trim();
+    });
+    document.querySelectorAll('[data-try]').forEach(b => b.onclick = () => {
+      const t = b.dataset.try;
+      if(!(S.rep[t]||'').trim()){ alert('まず自分で言い換えを書いてみてください。例はそのあとに出ます。'); return; }
+      S.hint[t] = true; render();
+    });
+    document.querySelectorAll('[data-save]').forEach(b => b.onclick = () => {
+      const t = b.dataset.save;
+      S.book.push({field:S.field, term:t, rep:S.rep[t].trim()});
+      b.textContent = '入れました'; b.disabled = true;
+    });
+    $('rewrite').oninput = e => { S.rewrite = e.target.value; };
+    next.onclick = () => { S.rewrite = $('rewrite').value; go(3); };
+  }
+  if(S.step===3){
+    document.querySelectorAll('[data-pt]').forEach(i => i.oninput = e => { S.points[+i.dataset.pt] = e.target.value; });
+    document.querySelectorAll('[data-ck]').forEach(i => i.onchange = e => { S.checks[+i.dataset.ck] = e.target.checked; render(); });
+    $('again').onclick = () => {
+      S.round++; S.text = S.rewrite || S.text; S.marks = {}; S.hint = {}; S.rep = {};
+      S.rewrite = ''; S.points = ['','','']; S.checks = [false,false,false]; go(0);
+    };
+    $('tobook').onclick = () => go(4);
+  }
+  if(S.step===4){
+    document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { S.book.splice(+b.dataset.del,1); render(); });
+    $('addm').onclick = () => {
+      const n = $('mname').value.trim(), d = $('mdate').value;
+      if(n && d){ S.meets.push({name:n, date:d}); render(); }
+    };
+  }
+}
+setInterval(() => {
+  if(!S.start) return;
+  const s = Math.floor((Date.now() - S.start) / 1000);
+  $('timer').textContent = `経過 ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}（目標 10分以内）`;
+}, 1000);
+render();
+</script>
+</body>
+</html>

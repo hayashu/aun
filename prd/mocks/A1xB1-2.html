@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小さな試作提案カード（A1xB1-2）モック</title>
+<style>
+:root{--bg:#f6f7f4;--card:#fff;--text:#222;--sub:#667;--line:#dde1da;--accent:#2f6f5e;--accent-t:#fff;--warn:#a8641a;--soft:#e8f1ed}
+@media (prefers-color-scheme:dark){:root{--bg:#171a18;--card:#222623;--text:#e8ebe8;--sub:#9aa39d;--line:#363c38;--accent:#6fb9a2;--accent-t:#10201a;--warn:#e0a566;--soft:#2a3a33}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Hiragino Sans",sans-serif;padding:0 16px 40px;max-width:480px;margin:0 auto;overflow-x:hidden}
+header{padding:12px 0;border-bottom:1px solid var(--line);margin-bottom:12px}
+header h1{font-size:14px;margin:0}
+header small{color:var(--sub);font-size:12px}
+.roles{display:flex;gap:6px;margin:8px 0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{border:1px solid var(--line);background:var(--card);padding:8px 12px;border-radius:8px;cursor:pointer;min-height:40px}
+button.on,button.pri{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.roles button{flex:1}
+input,select,textarea{width:100%;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px;margin:2px 0 10px}
+label{font-size:13px;color:var(--sub);display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+.card h3{margin:0 0 4px;font-size:15px}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:var(--soft);margin-right:4px}
+.warn{color:var(--warn)}
+.sub{color:var(--sub);font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>button{flex:1 1 30%}
+.timer{font-size:13px;color:var(--sub);text-align:right}
+.note{font-size:12px;color:var(--sub);margin-top:24px;border-top:1px solid var(--line);padding-top:8px}
+</style>
+</head>
+<body>
+<header><h1>返事を選択式にして「真意」を言葉にしてもらう小さな試作提案カード</h1><small>A1xB1-2 ／ モック（ダミーデータ）</small></header>
+<div class="roles"><button id="rB" onclick="setRole('B')">提案者（Bさん）</button><button id="rM" onclick="setRole('M')">上司（課長）</button></div>
+<div class="row"><button onclick="sample()">サンプルを読み込む</button><button onclick="reset()">全消去</button></div>
+<div id="app"></div>
+<p class="note">判断は上司のものです。このツールは返事の形を整えるだけで、提案の可否判定・提案者の評価や提出数の集計はしません。履歴は本人と上司だけが見られます。</p>
+<script>
+var S={role:'B',cards:[],view:'list',t0:0,tag:''};
+var REASONS=['予算','人','時期','方針'];
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function save(){try{localStorage.setItem('a1b12',JSON.stringify(S.cards))}catch(e){}}
+try{S.cards=JSON.parse(localStorage.getItem('a1b12')||'[]')}catch(e){}
+function setRole(r){S.role=r;S.view='list';render()}
+function sample(){S.cards=[
+{id:1,what:'空き時間で試作基板の評価をやってみたい',hrs:'週2時間',need:'評価用の計測器（既存のもの）',link:'基板の不具合の早期発見につながる',st:'new'},
+{id:2,what:'社内の電源回路を小型化する試作をしたい',hrs:'週3時間',need:'部品代 約2万円',link:'次期製品の小型化検討に使える',st:'replied',ans:'cond',cond:'部品代が来期予算に入ってから。まず回路図レビューだけ先に',rev:'2027-04-01',hist:[]},
+{id:3,what:'外部発注している治具を自作したい',hrs:'週4時間',need:'3Dプリンタの利用枠',link:'治具の納期短縮',st:'replied',ans:'no',reason:'時期',cond:'今期は量産立ち上げで手が足りない。来期の第1四半期に再相談したい',rev:'2027-01-15',hist:[]}];
+S.view='list';save();render()}
+function reset(){S.cards=[];save();S.view='list';render()}
+function label(c){if(c.st==='new')return'<span class="tag warn">返事待ち</span>';
+var m={ok:'やってよい',cond:'条件付きでやってよい',no:'今はできない'};
+var t='<span class="tag">'+m[c.ans]+'</span>';if(c.shrink&&c.sr==='wait')t+='<span class="tag warn">縮小案の返答待ち</span>';
+if(c.sr==='accept')t+='<span class="tag">縮小案を受けた</span>';if(c.sr==='redo')t+='<span class="tag">出し直し</span>';return t}
+function render(){
+$('rB').className=S.role==='B'?'on':'';$('rM').className=S.role==='M'?'on':'';
+var h='';
+if(S.view==='new')h=newForm();
+else if(S.view.indexOf('reply')===0)h=replyForm(+S.view.slice(5));
+else{
+if(S.role==='B')h+='<button class="pri" style="width:100%;margin:8px 0" onclick="S.view=\'new\';S.t0=Date.now();render()">＋ 提案カードを書く（5分で）</button>';
+h+='<h2 style="font-size:15px">カードの一覧'+(S.role==='M'?'（返事待ちを先に）':'')+'</h2>';
+if(!S.cards.length)h+='<p class="sub">カードがありません。「サンプルを読み込む」を押してください。</p>';
+var cs=S.cards.slice().sort(function(a,b){return S.role==='M'?(a.st==='new'?0:1)-(b.st==='new'?0:1):0});
+cs.forEach(function(c){h+=cardView(c)})}
+$('app').innerHTML=h}
+function cardView(c){
+var h='<div class="card"><h3>'+esc(c.what)+'</h3><div class="sub">'+esc(c.hrs)+' ／ 必要なもの：'+esc(c.need)+'<br>業務とのつながり：'+esc(c.link)+'</div><p>'+label(c)+'</p>';
+if(c.st==='replied'){
+h+='<div class="sub">';
+if(c.ans==='cond')h+='条件：'+esc(c.cond)+'<br>';
+if(c.ans==='no')h+='理由：'+esc(c.reason)+'<br>'+esc(c.cond)+'<br>';
+if(c.rev)h+='<b>見直し日：'+esc(c.rev)+'</b>（その日に双方へ知らせます）';
+h+='</div>';
+if(c.shrink)h+='<p class="card" style="background:var(--soft)"><b>縮小案：</b>'+esc(c.shrink)+'</p>';
+if(S.role==='B'&&c.shrink&&c.sr==='wait')h+='<div class="row"><button class="pri" onclick="shr('+c.id+',\'accept\')">縮小案で進める</button><button onclick="shr('+c.id+',\'redo\')">出し直す</button></div>';
+if(S.role==='B'&&c.ans==='no'&&!c.next)h+='<label>次の行動を選ぶ</label><div class="row"><button onclick="nxt('+c.id+',\'見直し日に再相談する\')">見直し日に再相談</button><button onclick="nxt('+c.id+',\'縮小して出し直す\')">縮小して出し直す</button><button onclick="nxt('+c.id+',\'別の提案を考える\')">別の提案へ</button></div>';
+if(c.next)h+='<p class="sub">提案者の次の行動：<b>'+esc(c.next)+'</b></p>'}
+if(S.role==='M'&&c.st==='new')h+='<button class="pri" style="width:100%" onclick="S.view=\'reply'+c.id+'\';S.t0=Date.now();render()">返事をする</button>';
+return h+'</div>'}
+function newForm(){return'<h2 style="font-size:15px">提案カード（各項目は一行）</h2><div class="timer" id="tm"></div>'+
+'<label>やりたいこと</label><input id="f1" placeholder="例：空き時間で試作基板の評価をやってみたい">'+
+'<label>使う時間（週何時間か）</label><input id="f2" placeholder="例：週2時間">'+
+'<label>必要なもの</label><input id="f3" placeholder="例：既存の計測器">'+
+'<label>業務とのつながり</label><input id="f4" placeholder="例：不具合の早期発見">'+
+'<div class="row"><button class="pri" onclick="addCard()">提出する</button><button onclick="S.view=\'list\';render()">戻る</button></div>'}
+function addCard(){var v=[1,2,3,4].map(function(i){return $('f'+i).value.trim()});
+if(v.some(function(x){return!x})){alert('4項目すべて一行で書いてください');return}
+var sec=Math.round((Date.now()-S.t0)/1000);S.tag='提案カードを書くのにかかった時間：'+Math.floor(sec/60)+'分'+sec%60+'秒';
+S.cards.unshift({id:Date.now(),what:v[0],hrs:v[1],need:v[2],link:v[3],st:'new'});save();S.view='list';render();alert(S.tag)}
+function replyForm(id){return'<h2 style="font-size:15px">返事（三択）</h2><div class="card sub">'+esc(S.cards.filter(function(c){return c.id===id})[0].what)+'</div>'+
+'<div class="row"><button id="o_ok" onclick="pick(\'ok\')">やってよい</button><button id="o_cond" onclick="pick(\'cond\')">条件付き</button><button id="o_no" onclick="pick(\'no\')">今はできない</button></div>'+
+'<div id="ex"></div><div id="tm2" class="timer"></div>'}
+var cur='';
+function pick(a){cur=a;var h='';
+if(a==='cond')h+='<label>条件（一行・例：来期予算が確定してから／週2時間以内で）</label><input id="g1">';
+if(a==='no'){h+='<label>理由の分類</label><select id="g0">'+REASONS.map(function(r){return'<option>'+r+'</option>'}).join('')+'</select><label>一言（「方針」の場合も、何が方針かを一行で）</label><input id="g1">'}
+if(a!=='ok')h+='<label>見直し日（必須）</label><input type="date" id="g2"><label>縮小案（任意：「この規模なら可能」）</label><input id="g3">';
+['ok','cond','no'].forEach(function(k){$('o_'+k).className=k===a?'on':''});
+$('ex').innerHTML='<div style="margin-top:10px">'+h+'<button class="pri" style="width:100%" onclick="sendReply()">返事を保存する</button><p class="sub">自動送信はしません。保存すると提案者の画面に表示されます。</p></div>'}
+function sendReply(){if(!cur){alert('三択から選んでください');return}
+var c=S.cards.filter(function(x){return x.id===+S.view.slice(5)})[0],g=function(i){return $(i)?$(i).value.trim():''};
+if(cur!=='ok'&&(!g('g1')||!g('g2'))){alert('一行の記入と見直し日は必須です。条件の記入は空にできませんが、後で追記する場合は「後で追記」と入れてください');return}
+c.st='replied';c.ans=cur;c.cond=g('g1');c.reason=g('g0');c.rev=g('g2');if(g('g3')){c.shrink=g('g3');c.sr='wait'}
+var sec=Math.round((Date.now()-S.t0)/1000);save();var m='返事にかかった時間：'+sec+'秒';cur='';S.view='list';render();alert(m)}
+function shr(id,r){S.cards.forEach(function(c){if(c.id===id)c.sr=r});save();render()}
+function nxt(id,t){S.cards.forEach(function(c){if(c.id===id)c.next=t});save();render()}
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ものづくりサークル運営キット（A5xB1-3）</title>
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --text: #26231f; --sub: #6d675e;
+  --line: #ddd8cc; --accent: #c2571a; --accent-bg: #fbeadd; --ok: #2f7a4d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b19; --card: #292724; --text: #eeeae2; --sub: #a29b8f;
+    --line: #3c3934; --accent: #f08a4b; --accent-bg: #3d2a1e; --ok: #6fcf97;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+.wrap { max-width: 480px; margin: 0 auto; padding: 0 16px 40px; }
+header { padding: 14px 0 8px; }
+header h1 { font-size: 16px; margin: 0; }
+header small { color: var(--sub); }
+.bar { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.bar select { flex: 1; min-width: 0; }
+select, input, textarea, button { font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+textarea, input[type=text] { width: 100%; }
+button { cursor: pointer; }
+button.main { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+nav { display: flex; gap: 6px; margin: 12px 0; }
+nav button { flex: 1; padding: 8px 4px; font-size: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 10px; }
+.card h3 { margin: 0 0 4px; font-size: 15px; }
+.sub { color: var(--sub); font-size: 13px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; margin: 2px 4px 2px 0;
+  border-radius: 10px; background: var(--accent-bg); color: var(--accent); }
+.tag.t { background: none; border: 1px solid var(--ok); color: var(--ok); }
+.note { font-size: 12px; color: var(--sub); border-left: 3px solid var(--line);
+  padding-left: 8px; margin: 12px 0; }
+.row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+label.chk { margin-right: 10px; white-space: nowrap; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>ものづくりサークル運営キット</h1>
+  <small>PRD A5xB1-3 ／ 部署を問わず集まって作る（参加は自由・業務の評価とは無関係）</small>
+</header>
+
+<div class="bar">
+  <select id="who" aria-label="見ている人"></select>
+  <button id="load">サンプルを読み込む</button>
+</div>
+
+<nav id="tabs">
+  <button data-t="plan">活動の予定</button>
+  <button data-t="made">作っているもの</button>
+  <button data-t="match">合う人</button>
+</nav>
+
+<section id="plan"></section>
+<section id="made" class="hidden"></section>
+<section id="match" class="hidden"></section>
+
+<p class="note">参加は自由で、参加しなくても不利にはなりません。出欠や回数で人を評価・順位付けすることはありません。
+連絡は画面から自動では送りません。文面を見て、自分の手で送ってください。</p>
+</div>
+
+<script>
+const SKILLS = ["はんだ付け", "回路設計", "3D設計", "治具づくり"];
+const PEOPLE = ["Bさん（製品開発・電気電子）", "Aさん（製品開発）", "Kさん（試作部門）", "Sさん（生産技術）"];
+let state = { who: 0, tab: "plan", events: [], marks: {}, items: [], draftFor: null };
+
+const SAMPLE = {
+  events: [
+    { id: 1, when: "毎週火・木 12:20〜12:50（昼休み）", where: "第3会議室", beginner: true, memo: "はんだ付けの基本。初めての人向け" },
+    { id: 2, when: "12/10（水）18:00〜19:00（終業後）", where: "試作室の一角", beginner: false, memo: "電源を使う作業は経験者と一緒に行います" },
+    { id: 3, when: "12/24（水）18:00〜19:00（終業後）", where: "第3会議室", beginner: true, memo: "初めての人向けの回。3Dプリンタの見学あり" }
+  ],
+  items: [
+    { who: 0, making: "電子工作キット（LEDのチカチカ基板）", trouble: "一人で始めて途中で止まった。はんだ付けがうまくいかない", need: "はんだ付け", teach: [] },
+    { who: 1, making: "3Dプリンタで作る治具（まだ何も作っていない）", trouble: "何から始めればよいかわからない", need: "3D設計", teach: [] },
+    { who: 2, making: "昼休みに作っているセンサ基板", trouble: "ケース作りまでは手が回っていない", need: "3D設計", teach: ["はんだ付け", "回路設計"] },
+    { who: 3, making: "休日に作っている3Dプリント作品", trouble: "電子部品を組み込んでみたい", need: "回路設計", teach: ["3D設計", "治具づくり"] }
+  ]
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const mine = () => state.items.find(i => i.who === state.who);
+
+function renderPlan() {
+  if (!state.events.length) return '<p class="sub">予定がありません。「サンプルを読み込む」を押してください。</p>';
+  const marks = state.marks[state.who] || [];
+  return state.events.map(e => `
+    <div class="card">
+      <h3>${esc(e.when)}</h3>
+      <div class="sub">場所：${esc(e.where)}</div>
+      <div>${e.beginner ? '<span class="tag">初めての人向け</span>' : ""}${esc(e.memo)}</div>
+      <div class="row">
+        <button data-mark="${e.id}" class="${marks.includes(e.id) ? "on" : ""}">
+          ${marks.includes(e.id) ? "参加したい（印あり）" : "参加したい回に印を付ける"}</button>
+      </div>
+    </div>`).join("");
+}
+
+function renderMade() {
+  const m = mine();
+  const form = `
+    <div class="card">
+      <h3>${esc(PEOPLE[state.who])} の登録</h3>
+      <div class="sub">いま作っているもの</div>
+      <input type="text" id="f-making" value="${esc(m ? m.making : "")}">
+      <div class="sub">困っていること（一行）</div>
+      <input type="text" id="f-trouble" value="${esc(m ? m.trouble : "")}">
+      <div class="sub">困りごとに近いもの</div>
+      <select id="f-need">${SKILLS.map(s => `<option ${m && m.need === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+      <div class="sub" style="margin-top:8px">教えられること</div>
+      <div>${SKILLS.map(s => `<label class="chk"><input type="checkbox" name="teach" value="${s}"
+        ${m && m.teach.includes(s) ? "checked" : ""}> ${s}</label>`).join("")}</div>
+      <div class="row"><button class="main" id="save">登録する</button></div>
+    </div>`;
+  const list = state.items.map(i => `
+    <div class="card">
+      <h3>${esc(PEOPLE[i.who])}</h3>
+      <div>作っているもの：${esc(i.making)}</div>
+      <div class="sub">困っていること：${esc(i.trouble)}</div>
+      ${i.teach.map(t => `<span class="tag t">教えられる：${t}</span>`).join("")}
+    </div>`).join("");
+  return form + '<h3 style="font-size:14px">みんなが作っているもの</h3>' + (list || '<p class="sub">まだ登録がありません。</p>');
+}
+
+function renderMatch() {
+  const m = mine();
+  if (!m) return '<p class="sub">先に「作っているもの」で登録してください。</p>';
+  const helpers = state.items.filter(i => i.who !== state.who && i.teach.includes(m.need));
+  const asked = state.items.filter(i => i.who !== state.who && i.need && m.teach.includes(i.need));
+  let html = `<div class="card"><div class="sub">あなたの困りごと</div>
+    <span class="tag">${esc(m.need)}</span> ${esc(m.trouble)}</div>`;
+  html += '<h3 style="font-size:14px">教えられる人</h3>';
+  html += helpers.map(h => personCard(h, `${m.need}を教えられる人です`)).join("") ||
+    '<p class="sub">いまは合う人がいません。</p>';
+  if (m.teach.length) {
+    html += '<h3 style="font-size:14px">あなたの「教えられること」が役立ちそうな人</h3>';
+    html += asked.map(a => personCard(a, `${a.need}で困っています`)).join("") ||
+      '<p class="sub">いまは該当する人がいません。</p>';
+  }
+  return html;
+}
+
+function personCard(p, why) {
+  const open = state.draftFor === p.who;
+  const me = mine();
+  const draft = `${PEOPLE[p.who].split("（")[0]}、こんにちは。サークルの登録を見ました。` +
+    `「${p.making}」、おもしろそうですね。私は「${me.making}」を作っています。` +
+    `今度の活動で、少しお話しできませんか。`;
+  return `<div class="card">
+    <h3>${esc(PEOPLE[p.who])}</h3>
+    <div class="sub">${esc(why)}</div>
+    <div>作っているもの：${esc(p.making)}</div>
+    <div class="row"><button data-draft="${p.who}">${open ? "文面を閉じる" : "声をかける"}</button></div>
+    ${open ? `<div style="margin-top:8px"><div class="sub">文面の案（自由に書き換えてください。自動では送りません）</div>
+      <textarea rows="4" id="draft">${esc(draft)}</textarea>
+      <div class="row"><button id="copy">文面をコピー</button>
+      <span class="sub" id="copied"></span></div></div>` : ""}
+  </div>`;
+}
+
+function render() {
+  $("who").innerHTML = PEOPLE.map((p, i) => `<option value="${i}" ${i === state.who ? "selected" : ""}>${p}</option>`).join("");
+  $("plan").innerHTML = renderPlan();
+  $("made").innerHTML = renderMade();
+  $("match").innerHTML = renderMatch();
+  for (const t of ["plan", "made", "match"]) $(t).classList.toggle("hidden", t !== state.tab);
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === state.tab));
+}
+
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.t) { state.tab = t.dataset.t; state.draftFor = null; }
+  else if (t.id === "load") {
+    state.events = JSON.parse(JSON.stringify(SAMPLE.events));
+    state.items = JSON.parse(JSON.stringify(SAMPLE.items));
+    state.marks = {};
+  } else if (t.dataset.mark) {
+    const id = +t.dataset.mark;
+    const list = state.marks[state.who] || (state.marks[state.who] = []);
+    const k = list.indexOf(id);
+    if (k >= 0) list.splice(k, 1); else list.push(id);
+  } else if (t.id === "save") {
+    const item = {
+      who: state.who, making: $("f-making").value, trouble: $("f-trouble").value, need: $("f-need").value,
+      teach: [...document.querySelectorAll("input[name=teach]:checked")].map(c => c.value)
+    };
+    const k = state.items.findIndex(i => i.who === state.who);
+    if (k >= 0) state.items[k] = item; else state.items.push(item);
+  } else if (t.dataset.draft) {
+    const w = +t.dataset.draft;
+    state.draftFor = state.draftFor === w ? null : w;
+  } else if (t.id === "copy") {
+    const text = $("draft").value;
+    if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+    $("copied").textContent = "コピーしました。ご自身で送ってください";
+    return;
+  } else return;
+  render();
+});
+$("who").addEventListener("change", e => { state.who = +e.target.value; state.draftFor = null; render(); });
+render();
+</script>
+</body>
+</html>

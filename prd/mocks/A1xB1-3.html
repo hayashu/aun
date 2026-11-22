@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1xB1-3 ものづくり時間の申請制度 モック</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#1d2330;--sub:#5d6677;--line:#dde1e8;--accent:#2a5bd7;--accent-t:#fff;--warn:#b3261e;--warn-bg:#fdecea;--ok:#1b7a43;--ok-bg:#e6f4ea;--hold:#8a5a00;--hold-bg:#fff3d6;--bar:#8fa8e8}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--text:#e8ebf1;--sub:#9aa3b2;--line:#2c3340;--accent:#7a9cf0;--accent-t:#0e1320;--warn:#ff8a80;--warn-bg:#3a1f1d;--ok:#6fd49a;--ok-bg:#16301f;--hold:#f2c35c;--hold-bg:#362b10;--bar:#4a62a8}}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;max-width:480px;margin:0 auto;padding:0 16px 48px;overflow-x:hidden}
+header{padding:12px 0 8px}
+header h1{font-size:15px;margin:0;line-height:1.4}
+header small{color:var(--sub);font-size:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tabs{display:flex;gap:6px;margin:8px 0}
+.tabs button{flex:1;padding:8px 4px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;font-size:13px;cursor:pointer}
+.tabs button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+.card h2{font-size:15px;margin:0 0 6px}
+.card h3{font-size:13px;margin:10px 0 4px;color:var(--sub)}
+.muted{color:var(--sub);font-size:12px}
+label{display:block;font-size:13px;margin:8px 0 2px;font-weight:600}
+input,select,textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:56px;resize:vertical}
+button.pri{background:var(--accent);color:var(--accent-t);border:0;border-radius:8px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;width:100%;margin-top:10px}
+button.sec{background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
+.badge{display:inline-block;font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);margin-right:4px}
+.b-ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.b-hold{background:var(--hold-bg);color:var(--hold);border-color:transparent}
+.b-warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.item{border-top:1px solid var(--line);padding:8px 0}
+.item:first-of-type{border-top:0}
+.item.over{border-left:4px solid var(--warn);padding-left:8px}
+.opt{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--line);border-radius:8px;margin:6px 0;font-size:14px;cursor:pointer}
+.opt input{width:auto;margin-top:4px}
+.opt.sel{border-color:var(--accent)}
+.err{color:var(--warn);font-size:12px;margin-top:6px;min-height:18px}
+.stat{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center}
+.stat div{background:var(--bg);border-radius:8px;padding:8px 2px}
+.stat b{display:block;font-size:20px}
+.stat span{font-size:11px;color:var(--sub)}
+.bar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--bg);margin:3px 0}
+.bar i{display:block;height:100%}
+.hr{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0}
+.hr span:first-child{width:3.8em;flex:none}
+.hr .bar{flex:1;margin:0}
+.toast{position:fixed;left:16px;right:16px;bottom:16px;max-width:448px;margin:0 auto;background:var(--text);color:var(--bg);padding:10px 12px;border-radius:8px;font-size:13px;display:none}
+details summary{cursor:pointer;font-size:13px;color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:5px 2px;text-align:left;border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <h1>保留には「理由と期限」を必須にする、ものづくり時間の申請制度</h1>
+  <div class="row"><small>PRD ID: A1xB1-3 ／ モック（ダミーデータ・保存なし）</small></div>
+</header>
+<div class="row" style="margin-bottom:4px">
+  <button class="sec" id="load">サンプルを読み込む</button>
+  <button class="sec" id="reset">空にする</button>
+  <span class="muted" id="today"></span>
+</div>
+<nav class="tabs" id="tabs"></nav>
+<main id="view"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+const TODAY = '2026-11-22';        // モック上の「今日」(固定)
+const DUE_DAYS = 14;               // 返事の期限(部門の設定例: 2週間)
+const CAP = 16;                    // 月あたり上限(例)。値の決め方は未決
+const ROLES = [['app','申請者(Bさん)'],['boss','上司(課長)'],['head','部門長']];
+const REASONS = ['予算','設備','時期','業務量'];
+const SECTIONS = ['第1課','第2課','第3課'];
+const SAMPLE = [
+ {who:'Bさん',sec:'第2課',title:'試作基板の評価をやりたい',hours:8,equip:'オシロスコープ、電源',link:'試作基板Rev.B の評価工程の一部',sub:'2026-11-18'},
+ {who:'Aさん',sec:'第2課',title:'組立治具の改善を試作したい',hours:6,equip:'3Dプリンタ',link:'組立ラインの治具調整時間の短縮',sub:'2026-10-20',st:'保留',reason:'時期',next:'2026-11-10',dec:'2026-10-24'},
+ {who:'C',sec:'第2課',title:'測定ジグの自作',hours:10,equip:'工作機械',link:'測定の再現性向上',sub:'2026-10-27'},
+ {who:'D',sec:'第2課',title:'センサ取付台の試作',hours:4,equip:'3Dプリンタ',link:'次期製品の取付検討',sub:'2026-11-02'},
+ {who:'E',sec:'第1課',title:'電源回路の簡易評価',hours:8,equip:'電源、電子負荷',link:'量産前の確認作業',sub:'2026-11-12'},
+ {who:'F',sec:'第1課',title:'ケーブル冶具の試作',hours:5,equip:'3Dプリンタ',link:'検査工数の削減',sub:'2026-10-05',st:'承認',dec:'2026-10-12'},
+ {who:'G',sec:'第1課',title:'評価治具の改良',hours:6,equip:'工作機械',link:'評価の効率化',sub:'2026-10-08',st:'条件付き承認',reason:'月6時間まで、設備の空き時間に限る',dec:'2026-10-15'},
+ {who:'H',sec:'第3課',title:'基板の手はんだ試作',hours:12,equip:'はんだ設備',link:'試作の内製化',sub:'2026-10-10',st:'承認',dec:'2026-10-20'},
+ {who:'I',sec:'第3課',title:'大型設備を使う評価',hours:16,equip:'恒温槽',link:'信頼性評価',sub:'2026-10-14',st:'見送り',reason:'設備',dec:'2026-10-22'},
+ {who:'J',sec:'第3課',title:'治具の小改良',hours:3,equip:'3Dプリンタ',link:'日常の作業改善',sub:'2026-11-15'}
+];
+const S = {role:'app', reqs:[], log:[], pick:null, n:0};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const day = s => Math.round((new Date(s) - new Date(TODAY)) / 864e5);
+const addDays = (s, n) => new Date(new Date(s).getTime() + n * 864e5).toISOString().slice(0, 10);
+const open = r => !r.st || r.st === '保留';
+// 返事の期限: 未返事は申請日+期限、保留は次の判断日
+const dueOf = r => r.st === '保留' ? r.next : addDays(r.sub, DUE_DAYS);
+const overdue = r => open(r) && day(dueOf(r)) < 0;
+
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',2600);}
+function load(){S.reqs=SAMPLE.map((r,i)=>({id:++S.n,...r}));S.log=[];S.pick=null;render();toast('サンプルを読み込みました');}
+
+function badge(r){
+  if(!r.st) return '<span class="badge">未返事</span>';
+  const c = r.st==='保留'?'b-hold':r.st==='見送り'?'b-warn':'b-ok';
+  return `<span class="badge ${c}">${r.st}</span>`;
+}
+function dueText(r){
+  if(!open(r)) return '';
+  const d = day(dueOf(r));
+  const t = d<0 ? `期限を ${-d} 日超過` : d===0 ? '本日が期限' : `期限まで ${d} 日`;
+  const cls = d<0 ? 'b-warn' : d<=3 ? 'b-hold' : '';
+  return `<span class="badge ${cls}">${t}（${dueOf(r)}）</span>`;
+}
+
+/* ---------- 申請者 ---------- */
+function viewApp(){
+  const mine = S.reqs.filter(r=>r.who==='Bさん');
+  let h = `<div class="card"><h2>申請フォーム</h2><div class="muted">一枚で書けます。資料の添付は不要です。返事の期限は申請日から${DUE_DAYS}日です。</div>
+  <label>やりたいこと</label><input id="f_t" placeholder="例: 試作基板の評価をやりたい">
+  <label>月あたりの時間（目安の上限 ${CAP}時間）</label><input id="f_h" type="number" min="1" max="${CAP}" value="8">
+  <label>使う設備</label><input id="f_e" placeholder="例: オシロスコープ">
+  <label>業務とのつながり</label><textarea id="f_l" placeholder="例: 評価工程の一部を担当できる"></textarea>
+  <div class="err" id="f_err"></div><button class="pri" id="f_go">申請する</button></div>`;
+  h += `<div class="card"><h2>自分の申請</h2>` + (mine.length ? mine.map(r=>`<div class="item"><b>${esc(r.title)}</b><br>${badge(r)}${dueText(r)}
+    <div class="muted">${r.hours}時間/月 ・ 申請日 ${r.sub}${r.st==='保留'?` ・ 保留の理由: ${r.reason} ・ 次の判断日 ${r.next}`:''}${r.st==='見送り'||r.st==='条件付き承認'?` ・ ${r.st==='見送り'?'理由: ':'条件: '}${esc(r.reason)}`:''}</div></div>`).join('') : '<div class="muted">まだありません。</div>') + '</div>';
+  h += `<div class="card"><h2>承認基準（部門で公開）</h2><div class="muted">通りやすいのは、業務とのつながりがあり、設備に空きがあり、月の上限内の申請です。</div>
+  <h3>過去の例（名前は伏せています）</h3>
+  <div class="item"><span class="badge b-ok">承認</span>治具の試作 / 月5時間 / 検査工数の削減につながる</div>
+  <div class="item"><span class="badge b-ok">条件付き承認</span>評価治具の改良 / 月6時間まで、設備の空き時間に限る</div>
+  <div class="item"><span class="badge b-warn">見送り</span>恒温槽を使う評価 / 理由: 設備（半年先まで予約済み）</div></div>`;
+  return h;
+}
+function submitApp(){
+  const t=$('f_t').value.trim(), h=+$('f_h').value, e=$('f_e').value.trim(), l=$('f_l').value.trim();
+  if(!t||!e||!l) return $('f_err').textContent='やりたいこと・使う設備・業務とのつながりを入力してください。';
+  if(!(h>=1)) return $('f_err').textContent='月あたりの時間を入力してください。';
+  S.reqs.push({id:++S.n,who:'Bさん',sec:'第2課',title:t,hours:h,equip:e,link:l,sub:TODAY});
+  render(); toast('申請しました。上司の返事の期限は '+addDays(TODAY,DUE_DAYS)+' です。');
+}
+
+/* ---------- 上司 ---------- */
+function viewBoss(){
+  const list = S.reqs.filter(open).sort((a,b)=>day(dueOf(a))-day(dueOf(b)));
+  let h = `<div class="card"><h2>返事待ちの申請（${list.length}件）</h2><div class="muted">期限の近い順。期限の3日前から印が付きます。</div>` +
+    (list.map(r=>`<div class="item ${overdue(r)?'over':''}"><b>${esc(r.title)}</b>（${r.sec}）<br>${badge(r)}${dueText(r)}
+    <div class="muted">${r.hours}時間/月 ・ ${esc(r.equip)} ・ ${esc(r.link)}</div><button class="sec" data-pick="${r.id}" style="margin-top:6px">返事する</button></div>`).join('')||'<div class="muted">返事待ちはありません。</div>') + '</div>';
+  const r = S.reqs.find(x=>x.id===S.pick);
+  if(r){
+    h += `<div class="card" id="reply"><h2>返事: ${esc(r.title)}</h2><div class="muted">「考えておく」は選べません。必ずどれかで決着させます。</div>
+    ${[['承認','そのまま承認する'],['条件付き承認','条件を付けて承認する'],['保留','保留にする（理由の分類と次の判断日が必須）'],['見送り','見送る（理由が必須）']].map(([v,t])=>`<label class="opt"><input type="radio" name="ans" value="${v}"><span><b>${v}</b><br><span class="muted">${t}</span></span></label>`).join('')}
+    <div id="ext"></div><div class="err" id="r_err"></div><button class="pri" id="r_go">この内容で返事する</button></div>`;
+  }
+  if(S.log.length){
+    const c = k => S.log.filter(x=>x.feel===k).length;
+    h += `<div class="card"><h2>この返事画面の感想ログ</h2><div class="muted">画面の確かめ用です。人の評価ではありません。</div>
+    <div>決めやすかった ${c('決めやすかった')} ／ どちらでもない ${c('どちらでもない')} ／ 返事しにくかった ${c('返事しにくかった')}</div>
+    <div class="muted">${S.log.map(x=>`${esc(x.title)}: ${x.ans}（${x.feel}）`).join('<br>')}</div></div>`;
+  }
+  return h;
+}
+function extFields(v){
+  const sel = '<select id="x_r">' + REASONS.map(x=>`<option>${x}</option>`).join('') + '</select>';
+  if(v==='保留') return `<label>保留の理由の分類</label>${sel}<label>次の判断日</label><input id="x_d" type="date" min="${addDays(TODAY,1)}">`;
+  if(v==='見送り') return `<label>見送りの理由</label>${sel}<label>補足（任意）</label><input id="x_n">`;
+  if(v==='条件付き承認') return `<label>条件</label><input id="x_c" placeholder="例: 月6時間まで">`;
+  return '';
+}
+function submitReply(){
+  const r=S.reqs.find(x=>x.id===S.pick), a=document.querySelector('input[name=ans]:checked');
+  if(!a) return $('r_err').textContent='返事を選んでください。';
+  const v=a.value; let reason='', next='';
+  if(v==='保留'){ next=$('x_d').value; reason=$('x_r').value; if(!next) return $('r_err').textContent='保留には次の判断日が必須です。'; if(day(next)>DUE_DAYS) return $('r_err').textContent=`次の判断日は ${DUE_DAYS} 日以内で指定してください。`; }
+  if(v==='見送り') reason=$('x_r').value+($('x_n').value?'（'+$('x_n').value+'）':'');
+  if(v==='条件付き承認'){ reason=$('x_c').value.trim(); if(!reason) return $('r_err').textContent='条件を入力してください。'; }
+  Object.assign(r,{st:v,reason,next,dec:TODAY});
+  S.pick=null; S.last={title:r.title,ans:v}; render(); askFeel();
+}
+function askFeel(){
+  const d=document.createElement('div'); d.className='card'; d.id='feel';
+  d.innerHTML=`<h2>いまの返事の画面はどうでしたか</h2>${['決めやすかった','どちらでもない','返事しにくかった'].map(k=>`<button class="sec" data-feel="${k}" style="margin:2px">${k}</button>`).join('')}`;
+  $('view').prepend(d);
+}
+
+/* ---------- 部門長 ---------- */
+function viewHead(){
+  const all=S.reqs, done=all.filter(r=>!open(r)||r.st==='保留'&&false), over=all.filter(overdue);
+  const settled=all.filter(r=>r.dec&&r.st!=='保留');
+  const avg=settled.length?(settled.reduce((s,r)=>s+(new Date(r.dec)-new Date(r.sub))/864e5,0)/settled.length).toFixed(1):'-';
+  let h=`<div class="card"><h2>部門の一覧</h2><div class="stat"><div><b>${all.length}</b><span>申請の件数</span></div><div><b>${avg}</b><span>決着までの平均日数</span></div><div><b style="color:${over.length?'var(--warn)':'inherit'}">${over.length}</b><span>期限超過</span></div></div></div>`;
+  h+=`<div class="card"><h2>期限を過ぎた申請</h2>`+(over.length?over.sort((a,b)=>day(dueOf(a))-day(dueOf(b))).map(r=>`<div class="item over"><b>${esc(r.title)}</b>（${r.sec}）<br>${badge(r)}${dueText(r)}</div>`).join(''):'<div class="muted">ありません。</div>')+'</div>';
+  const colors={未返事:'var(--warn)',承認:'var(--ok)',条件付き承認:'var(--bar)',保留:'var(--hold)',見送り:'var(--sub)'};
+  h+=`<div class="card"><h2>課ごとの内訳</h2><div class="muted">色: ${Object.keys(colors).map(k=>`<span style="color:${colors[k]}">■</span>${k}`).join(' ')}</div>`+SECTIONS.map(s=>{
+    const rs=all.filter(r=>r.sec===s), o=rs.filter(overdue).length;
+    return `<div class="hr"><span>${s}</span><div class="bar">${Object.keys(colors).map(k=>{const n=rs.filter(r=>(r.st||'未返事')===k).length;return n?`<i style="width:${n/Math.max(1,Math.max(...SECTIONS.map(x=>all.filter(r=>r.sec===x).length)))*100}%;background:${colors[k]}" title="${k} ${n}"></i>`:''}).join('')}</div><span>${rs.length}件${o?`<b style="color:var(--warn)"> 超過${o}</b>`:''}</span></div>`;}).join('')+'</div>';
+  const hold=all.filter(r=>r.st==='保留'), skip=all.filter(r=>r.st==='見送り');
+  h+=`<div class="card"><h2>保留・見送りの理由の内訳</h2><table><tr><th>理由</th><th>保留</th><th>見送り</th></tr>`+REASONS.map(x=>`<tr><td>${x}</td><td>${hold.filter(r=>r.reason===x).length}</td><td>${skip.filter(r=>(r.reason||'').startsWith(x)).length}</td></tr>`).join('')+`</table><div class="muted">見送りが増えていないかも、ここで見ます。</div></div>`;
+  return h;
+}
+
+/* ---------- 共通 ---------- */
+function render(){
+  $('today').textContent='今日: '+TODAY;
+  $('tabs').innerHTML=ROLES.map(([k,n])=>`<button data-role="${k}" class="${S.role===k?'on':''}">${n}</button>`).join('');
+  $('view').innerHTML = !S.reqs.length && S.role!=='app' ? '<div class="card muted">データがありません。「サンプルを読み込む」を押してください。</div>' : {app:viewApp,boss:viewBoss,head:viewHead}[S.role]();
+}
+document.addEventListener('click',e=>{
+  const t=e.target;
+  if(t.id==='load') load();
+  else if(t.id==='reset'){S.reqs=[];S.log=[];S.pick=null;render();}
+  else if(t.dataset.role){S.role=t.dataset.role;S.pick=null;render();}
+  else if(t.id==='f_go') submitApp();
+  else if(t.dataset.pick){S.pick=+t.dataset.pick;render();$('reply').scrollIntoView({behavior:'smooth'});}
+  else if(t.id==='r_go') submitReply();
+  else if(t.dataset.feel){S.log.push({...S.last,feel:t.dataset.feel});render();toast('記録しました');}
+});
+document.addEventListener('change',e=>{
+  if(e.target.name==='ans'){
+    document.querySelectorAll('.opt').forEach(o=>o.classList.toggle('sel',o.contains(e.target)&&e.target.checked));
+    $('ext').innerHTML=extFields(e.target.value);$('r_err').textContent='';
+  }
+});
+render();
+</script>
+</body>
+</html>

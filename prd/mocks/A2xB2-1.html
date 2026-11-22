@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前提チェックリスト A2xB2-1</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1e2430; --sub: #667085;
+  --line: #dde1e8; --accent: #2f6fdb; --accent-bg: #e6eefc;
+  --ok: #2f8f5b; --ok-bg: #e3f4ea; --warn: #b7791f; --warn-bg: #fdf3dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --card: #1d2229; --text: #e8ebf0; --sub: #9aa4b2;
+    --line: #333b46; --accent: #7aa7ff; --accent-bg: #23314d;
+    --ok: #6fd09a; --ok-bg: #1e3a2b; --warn: #f0c36a; --warn-bg: #3d3319;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Hiragino Sans", sans-serif; }
+header { padding: 12px 16px 8px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { max-width: 480px; margin: 0 auto; padding: 12px 16px 40px; }
+nav { display: flex; gap: 6px; margin-bottom: 12px; }
+nav button { flex: 1; padding: 8px 4px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; font-size: 14px; }
+nav button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.card h2 { margin: 0 0 6px; font-size: 15px; }
+input, select { width: 100%; padding: 10px; margin: 4px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 16px; }
+button.main { width: 100%; padding: 11px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 15px; }
+button.sub { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font-size: 13px; margin: 2px 4px 2px 0; }
+button.sub.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.note { color: var(--sub); font-size: 13px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); margin-right: 4px; }
+.tag.freq { background: var(--warn-bg); color: var(--warn); }
+.tag.ok { background: var(--ok-bg); color: var(--ok); }
+.row { border-top: 1px solid var(--line); padding: 8px 0; }
+.row:first-of-type { border-top: 0; }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 4px 0; }
+.bar i { display: block; height: 100%; background: var(--ok); }
+.next { border-color: var(--accent); background: var(--accent-bg); }
+.timer { font-size: 13px; color: var(--ok); min-height: 20px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>前提チェックリスト <small>A2xB2-1</small></h1>
+  <small>わからない言葉を一語だけ記録し、あとで埋める（モック）</small>
+</header>
+<main>
+  <nav>
+    <button data-tab="rec" class="on">記録</button>
+    <button data-tab="sort">整理</button>
+    <button data-tab="map">前提の地図</button>
+  </nav>
+  <div style="margin-bottom:10px"><button class="sub" id="sample">サンプルを読み込む</button><button class="sub" id="clear">全部消す</button></div>
+
+  <section id="rec">
+    <div class="card">
+      <h2>その場の一語記録</h2>
+      <input id="word" placeholder="わからない言葉（例: DR2）" autocomplete="off">
+      <input id="scene" placeholder="出てきた場面（会議名・資料名）" autocomplete="off">
+      <div id="scenes"></div>
+      <button class="main" id="save">記録する</button>
+      <div class="timer" id="timer"></div>
+      <p class="note">言葉と場面だけ。分類や調べ先はあとで決めます。紙のメモから後でまとめて入力しても使えます。</p>
+    </div>
+    <div class="card"><h2>最近の記録</h2><div id="recent"></div></div>
+  </section>
+
+  <section id="sort" class="hidden">
+    <div class="card"><h2>あとで埋める</h2>
+      <p class="note">分類と調べ先を決め、わかった意味を一行で書くと「わかった」に移ります。</p></div>
+    <div id="sortList"></div>
+  </section>
+
+  <section id="map" class="hidden">
+    <div id="nextBox"></div>
+    <div id="mapList"></div>
+  </section>
+</main>
+
+<script>
+const CATS = ["略語", "規格", "図面", "工程"];
+const SOURCES = {
+  "略語": ["先輩に聞く", "部門の共有フォルダ"],
+  "規格": ["社内規格書", "部門の共有フォルダ"],
+  "図面": ["社内規格書", "先輩に聞く"],
+  "工程": ["部門の共有フォルダ", "先輩に聞く"]
+};
+const SAMPLE = [
+  { word: "ES品", scene: "設計会議 7/10", cat: "略語", src: "先輩に聞く", meaning: "評価用の試作品", count: 3, days: 9 },
+  { word: "DR2", scene: "設計会議 7/10", cat: "略語", src: "先輩に聞く", meaning: "", count: 2, days: 9 },
+  { word: "一般公差", scene: "図面 A-1024", cat: "図面", src: "社内規格書", meaning: "", count: 1, days: 3 },
+  { word: "QA", scene: "週次ミーティング", cat: "略語", src: "", meaning: "", count: 1, days: 1 },
+  { word: "社内規格 KS-203", scene: "図面 A-1024", cat: "規格", src: "", meaning: "", count: 1, days: 2 },
+  { word: "試作2次", scene: "進捗報告", cat: "工程", src: "部門の共有フォルダ", meaning: "", count: 2, days: 5 },
+  { word: "はめあい", scene: "図面レビュー", cat: "図面", src: "社内規格書", meaning: "穴と軸の組み合わせのきつさ", count: 1, days: 6 }
+];
+let items = [], tab = "rec", firstKey = null;
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const done = e => e.meaning.trim() !== "";
+const isFreq = e => e.count >= 2 && !done(e);
+const isOld = e => e.days >= 7 && !done(e);
+
+function load(list) {
+  items = list.map((e, i) => ({ id: i + 1, ...e }));
+  render();
+}
+
+function addWord(word, scene) {
+  const hit = items.find(e => e.word === word);
+  if (hit) { hit.count++; hit.scene = scene || hit.scene; return; }
+  items.unshift({ id: Date.now(), word, scene, cat: "", src: "", meaning: "", count: 1, days: 0 });
+}
+
+$("word").addEventListener("input", () => { if (!firstKey) firstKey = Date.now(); });
+$("save").onclick = () => {
+  const word = $("word").value.trim();
+  if (!word) return;
+  addWord(word, $("scene").value.trim());
+  const sec = firstKey ? ((Date.now() - firstKey) / 1000).toFixed(1) : "0.0";
+  $("timer").textContent = "記録しました（入力開始から " + sec + " 秒）";
+  $("word").value = "";
+  firstKey = null;
+  render();
+  $("word").focus();
+};
+
+function renderRec() {
+  const scenes = [...new Set(items.map(e => e.scene).filter(Boolean))].slice(0, 4);
+  $("scenes").innerHTML = scenes.map(s => '<button class="sub" data-s="' + esc(s) + '">' + esc(s) + "</button>").join("");
+  $("scenes").querySelectorAll("button").forEach(b => b.onclick = () => { $("scene").value = b.dataset.s; });
+  $("recent").innerHTML = items.length
+    ? items.slice(0, 5).map(e => '<div class="row"><b>' + esc(e.word) + '</b> <span class="note">' + esc(e.scene) +
+        (e.count > 1 ? " ・" + e.count + "回" : "") + "</span></div>").join("")
+    : '<p class="note">まだ記録がありません。</p>';
+}
+
+function renderSort() {
+  const todo = items.filter(e => !done(e));
+  if (!todo.length) { $("sortList").innerHTML = '<div class="card note">埋める言葉はありません。</div>'; return; }
+  $("sortList").innerHTML = todo.map(e => {
+    const cats = CATS.map(c => '<button class="sub' + (e.cat === c ? " on" : "") + '" data-id="' + e.id + '" data-cat="' + c + '">' + c + "</button>").join("");
+    const srcs = e.cat ? SOURCES[e.cat].concat(SOURCES[e.cat].includes("先輩に聞く") ? [] : ["先輩に聞く"])
+      .map(s => '<button class="sub' + (e.src === s ? " on" : "") + '" data-id="' + e.id + '" data-src="' + s + '">' + s + "</button>").join("")
+      : '<span class="note">分類を選ぶと調べ先の候補が出ます</span>';
+    return '<div class="card"><b>' + esc(e.word) + "</b> " +
+      (isFreq(e) ? '<span class="tag freq">よく出る ×' + e.count + "</span>" : "") +
+      (isOld(e) ? '<span class="tag freq">1週間たちました</span>' : "") +
+      '<div class="note">' + esc(e.scene) + "</div>" +
+      '<div class="note" style="margin-top:6px">分類</div>' + cats +
+      '<div class="note" style="margin-top:6px">調べ先</div>' + srcs +
+      (isOld(e) ? '<div class="note">調べても出ないときは「先輩に聞く」も候補です。</div>' : "") +
+      '<input data-mean="' + e.id + '" placeholder="わかった意味を自分の言葉で一行" value="' + esc(e.meaning) + '">' +
+      '<button class="main" data-done="' + e.id + '">わかった</button></div>';
+  }).join("");
+  $("sortList").querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
+    const e = items.find(x => x.id == b.dataset.id);
+    e.cat = b.dataset.cat; e.src = ""; render();
+  });
+  $("sortList").querySelectorAll("[data-src]").forEach(b => b.onclick = () => {
+    items.find(x => x.id == b.dataset.id).src = b.dataset.src; render();
+  });
+  $("sortList").querySelectorAll("[data-done]").forEach(b => b.onclick = () => {
+    const v = document.querySelector('[data-mean="' + b.dataset.done + '"]').value.trim();
+    if (!v) return;
+    items.find(x => x.id == b.dataset.done).meaning = v; render();
+  });
+}
+
+function renderMap() {
+  const stat = CATS.map(c => {
+    const list = items.filter(e => e.cat === c);
+    return { c, list, ok: list.filter(done).length, rest: list.filter(e => !done(e)) };
+  });
+  const uncls = items.filter(e => !e.cat);
+  const target = stat.filter(s => s.rest.length).sort((a, b) => b.rest.length - a.rest.length)[0];
+  $("nextBox").innerHTML = target
+    ? '<div class="card next"><h2>次に埋める範囲: ' + target.c + "</h2>" +
+      '<div class="note">まず「' + esc((target.rest.find(isFreq) || target.rest[0]).word) + "」から。" +
+      ((target.rest.find(isFreq)) ? "何度も出ている言葉です。" : "") + "</div></div>"
+    : '<div class="card note">' + (items.length ? "分類済みの言葉はすべてわかりました。" : "記録するとここに地図が出ます。") + "</div>";
+  $("mapList").innerHTML = stat.filter(s => s.list.length).map(s => {
+    const pct = Math.round(s.ok / s.list.length * 100);
+    return '<div class="card"><h2>' + s.c + ' <span class="tag ok">わかった ' + s.ok + "/" + s.list.length + "</span></h2>" +
+      '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+      s.list.map(e => '<div class="row">' + (done(e) ? '<span class="tag ok">済</span><b>' + esc(e.word) + '</b><div class="note">' + esc(e.meaning) + "</div>"
+        : '<span class="tag">まだ</span><b>' + esc(e.word) + "</b> " + (isFreq(e) ? '<span class="tag freq">よく出る ×' + e.count + "</span>" : "") +
+          '<div class="note">調べ先: ' + (e.src || "未定") + "</div>") + "</div>").join("") + "</div>";
+  }).join("") +
+    (uncls.length ? '<div class="card note">分類前の言葉 ' + uncls.length + " 件は「整理」で分類できます。</div>" : "");
+}
+
+function render() {
+  ["rec", "sort", "map"].forEach(t => $(t).classList.toggle("hidden", t !== tab));
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+  renderRec(); renderSort(); renderMap();
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+$("sample").onclick = () => load(SAMPLE);
+$("clear").onclick = () => load([]);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>進捗の信号合図 (A3xB3-2)</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1f2933; --sub: #697586; --line: #dde1e7;
+  --blue: #2f6fd6; --yellow: #e0a800; --red: #d64545; --accent: #2f6fd6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d; --card: #1e242b; --text: #e8ecf0; --sub: #98a3b0; --line: #333b45;
+    --blue: #5b95f0; --yellow: #f0c030; --red: #f07070; --accent: #5b95f0;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 12px 16px 8px; }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 0 16px 40px; max-width: 480px; margin: 0 auto; }
+.tabs { display: flex; gap: 8px; margin: 8px 0 12px; }
+.tabs button { flex: 1; }
+button { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); color: var(--text); cursor: pointer; }
+button.on { border-color: var(--accent); color: var(--accent); font-weight: bold; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; margin-bottom: 10px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.grow { flex: 1; min-width: 0; }
+.dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+.dot.blue { background: var(--blue); } .dot.yellow { background: var(--yellow); } .dot.red { background: var(--red); }
+.sub { color: var(--sub); font-size: 13px; }
+.badge { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); }
+.alert { border-color: var(--yellow); }
+.sig { display: flex; gap: 8px; margin: 8px 0; }
+.sig button { flex: 1; padding: 12px 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.chips button { font-size: 13px; padding: 4px 10px; }
+.slots { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+input[type=text] { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--card); color: var(--text); }
+h2 { font-size: 15px; margin: 14px 0 6px; }
+.hist { font-size: 13px; color: var(--sub); }
+.note { font-size: 12px; color: var(--sub); margin-top: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>部下が付ける進捗の信号合図 <small>A3xB3-2</small></h1>
+</header>
+<main>
+  <div class="tabs">
+    <button id="tab-sub" onclick="setRole('sub')">部下（Bさん）</button>
+    <button id="tab-boss" onclick="setRole('boss')">課長</button>
+  </div>
+  <button onclick="loadSample()" style="width:100%;margin-bottom:12px">サンプルを読み込む</button>
+  <div id="view"></div>
+  <p class="note">信号は青・黄・赤の3段階のみ。進捗率や赤の数は集計・評価に使いません。上司の提案は課長が自分で送ります（自動送信なし）。</p>
+</main>
+<script>
+const REASONS = ['測定器の不調', '情報待ち', '技術的に詰まった', '優先度が変わった'];
+const SLOTS = ['今日 15:00-15:15', '明日 10:00-10:15', '明日 16:30-16:45'];
+const LABEL = { blue: '青 予定どおり', yellow: '黄 遅れそう・詰まり気味', red: '赤 遅れている・助けが必要' };
+let state = { role: 'sub', tasks: [], openId: null, draft: null, t0: 0, lastSec: null, felt: null };
+
+function loadSample() {
+  state.tasks = [
+    { id: 1, name: 'ノイズ対策の評価', sig: 'blue', reason: '', history: ['青（11/10）'], days: 0, proposal: null, slot: null, memo: '' },
+    { id: 2, name: '電源基板の試作レビュー', sig: 'blue', reason: '', history: ['青（11/05）'], days: 0, proposal: null, slot: null, memo: '' },
+    { id: 3, name: '測定手順書の改訂', sig: 'yellow', reason: '情報待ち', history: ['青（11/10）', '黄（11/17）'], days: 5, proposal: null, slot: null, memo: '' },
+  ];
+  state.openId = null; state.lastSec = null; state.felt = null;
+  render();
+}
+function setRole(r) { state.role = r; state.openId = null; render(); }
+function task(id) { return state.tasks.find(t => t.id === id); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function openEdit(id) {
+  state.openId = id; state.t0 = Date.now();
+  state.draft = { sig: task(id).sig, reason: task(id).reason };
+  render();
+}
+function pickSig(s) {
+  state.draft.sig = s;
+  if (s === 'blue') state.draft.reason = '';
+  render();
+}
+function pickReason(r) { state.draft.reason = r; render(); }
+function saveSig() {
+  const t = task(state.openId), d = state.draft;
+  if (d.sig !== 'blue' && !d.reason) return;
+  if (d.sig !== t.sig) {
+    t.history.push(LABEL[d.sig].split(' ')[0] + '（今日）');
+    t.days = 0;
+    if (d.sig === 'blue') { t.proposal = null; t.slot = null; }
+  }
+  t.sig = d.sig; t.reason = d.reason;
+  state.lastSec = ((Date.now() - state.t0) / 1000).toFixed(1);
+  state.openId = null; render();
+}
+function propose(id, slot) {
+  const t = task(id);
+  if (!t.proposal) t.proposal = [];
+  t.proposal = SLOTS.slice(0, 3).filter(s => s === slot || t.proposal.includes(s));
+  render();
+}
+function chooseSlot(id, slot) { task(id).slot = slot; render(); }
+function saveMemo(id) {
+  const v = document.getElementById('memo' + id).value.trim();
+  if (v) task(id).memo = v;
+  render();
+}
+function feel(v) { state.felt = v; render(); }
+
+function dotRow(t, extra) {
+  return `<div class="row"><span class="dot ${t.sig}"></span><div class="grow"><b>${esc(t.name)}</b>
+    <div class="sub">${t.sig === 'blue' ? '予定どおり' : esc(t.reason)}</div></div>${extra || ''}</div>`;
+}
+function histLine(t) {
+  const long = t.sig === 'yellow' && t.days >= 3 ? ' <span class="badge">黄が' + t.days + '日続いています</span>' : '';
+  return `<div class="hist">履歴: ${t.history.map(esc).join(' → ')}${long}</div>`;
+}
+
+function viewSub() {
+  let h = '';
+  if (state.lastSec !== null) {
+    h += `<div class="card sub">前回の更新にかかった時間: ${state.lastSec}秒（モック確認用の表示）</div>`;
+  }
+  state.tasks.filter(t => t.proposal && t.proposal.length && !t.slot).forEach(t => {
+    h += `<div class="card alert"><b>課長から15分の相談枠が届きました</b>
+      <div class="sub">「${esc(t.name)}」について。あなたから切り出す必要はありません。選ぶだけで決まります。</div>
+      <div class="slots">${t.proposal.map(s => `<button onclick="chooseSlot(${t.id},'${s}')">${s}</button>`).join('')}</div></div>`;
+  });
+  state.tasks.filter(t => t.slot).forEach(t => {
+    h += `<div class="card"><b>相談が決まりました: ${esc(t.slot)}</b><div class="sub">${esc(t.name)}</div>
+      <div class="sub">相談後の一行メモ: ${t.memo ? esc(t.memo) : 'まだありません'}</div></div>`;
+    if (state.felt === null) {
+      h += `<div class="card"><div class="sub">確認: 自分から言い出さなくてよかったと感じましたか</div>
+        <div class="row"><button onclick="feel('はい')">はい</button><button onclick="feel('いいえ')">いいえ</button></div></div>`;
+    } else {
+      h += `<div class="sub">回答: ${state.felt}（この画面内だけに保存）</div>`;
+    }
+  });
+  h += '<h2>自分の仕事</h2>';
+  if (!state.tasks.length) return h + '<div class="card sub">「サンプルを読み込む」を押してください。</div>';
+  state.tasks.forEach(t => {
+    h += `<div class="card">${dotRow(t, `<button onclick="openEdit(${t.id})">信号を変える</button>`)}${histLine(t)}`;
+    if (state.openId === t.id) h += editor();
+    h += '</div>';
+  });
+  return h;
+}
+function editor() {
+  const d = state.draft;
+  let h = '<div class="sig">';
+  ['blue', 'yellow', 'red'].forEach(s => {
+    h += `<button class="${d.sig === s ? 'on' : ''}" onclick="pickSig('${s}')"><span class="dot ${s}" style="margin:0 auto 2px"></span>${LABEL[s].split(' ')[0]}</button>`;
+  });
+  h += '</div>';
+  if (d.sig !== 'blue') {
+    h += `<div class="sub">理由を選んでください（説明文は不要です）</div><div class="chips">`;
+    h += REASONS.map(r => `<button class="${d.reason === r ? 'on' : ''}" onclick="pickReason('${r}')">${r}</button>`).join('');
+    h += '</div>';
+  }
+  const ok = d.sig === 'blue' || d.reason;
+  return h + `<button class="primary" style="width:100%;${ok ? '' : 'opacity:.4'}" onclick="saveSig()">この信号にする</button>`;
+}
+
+function viewBoss() {
+  if (!state.tasks.length) return '<div class="card sub">「サンプルを読み込む」を押してください。</div>';
+  const order = { red: 0, yellow: 1, blue: 2 };
+  const list = [...state.tasks].sort((a, b) => order[a.sig] - order[b.sig]);
+  let h = '<h2>Bさんの仕事（黄と赤が上）</h2>';
+  list.forEach(t => {
+    h += `<div class="card ${t.sig !== 'blue' && !t.slot ? 'alert' : ''}">${dotRow(t)}${histLine(t)}`;
+    if (t.sig !== 'blue') h += bossAction(t);
+    h += '</div>';
+  });
+  return h;
+}
+function bossAction(t) {
+  if (t.slot) {
+    return `<div style="margin-top:8px"><b>相談: ${esc(t.slot)}</b>
+      <div class="sub">相談で決まったこと（一行。信号は部下が更新します）</div>
+      <input type="text" id="memo${t.id}" value="${esc(t.memo)}" placeholder="例: 期限を1週間延ばす">
+      <button style="margin-top:6px" onclick="saveMemo(${t.id})">メモを残す</button></div>`;
+  }
+  let h = `<div style="margin-top:8px"><div class="sub">15分の空き時間を選んで提案します（複数可）</div><div class="slots">`;
+  h += SLOTS.map(s => `<button class="${t.proposal && t.proposal.includes(s) ? 'on' : ''}" onclick="propose(${t.id},'${s}')">${s}</button>`).join('');
+  h += '</div>';
+  if (t.proposal && t.proposal.length) h += '<div class="sub">提案済み。Bさんの返事を待っています。</div>';
+  return h + '</div>';
+}
+
+function render() {
+  document.getElementById('tab-sub').className = state.role === 'sub' ? 'on' : '';
+  document.getElementById('tab-boss').className = state.role === 'boss' ? 'on' : '';
+  document.getElementById('view').innerHTML = state.role === 'sub' ? viewSub() : viewBoss();
+}
+render();
+</script>
+</body>
+</html>

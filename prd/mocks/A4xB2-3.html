@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設計ミス事例集 モック（A4xB2-3）</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #ffffff; --text: #1f2933; --sub: #62707d;
+  --line: #d9dee3; --accent: #2b6cb0; --accent-bg: #e6f0fa;
+  --c-knowledge: #8e6bbf; --c-procedure: #d98a2b; --c-check: #2f9e8f; --c-comm: #cc5a71;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181c; --card: #1e242a; --text: #e6eaee; --sub: #9aa7b3;
+    --line: #333c45; --accent: #6aaef0; --accent-bg: #1d2f42;
+    --c-knowledge: #b79be0; --c-procedure: #ecaa57; --c-check: #55c4b4; --c-comm: #ec8398;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 16px 40px; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  max-width: 480px; margin-inline: auto; overflow-x: hidden;
+}
+header { padding: 12px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+.bar { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+button, select, textarea {
+  font: inherit; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+button { cursor: pointer; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+.card h2 { font-size: 15px; margin: 0 0 6px; }
+.note { color: var(--sub); font-size: 13px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; color: #fff; }
+.tag.knowledge { background: var(--c-knowledge); }
+.tag.procedure { background: var(--c-procedure); }
+.tag.check { background: var(--c-check); }
+.tag.comm { background: var(--c-comm); }
+.case { border-top: 1px solid var(--line); padding: 10px 0; }
+.case:first-of-type { border-top: 0; }
+.case .meta { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.count { font-size: 12px; color: var(--sub); }
+.row-btns { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.row-btns button { font-size: 13px; padding: 4px 10px; }
+.row-btns button.on { background: var(--accent-bg); }
+.dist-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.dist-label { width: 44px; font-size: 13px; }
+.dist-track { flex: 1; background: var(--line); border-radius: 4px; height: 18px; }
+.dist-fill { height: 100%; border-radius: 4px; }
+.dist-num { width: 64px; font-size: 13px; text-align: right; }
+label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+textarea, select { width: 100%; }
+.hidden { display: none; }
+.msg { background: var(--accent-bg); border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>設計ミス事例集</h1>
+  <small>PRD A4xB2-3 ／ モック（ダミーデータ）</small>
+</header>
+
+<div class="bar" id="roles">
+  <button data-role="designer" class="on">設計者</button>
+  <button data-role="scribe">議事録係</button>
+  <button data-role="veteran">ベテラン</button>
+  <button id="loadSample" class="primary">サンプルを読み込む</button>
+</div>
+
+<main id="app"></main>
+
+<script>
+const CAUSES = {
+  knowledge: "知識", procedure: "手順", check: "確認", comm: "伝達"
+};
+const TYPES = ["基板配置", "筐体設計", "熱設計", "評価条件"];
+
+const SAMPLE = [
+  { type: "基板配置", what: "基板の取り付け穴が筐体のリブと干渉した", cause: "check",
+    prevent: "配置前に機械側の最新の筐体データを取得して重ねて確認する", count: 4, month: "2026-03" },
+  { type: "基板配置", what: "コネクタの挿し間違いを防ぐ形状が不足していた", cause: "knowledge",
+    prevent: "極性違いで物理的に入らないキー形状を選ぶ", count: 3, month: "2026-05" },
+  { type: "基板配置", what: "部品の高さが筐体の内寸を超えていた", cause: "comm",
+    prevent: "内寸の上限を機械側と設計開始時に共有する", count: 2, month: "2026-06" },
+  { type: "基板配置", what: "最新の基板外形が機械側に渡っていなかった", cause: "procedure",
+    prevent: "外形を変更したら共有フォルダの版を更新する手順にする", count: 2, month: "2026-02" },
+  { type: "基板配置", what: "取り付けねじの工具が入る隙間がなかった", cause: "knowledge",
+    prevent: "組み立て手順の工具の動線を断面図で確認する", count: 1, month: "2026-07" },
+  { type: "基板配置", what: "基板の端の部品が筐体の合わせ面に当たった", cause: "check",
+    prevent: "端から一定の距離は部品禁止領域にする", count: 1, month: "2026-08" },
+  { type: "熱設計", what: "発熱部品が密集し熱がこもった", cause: "knowledge",
+    prevent: "発熱量の大きい部品を分散し、空気の通り道を確保する", count: 3, month: "2026-04" },
+  { type: "熱設計", what: "放熱穴の位置が機器の置き方で塞がれた", cause: "check",
+    prevent: "想定される置き方を3通り挙げ、それぞれで確認する", count: 2, month: "2026-09" },
+  { type: "評価条件", what: "評価条件の書き漏れで再試験になった", cause: "procedure",
+    prevent: "評価条件のひな形（温度・電圧・時間）を使う", count: 6, month: "2026-01" },
+  { type: "評価条件", what: "評価の合格基準が関係者で食い違っていた", cause: "comm",
+    prevent: "試験前に合格基準を一文で書いて関係者に見せる", count: 2, month: "2026-10" },
+  { type: "筐体設計", what: "リブの厚みが成形時のひけを招いた", cause: "knowledge",
+    prevent: "リブ厚は肉厚の6割までを目安にする", count: 2, month: "2026-06" }
+];
+
+let state = { role: "designer", cases: [], type: "基板配置", checked: {}, feel: {}, flash: "" };
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const tag = c => `<span class="tag ${c}">${CAUSES[c]}</span>`;
+
+function top5(type) {
+  return state.cases.filter(c => c.type === type).sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+function empty() {
+  return `<div class="card note">事例がありません。「サンプルを読み込む」を押すか、議事録係で登録してください。</div>`;
+}
+
+function typeSelect() {
+  return `<select id="typeSel">${TYPES.map(t => `<option ${t === state.type ? "selected" : ""}>${t}</option>`).join("")}</select>`;
+}
+
+function renderDesigner() {
+  const list = top5(state.type);
+  const done = list.filter(c => state.checked[c.what]).length;
+  const items = list.map(c => `
+    <div class="case">
+      <div class="meta"><b>${esc(c.what)}</b></div>
+      <div class="count">${tag(c.cause)} ${c.count}回起きた ／ 最終 ${esc(c.month)}</div>
+      <div>防ぎ方：${esc(c.prevent)}</div>
+      <div class="row-btns">
+        <button data-act="feel" data-w="${esc(c.what)}" class="${state.feel[c.what] ? "on" : ""}">自分もやりそう</button>
+        <button data-act="check" data-w="${esc(c.what)}" class="${state.checked[c.what] ? "on" : ""}">確認した</button>
+      </div>
+    </div>`).join("");
+  const feelN = list.filter(c => state.feel[c.what]).length;
+  return `
+    <div class="card">
+      <h2>設計前の確認</h2>
+      <label>これから始める設計の種類</label>${typeSelect()}
+      <p class="note">この種類でよく起きるミス 上位5件。確認 ${done}/${list.length} ／ 「やりそう」${feelN}件</p>
+    </div>
+    ${state.cases.length ? `<div class="card">${items || "<span class='note'>この種類の事例はまだありません</span>"}</div>` : empty()}
+    <p class="note">ミスをした人の名前は残していません。</p>`;
+}
+
+function distribution() {
+  const total = state.cases.reduce((s, c) => s + c.count, 0);
+  const sums = Object.keys(CAUSES).map(k => ({
+    k, n: state.cases.filter(c => c.cause === k).reduce((s, c) => s + c.count, 0)
+  }));
+  const rows = sums.map(s => {
+    const pct = total ? Math.round(s.n / total * 100) : 0;
+    return `<div class="dist-row"><span class="dist-label">${CAUSES[s.k]}</span>
+      <div class="dist-track"><div class="dist-fill" style="width:${pct}%;background:var(--c-${s.k})"></div></div>
+      <span class="dist-num">${s.n}件 ${pct}%</span></div>`;
+  }).join("");
+  const other = total ? Math.round((total - sums[0].n) / total * 100) : 0;
+  return `<div class="card"><h2>原因の分布</h2>${rows}
+    ${total ? `<div class="msg">知識以外（手順・確認・伝達）の原因が全体の ${other}% です。</div>` : ""}</div>`;
+}
+
+function renderVeteran() {
+  const list = state.cases.filter(c => c.type === state.type).sort((a, b) => b.count - a.count);
+  const items = list.map(c => `
+    <div class="case"><div class="meta"><b>${esc(c.what)}</b></div>
+    <div class="count">${tag(c.cause)} ${c.count}回</div>
+    <div>防ぎ方：${esc(c.prevent)}</div>
+    <div class="note">基準書：設計基準書 ${esc(c.type)} の項目へ（理由の具体例）</div></div>`).join("");
+  return `<div class="card"><h2>設計の種類ごとの一覧</h2>${typeSelect()}</div>
+    ${distribution()}
+    ${list.length ? `<div class="card">${items}</div>` : empty()}`;
+}
+
+function renderScribe() {
+  return `<div class="card"><h2>事例の登録</h2>
+    <p class="note">レビューで指摘されたミスを3つの項目で登録します。人の名前は入力欄がありません。</p>
+    <label>設計の種類</label>${typeSelect()}
+    <label>1. 何が起きたか</label><textarea id="fWhat" rows="2" placeholder="例：基板の穴がリブと干渉した"></textarea>
+    <label>2. 原因の分類</label>
+    <select id="fCause">${Object.entries(CAUSES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+    <label>3. 防ぎ方</label><textarea id="fPrevent" rows="2" placeholder="例：配置前に最新の筐体データを確認する"></textarea>
+    <p class="note">細部は一般化し、時期は月単位で記録されます。</p>
+    <button class="primary" id="addBtn">登録する</button>
+    ${state.flash ? `<div class="msg">${esc(state.flash)}</div>` : ""}</div>
+    ${distribution()}`;
+}
+
+function render() {
+  document.querySelectorAll("#roles [data-role]").forEach(b =>
+    b.classList.toggle("on", b.dataset.role === state.role));
+  const views = { designer: renderDesigner, veteran: renderVeteran, scribe: renderScribe };
+  let html = views[state.role]();
+  if (state.role === "designer") html += distribution();
+  document.getElementById("app").innerHTML = html;
+}
+
+document.getElementById("roles").addEventListener("click", e => {
+  const role = e.target.dataset.role;
+  if (role) { state.role = role; state.flash = ""; render(); }
+});
+
+document.getElementById("loadSample").addEventListener("click", () => {
+  state.cases = JSON.parse(JSON.stringify(SAMPLE));
+  state.checked = {}; state.feel = {}; state.flash = "";
+  render();
+});
+
+document.getElementById("app").addEventListener("change", e => {
+  if (e.target.id === "typeSel") { state.type = e.target.value; render(); }
+});
+
+document.getElementById("app").addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.act === "feel") { state.feel[t.dataset.w] = !state.feel[t.dataset.w]; render(); }
+  if (t.dataset.act === "check") { state.checked[t.dataset.w] = !state.checked[t.dataset.w]; render(); }
+  if (t.id === "addBtn") {
+    const what = document.getElementById("fWhat").value.trim();
+    const prevent = document.getElementById("fPrevent").value.trim();
+    if (!what || !prevent) { state.flash = "「何が起きたか」と「防ぎ方」を入力してください。"; render(); return; }
+    const cause = document.getElementById("fCause").value;
+    const same = state.cases.find(c => c.type === state.type && c.what === what);
+    if (same) same.count += 1;
+    else state.cases.push({ type: state.type, what, cause, prevent, count: 1, month: "2026-11" });
+    state.flash = same ? "同じ事例の回数を1つ増やしました。" : "登録しました。";
+    render();
+  }
+});
+
+render();
+</script>
+</body>
+</html>

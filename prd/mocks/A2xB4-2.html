@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分野の自己紹介シート（A2xB4-2）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #222; --sub: #667; --line: #dde1e7;
+  --accent: #2f6fb5; --accent-bg: #e6f0fa; --diff: #fff4d6; --diff-line: #e0b84a; --ok: #2e7d4f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15181c; --card: #1f2329; --text: #e8eaed; --sub: #9aa3ad; --line: #343b44;
+    --accent: #7fb2ea; --accent-bg: #23364b; --diff: #3a3217; --diff-line: #b8932f; --ok: #6cc08c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 sans-serif; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 15px; }
+header small { color: var(--sub); }
+main { padding: 12px 16px 40px; max-width: 480px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 10px 0; }
+.card h2 { margin: 0 0 6px; font-size: 15px; }
+.note { color: var(--sub); font-size: 13px; margin: 4px 0; }
+.tabs, .roles { display: flex; gap: 6px; margin: 8px 0; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.tabs button, .roles button { flex: 1; padding: 6px 2px; font-size: 13px; }
+input[type=text] { width: 100%; font: inherit; padding: 6px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--bg); color: var(--text); }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.q { margin-bottom: 14px; }
+.q b { display: block; margin-bottom: 2px; }
+.timer { font-size: 13px; color: var(--sub); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 6px 0; }
+.ans { border: 1px solid var(--line); border-radius: 6px; padding: 6px; font-size: 13px; word-break: break-all; }
+.ans em { display: block; font-style: normal; color: var(--sub); font-size: 11px; }
+.item.diff { background: var(--diff); border: 1px solid var(--diff-line); border-radius: 8px; padding: 8px; margin: 10px 0; }
+.item.same { padding: 8px; margin: 10px 0; border: 1px solid var(--line); border-radius: 8px; }
+.tag { font-size: 12px; font-weight: bold; }
+.tag.diff { color: var(--diff-line); }
+.tag.same { color: var(--ok); }
+.memo-row { border-top: 1px solid var(--line); padding: 6px 0; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>分野の自己紹介シート <small>A2xB4-2</small></h1>
+  <small>一緒に仕事を始める2人が「自分の分野の当たり前」を交換する</small>
+</header>
+<main>
+  <div class="note">操作する人</div>
+  <div class="roles" id="roles"></div>
+  <div class="tabs" id="tabs"></div>
+  <button id="sample">サンプルを読み込む</button>
+  <button id="reset">最初から</button>
+  <div id="view"></div>
+</main>
+<script>
+const QS = [
+  { id: 'medium', t: '何で話すのが楽ですか', opts: ['図面', '回路図', '口頭', 'チャット'] },
+  { id: 'receive', t: '頼みごとはどう受けたいですか', opts: ['チャット', '書類', '誰か経由', '口頭'] },
+  { id: 'ryokai', t: '返事の「了解」は何を意味しますか', opts: ['読みました', 'やります', '正式依頼を待ちます'] },
+  { id: 'time', t: '変更にかかる時間の目安', opts: ['当日', '数日', '1〜2週間', '2週間以上'] },
+  { id: 'urgent', t: '急ぎのときの連絡方法', opts: ['電話', 'チャット', '直接席へ', 'メール'] },
+];
+const PEOPLE = { B: 'Bさん（電気）', M: '機械の担当者' };
+const SAMPLE = {
+  B: { medium: ['回路図', '基板上の位置はチャットで十分'], receive: ['チャット', '写真つきで送ってほしい'],
+       ryokai: ['やります', '返したら着手する'], time: ['当日', ''], urgent: ['チャット', ''] },
+  M: { medium: ['図面', '寸法は図面に書いてほしい'], receive: ['書類', '設計変更依頼書で受ける'],
+       ryokai: ['正式依頼を待ちます', '読みました、の意味'], time: ['1〜2週間', '試作が絡むと長い'], urgent: ['電話', ''] },
+};
+const fresh = () => ({ role: 'B', tab: 'answer', ans: { B: {}, M: {} }, done: { B: false, M: false },
+  way: {}, updated: null, start: null, elapsed: null });
+let S = fresh();
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const bothDone = () => S.done.B && S.done.M;
+const isDiff = q => (S.ans.B[q.id] || [])[0] !== (S.ans.M[q.id] || [])[0];
+const diffItems = () => QS.filter(isDiff);
+const allDecided = () => diffItems().every(q => (S.way[q.id] || '').trim());
+
+function render() {
+  $('roles').innerHTML = [['B', 'Bさん'], ['M', '機械担当'], ['C', '調整役（Aさん）']]
+    .map(([k, l]) => `<button data-role="${k}" class="${S.role === k ? 'on' : ''}">${l}</button>`).join('');
+  const tabs = S.role === 'C' ? [['list', '調整役の一覧']] :
+    [['answer', '5つの質問'], ['side', '並べて表示'], ['memo', 'やり方のメモ']];
+  if (S.role === 'C') S.tab = 'list';
+  else if (S.tab === 'list') S.tab = 'answer';
+  $('tabs').innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" class="${S.tab === k ? 'on' : ''}">${l}</button>`).join('');
+  $('view').innerHTML = { answer: vAnswer, side: vSide, memo: vMemo, list: vList }[S.tab]();
+}
+
+function vAnswer() {
+  const r = S.role, a = S.ans[r];
+  if (S.done[r]) {
+    const other = r === 'B' ? 'M' : 'B';
+    return `<div class="card"><h2>回答を出しました</h2>
+      <p class="note">${S.done[other] ? '相手も回答済みです。「並べて表示」へ。' : `${PEOPLE[other]}が答え終えるまで、相手の答えは見えません。`}</p>
+      ${S.elapsed != null ? `<p class="timer">回答にかかった時間 ${S.elapsed} 秒（目安は3分以内）</p>` : ''}</div>`;
+  }
+  const qs = QS.map((q, i) => {
+    const cur = a[q.id] || ['', ''];
+    return `<div class="q"><b>${i + 1}. ${q.t}</b>
+      <div class="opts">${q.opts.map(o => `<button data-q="${q.id}" data-o="${o}" class="${cur[0] === o ? 'on' : ''}">${o}</button>`).join('')}</div>
+      <input type="text" data-line="${q.id}" value="${esc(cur[1])}" placeholder="一行で補足（任意）"></div>`;
+  }).join('');
+  const ready = QS.every(q => a[q.id] && a[q.id][0]);
+  return `<div class="card"><h2>${PEOPLE[r]}の「当たり前」</h2>
+    <p class="note">あなたの個人の答えです。分野の代表ではありません。人柄ではなく仕事の作法だけ答えます。</p>
+    <p class="timer" id="timer">${S.start ? '' : '最初の回答でタイマー開始'}</p>${qs}
+    <button class="primary" id="submit" ${ready ? '' : 'disabled'}>この内容で交換する</button></div>`;
+}
+
+function pairRow(q, withBox) {
+  const b = S.ans.B[q.id], m = S.ans.M[q.id];
+  const d = isDiff(q);
+  const cell = (n, v) => `<div class="ans"><em>${n}</em>${esc(v[0])}${v[1] ? '<br>' + esc(v[1]) : ''}</div>`;
+  const box = withBox && d ? `<div class="note">違いがあります。どちらが正しいかではなく、2人のやり方を決めましょう。</div>
+    <input type="text" data-way="${q.id}" value="${esc(S.way[q.id] || '')}"
+      placeholder="2人のやり方（例: 寸法の変更はチャットで相談、確定したら依頼書）">` : '';
+  return `<div class="item ${d ? 'diff' : 'same'}"><b>${q.t}</b>
+    <span class="tag ${d ? 'diff' : 'same'}">${d ? '　やり方が違う（決めればOK）' : '　同じ'}</span>
+    <div class="pair">${cell('Bさん（電気）', b)}${cell('機械の担当者', m)}</div>${box}</div>`;
+}
+
+function vSide() {
+  if (!bothDone()) return `<div class="card"><p class="note">2人とも回答すると並んで表示されます。
+    ${S.done.B ? '' : 'Bさん未回答。'}${S.done.M ? '' : '機械の担当者未回答。'}</p></div>`;
+  const n = diffItems().length;
+  return `<div class="card"><h2>2人の答え</h2>
+    <p class="note">違いは ${n} 項目。どちらの当たり前も間違いではありません。違う項目には「2人のやり方」を書くと完了できます。</p>
+    ${QS.map(q => pairRow(q, true)).join('')}
+    <button class="primary" id="finish" ${allDecided() ? '' : 'disabled'}>やり方をメモに保存</button></div>`;
+}
+
+function vMemo() {
+  if (!S.updated) return `<div class="card"><p class="note">まだ決めたやり方はありません。</p></div>`;
+  const rows = diffItems().map(q => `<div class="memo-row"><span class="note">${q.t}</span><br>${esc(S.way[q.id])}</div>`).join('');
+  return `<div class="card"><h2>2人のやり方</h2>
+    <p class="note">最終更新日 ${S.updated}　異動・新メンバー加入時にこのまま引き継げます。</p>
+    ${rows || '<p class="note">違いはありませんでした。</p>'}
+    <button id="edit">やり方を見直す</button></div>`;
+}
+
+function vList() {
+  const sheets = bothDone() ? `<div class="memo-row">Bさん（電気）× 機械の担当者　交換済み
+    <br><span class="note">違い ${diffItems().length} 項目 / ${S.updated ? '決定済み（' + S.updated + '）' : 'やり方が未決定'}</span></div>`
+    : '<p class="note">交換済みのシートはまだありません。</p>';
+  const ways = S.updated ? diffItems().map(q => `<div class="memo-row"><span class="note">${q.t}</span><br>${esc(S.way[q.id])}</div>`).join('') : '';
+  return `<div class="card"><h2>プロジェクト内のシート</h2>${sheets}</div>
+    ${ways ? `<div class="card"><h2>決まったやり方</h2>${ways}</div>` : ''}
+    <p class="note">個人の答えとして表示します。点数や評価はつけません。</p>`;
+}
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.dataset.role) { S.role = t.dataset.role; if (S.role !== 'C') S.tab = 'answer'; }
+  else if (t.dataset.tab) S.tab = t.dataset.tab;
+  else if (t.dataset.q) {
+    if (!S.start) S.start = Date.now();
+    const cur = S.ans[S.role][t.dataset.q] || ['', ''];
+    S.ans[S.role][t.dataset.q] = [t.dataset.o, cur[1]];
+  }
+  else if (t.id === 'submit') {
+    S.elapsed = Math.round((Date.now() - (S.start || Date.now())) / 1000);
+    S.done[S.role] = true; S.start = null;
+  }
+  else if (t.id === 'finish') {
+    const d = new Date();
+    S.updated = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    S.tab = 'memo';
+  }
+  else if (t.id === 'edit') S.tab = 'side';
+  else if (t.id === 'sample') { S = fresh(); S.ans = JSON.parse(JSON.stringify(SAMPLE)); S.done = { B: true, M: true }; S.tab = 'side'; }
+  else if (t.id === 'reset') S = fresh();
+  else return;
+  render();
+});
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.line) {
+    if (!S.start) S.start = Date.now();
+    const cur = S.ans[S.role][t.dataset.line] || ['', ''];
+    S.ans[S.role][t.dataset.line] = [cur[0], t.value];
+  } else if (t.dataset.way) {
+    S.way[t.dataset.way] = t.value;
+    const f = $('finish'); if (f) f.disabled = !allDecided();
+  }
+});
+
+setInterval(() => {
+  const el = $('timer');
+  if (el && S.start) el.textContent = `経過 ${Math.round((Date.now() - S.start) / 1000)} 秒（目安は3分以内）`;
+}, 1000);
+render();
+</script>
+</body>
+</html>

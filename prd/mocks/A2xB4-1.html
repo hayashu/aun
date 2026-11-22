@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作法カード（A2xB4-1）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1f2933; --sub: #6b7280;
+  --line: #d9dde3; --accent: #2f6fdb; --accent-bg: #e8f0fd;
+  --warn: #b45309; --warn-bg: #fef3c7; --ok: #15803d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --card: #1e232b; --text: #e6e8eb; --sub: #9aa3af;
+    --line: #353c47; --accent: #7aa7f5; --accent-bg: #23324d;
+    --warn: #fbbf24; --warn-bg: #3b2f12; --ok: #4ade80;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 15px/1.6 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; padding: 0 16px 48px; max-width: 480px; margin: 0 auto; overflow-x: hidden; }
+header { padding: 12px 0 8px; }
+header h1 { font-size: 15px; margin: 0; }
+header small { color: var(--sub); }
+h2 { font-size: 15px; margin: 20px 0 8px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+input, textarea { font: inherit; width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+dl { margin: 0; }
+dt { font-size: 12px; color: var(--sub); margin-top: 8px; }
+dd { margin: 0; }
+.ryokai { background: var(--warn-bg); border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
+.note { font-size: 12px; color: var(--sub); }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); }
+.late { color: var(--warn); font-weight: 600; }
+.done { color: var(--ok); }
+.mine { border-left: 3px solid var(--accent); padding-left: 8px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>隣の分野に頼む前の作法カード <small>A2xB4-1</small></h1>
+  <div class="row" style="margin-top:8px">
+    <button id="roleB" class="on">Bさん（依頼する）</button>
+    <button id="roleA">Aさん（調整役）</button>
+    <button id="sample">サンプルを読み込む</button>
+  </div>
+  <div class="note">今日: <span id="today"></span> <button id="skip" style="padding:2px 8px;font-size:12px">3日進める</button></div>
+</header>
+
+<main id="viewB">
+  <h2>1. 相手の分野と頼みたいこと</h2>
+  <div class="card">
+    <div class="note">相手の分野</div>
+    <div class="row" id="fields"></div>
+    <div class="note" style="margin-top:8px">頼みたいこと</div>
+    <div class="row" id="kinds"></div>
+  </div>
+  <div id="cardArea"></div>
+  <div id="reqArea"></div>
+</main>
+
+<main id="viewA" hidden>
+  <h2>メンバーの依頼と確認状況</h2>
+  <div class="note">依頼の代行はしません。止まっていないかの確認だけを行います。</div>
+  <div id="listA"></div>
+</main>
+
+<script>
+const FIELDS = ["機械", "電気", "ソフト", "品質"];
+const KINDS = ["寸法の変更", "部品の変更", "評価の依頼", "相談段階"];
+// 「多い作法」として示す。ベテランの確認を経たカードのみ載せる（機械・電気）
+const CARDS = {
+  "機械|寸法の変更": { via: "図面と3Dデータ", who: "課長経由", form: "図面に指示を書き込み、設計変更依頼書を出す", note: "チャットでの依頼は相談扱いになる", ryokai: "話はわかった（対応するとは限らない）", ask: "「設計変更依頼書の受付はいつ頃になりますか」" },
+  "機械|部品の変更": { via: "3Dデータと部品表", who: "担当者から課長へ", form: "設計変更依頼書", note: "軽微な変更は担当者判断のことも", ryokai: "話はわかった", ask: "「正式な依頼書は誰宛てで出せばよいですか」" },
+  "機械|評価の依頼": { via: "試験条件書", who: "担当者に直接", form: "試験依頼票", note: "依頼票があれば日程を調整してもらえる", ryokai: "受け付けた（日程は別途）", ask: "「試験の開始日はいつ頃になりそうですか」" },
+  "機械|相談段階": { via: "チャット・口頭", who: "担当者に直接", form: "書類は不要", note: "相談は正式な依頼にはならない", ryokai: "相談を聞いた", ask: "「正式に出す場合の手順も教えてください」" },
+  "電気|寸法の変更": { via: "回路図と基板図", who: "担当者に直接", form: "チャットで依頼（回路図のPDFを添付）", note: "課長への連絡は事後でもよい", ryokai: "対応する（多くの場合）", ask: "「いつ頃反映されますか」" },
+  "電気|部品の変更": { via: "部品表", who: "担当者に直接", form: "チャットで依頼し、部品表を更新", note: "在庫確認が先に入ることがある", ryokai: "対応する（在庫次第）", ask: "「在庫の確認結果を教えてください」" },
+  "電気|評価の依頼": { via: "回路図と測定条件", who: "担当者に直接", form: "チャットで依頼", note: "測定条件を添えると早い", ryokai: "対応する", ask: "「測定はいつ始められそうですか」" },
+  "電気|相談段階": { via: "チャット・口頭", who: "担当者に直接", form: "書類は不要", note: "そのまま依頼に進むことも多い", ryokai: "話はわかった", ask: "「依頼として進めてよいですか」" }
+};
+const SAMPLE_REQS = [
+  { who: "Bさん", field: "機械", kind: "寸法の変更", text: "コネクタ穴を3mm右へ（チャットで依頼済み）", due: 0, done: false, confirmed: false },
+  { who: "Cさん", field: "電気", kind: "部品の変更", text: "電源ICの変更", due: 2, done: false, confirmed: true },
+  { who: "Bさん", field: "機械", kind: "評価の依頼", text: "筐体の振動試験", due: -3, done: true, confirmed: true }
+];
+
+const state = { role: "B", field: null, kind: null, day: 0, reqs: [], notes: {}, startedAt: null, feedback: [] };
+const $ = id => document.getElementById(id);
+const key = () => state.field + "|" + state.kind;
+
+function dateLabel(offset) {
+  const d = new Date(2026, 10, 22 + offset);
+  return (d.getMonth() + 1) + "/" + d.getDate();
+}
+
+function renderChoices() {
+  $("fields").innerHTML = FIELDS.map(f => `<button data-f="${f}" class="${state.field === f ? "on" : ""}">${f}</button>`).join("");
+  $("kinds").innerHTML = KINDS.map(k => `<button data-k="${k}" class="${state.kind === k ? "on" : ""}">${k}</button>`).join("");
+}
+
+function renderCard() {
+  const area = $("cardArea");
+  if (!state.field || !state.kind) { area.innerHTML = ""; $("reqArea").innerHTML = ""; return; }
+  const c = CARDS[key()];
+  const secs = ((Date.now() - state.startedAt) / 1000).toFixed(0);
+  const mine = state.notes[key()];
+  const mineHtml = mine ? `<div class="mine"><span class="tag">自分の作法帳</span> ${esc(mine)}</div>` : "";
+  let body;
+  if (!c) {
+    body = `<p>${state.field}×${state.kind}のカードはまだありません（ベテランの確認前）。下の作法帳に、知っていることを書き足せます。</p>`;
+  } else {
+    body = `<dl>
+      <dt>何で話すか</dt><dd>${c.via}</dd>
+      <dt>誰を通すか</dt><dd>${c.who}</dd>
+      <dt>どの書式か</dt><dd>${c.form}</dd>
+      <dt>補足</dt><dd>${c.note}</dd></dl>
+      <div class="ryokai"><b>返事の「了解」の意味</b><br>${c.ryokai}<br>
+        <span class="note">確かめる一言の例</span><br>${c.ask}</div>
+      <div class="note" style="margin-top:6px">※ 多い作法として示しています。課や担当者で違うことがあります。</div>`;
+  }
+  area.innerHTML = `<h2>2. 作法カード <span class="note">（表示まで ${secs} 秒）</span></h2>
+    <div class="card"><b>${state.field}へ：${state.kind}</b>${body}${mineHtml}</div>
+    <div class="card"><div class="note">自分の作法帳（外した作法・新しく知った作法）</div>
+      <textarea id="noteIn" rows="2" placeholder="例：この課は、軽微な寸法変更ならチャットでも動いてくれる">${esc(mine || "")}</textarea>
+      <button id="noteSave" style="margin-top:6px">書き足す</button></div>
+    ${c ? `<div class="card"><div class="note">「了解」の説明を見て、依頼後に確認の日を決めたくなりましたか？</div>
+      <div class="row" style="margin-top:6px"><button data-fb="1">決めたい</button><button data-fb="0">不要だと思う</button></div>
+      <div class="note" id="fbOut">${fbText()}</div></div>` : ""}`;
+  renderReq();
+}
+
+function renderReq() {
+  $("reqArea").innerHTML = `<h2>3. 依頼を出したら確認の日を決める</h2>
+    <div class="card"><div class="note">依頼は自分で出します。ここでは出した内容と確認の日だけ記録します。</div>
+      <input id="reqText" placeholder="依頼の内容（例：コネクタ穴を3mm右へ）" style="margin-top:6px">
+      <div class="row" style="margin-top:6px;align-items:center">
+        <span class="note">確認の日:</span>
+        <button data-d="1">明日</button><button data-d="3" class="on">3日後</button><button data-d="7">1週間後</button>
+      </div>
+      <button class="primary" id="reqAdd" style="margin-top:8px">出した。確認の日を決める</button></div>
+    <div id="listB"></div>`;
+  state.pickDays = 3;
+  renderListB();
+}
+
+function reqItem(r, i, withActions) {
+  const left = r.due - state.day;
+  let status;
+  if (r.confirmed) status = `<span class="done">対応開始を確認済み</span>`;
+  else if (left <= 0) status = `<span class="late">確認の日です（${dateLabel(r.due)}）。相手に確かめましょう</span>`;
+  else status = `確認の日 ${dateLabel(r.due)}（あと${left}日）`;
+  const act = withActions && !r.confirmed ? `<button data-conf="${i}" style="margin-top:6px">相手が対応を始めたことを確認した</button>` : "";
+  return `<div class="card"><b>${r.who}：${r.field}へ ${r.kind}</b><br>${esc(r.text)}<br>${status}<br>${act}</div>`;
+}
+
+function renderListB() {
+  const mine = state.reqs.map((r, i) => [r, i]).filter(([r]) => r.who === "Bさん");
+  $("listB").innerHTML = mine.map(([r, i]) => reqItem(r, i, true)).join("") || `<div class="note">まだ依頼はありません。</div>`;
+}
+
+function renderA() {
+  const stuck = state.reqs.filter(r => !r.confirmed && r.due <= state.day).length;
+  $("listA").innerHTML = `<div class="card">確認の日を過ぎても未確認の依頼: <b class="${stuck ? "late" : ""}">${stuck}件</b></div>`
+    + state.reqs.map((r, i) => reqItem(r, i, false)).join("")
+    + (state.reqs.length ? "" : `<div class="note">依頼がありません。「サンプルを読み込む」を押してください。</div>`);
+}
+
+function fbText() {
+  const y = state.feedback.filter(Boolean).length;
+  return state.feedback.length ? `回答 ${state.feedback.length} 件中、決めたい ${y} 件` : "";
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m])); }
+
+function render() {
+  $("today").textContent = dateLabel(state.day);
+  $("viewB").hidden = state.role !== "B";
+  $("viewA").hidden = state.role !== "A";
+  $("roleB").className = state.role === "B" ? "on" : "";
+  $("roleA").className = state.role === "A" ? "on" : "";
+  renderChoices();
+  if (state.role === "B") renderCard(); else renderA();
+}
+
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.id === "roleB") state.role = "B";
+  else if (t.id === "roleA") state.role = "A";
+  else if (t.id === "skip") state.day += 3;
+  else if (t.id === "sample") { state.reqs = JSON.parse(JSON.stringify(SAMPLE_REQS)); state.field = "機械"; state.kind = "寸法の変更"; state.startedAt = Date.now(); }
+  else if (t.dataset.f) { state.field = t.dataset.f; if (!state.startedAt) state.startedAt = Date.now(); }
+  else if (t.dataset.k) { state.kind = t.dataset.k; if (!state.startedAt) state.startedAt = Date.now(); }
+  else if (t.dataset.fb) { state.feedback.push(t.dataset.fb === "1"); $("fbOut").textContent = fbText(); return; }
+  else if (t.dataset.d) {
+    state.pickDays = +t.dataset.d;
+    document.querySelectorAll("[data-d]").forEach(b => b.className = b === t ? "on" : "");
+    return;
+  }
+  else if (t.id === "noteSave") { state.notes[key()] = $("noteIn").value.trim(); }
+  else if (t.id === "reqAdd") {
+    const text = $("reqText").value.trim() || "（内容なし）";
+    state.reqs.push({ who: "Bさん", field: state.field, kind: state.kind, text, due: state.day + state.pickDays, done: false, confirmed: false });
+  }
+  else if (t.dataset.conf) { state.reqs[+t.dataset.conf].confirmed = true; }
+  else return;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
