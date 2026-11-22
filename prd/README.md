@@ -1,3 +1,12 @@
+# PRD × モック管理 ＆ 選別ビューア
+
+- **Webで今すぐ開く（GitHub Pages）**: [https://hayashu.github.io/aun/prd/](https://hayashu.github.io/aun/prd/)
+- **Webで今すぐ開く（raw.githack CDN）**: [https://raw.githack.com/hayashu/aun/main/prd/index.html](https://raw.githack.com/hayashu/aun/main/prd/index.html)
+- **Webで今すぐ開く（htmlpreview）**: [https://htmlpreview.github.io/?https://github.com/hayashu/aun/blob/main/prd/index.html](https://htmlpreview.github.io/?https://github.com/hayashu/aun/blob/main/prd/index.html)
+- **選別結果 JSON**: [selection.json](selection.json)（興味あり19件 / 興味なし56件）
+
+---
+
 以下にペルソナAのペインポイントを5つ示す
 # ペルソナA ペインポイント
 - 相手の真意がわからない    発言の意味は理解できても、遠回しな拒否や暗黙の意図を読み取れない
