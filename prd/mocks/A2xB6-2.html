@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A2xB6-2 粒度の見本合わせ（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--ok-bg:#e6f4ea;--ok:#1d6b35;--hint-bg:#eef2fc;--warn-bg:#fff4dc;--warn:#8a5a00;--bar:#8d96a8;--bar2:#c6ccd8;--cell:#9fb7ee;--cell2:#f0b98a}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--ok-bg:#16301f;--ok:#7fd69a;--hint-bg:#222a3d;--warn-bg:#3a2f14;--warn:#f0c46b;--bar:#7b8498;--bar2:#434b5b;--cell:#4b6bb8;--cell2:#b27a4a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0}
+nav button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label.f{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],input[type=date]{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.hint{background:var(--hint-bg)}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.tier{margin-top:14px}
+.tier h3{font-size:14px;margin:0 0 6px;display:flex;justify-content:space-between}
+.tier h3 span{font-weight:400;color:var(--sub);font-size:12px}
+.shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.item{border:2px solid var(--line);border-radius:10px;padding:6px;background:var(--bg);cursor:pointer;text-align:left;font:inherit;color:var(--text)}
+.item.sel{border-color:var(--accent);background:var(--hint-bg)}
+.item.static{cursor:default}
+.item small{display:block;font-size:11px;line-height:1.3;margin-top:4px;color:var(--sub)}
+.thumb{height:76px;overflow:hidden;border-radius:6px;background:var(--card);border:1px solid var(--line);position:relative}
+.thumb.big{height:140px}
+.inner{filter:blur(var(--bl,1.6px));padding:6px;display:flex;flex-direction:column;gap:4px;height:100%}
+.b{height:5px;border-radius:3px;background:var(--bar)}
+.b.l{background:var(--bar2)}
+.grid{display:grid;gap:2px;flex:1}
+.grid i{background:var(--bar2);border-radius:2px}
+.grid i.c1{background:var(--cell)}
+.grid i.c2{background:var(--cell2)}
+.slides{display:flex;gap:4px;flex:1}
+.slide{flex:1;border:1px solid var(--bar2);border-radius:3px;padding:3px;display:flex;flex-direction:column;gap:3px}
+.dense{display:grid;grid-template-columns:1fr 1fr;gap:3px 6px;flex:1;align-content:start}
+.dense .b{height:3px}
+.blur-ctl{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);margin:8px 0}
+.blur-ctl input{flex:1}
+.req{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px}
+.req b{font-size:12px;color:var(--sub);display:block}
+.pill{display:inline-block;font-size:12px;border-radius:999px;padding:0 8px;border:1px solid var(--line);color:var(--sub);margin-left:4px}
+.choices{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.empty{color:var(--sub);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>依頼する側が過去の資料から「このくらいの粗さ」を選んで見せる粒度の見本合わせ</h1>
+  <small><span class="badge">A2xB6-2</span><span class="badge">モック</span>入力はこの画面内だけで処理され、送信されません</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const TIERS = ["一行","1枚の表","数枚の説明","詳しい報告"];
+const KIND = ["line","table","slides","dense"];
+const SHELF = [
+  {id:1,t:0,title:"週次メモ（試作基板）",meta:"1行"},{id:2,t:0,title:"部長会の一言報告",meta:"1行"},{id:3,t:0,title:"課内連絡の要点",meta:"2行"},
+  {id:4,t:1,title:"前回の部長会 進捗表",meta:"1枚・色分け"},{id:5,t:1,title:"課題一覧（担当別）",meta:"1枚"},{id:6,t:1,title:"試作の状況表",meta:"1枚"},
+  {id:7,t:2,title:"設計変更の説明資料",meta:"4枚"},{id:8,t:2,title:"改良案の比較",meta:"3枚"},{id:9,t:2,title:"試験結果のまとめ",meta:"5枚"},
+  {id:10,t:3,title:"熱対策 調査報告書",meta:"10枚"},{id:11,t:3,title:"品質不具合の詳細報告",meta:"14枚"},{id:12,t:3,title:"年度末プロジェクト報告",meta:"20枚"}
+];
+const SAMPLE = {
+  text:"来週の部長会向けに、ざっくりでいいから進捗をまとめておいて",
+  deadline:"2026-12-01",sel:4,
+  records:[{text:"先月の部長会向けの進捗まとめ",sample:4,tier:1,by:"Aさん",date:"2026-10-28"}]
+};
+
+// ---- 状態 ----
+const S = {role:0,tab:0,blur:1.6,text:"",deadline:"",sel:null,t0:null,secs:null,req:null,reply:null,records:[]};
+const ROLES = ["依頼する側（課長）","受ける側（Aさん／Bさん）"];
+const $ = s=>document.querySelector(s);
+const esc = t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const find = id=>SHELF.find(x=>x.id===id);
+
+// ---- ぼかした縮小画像（粗さだけを見せる） ----
+function thumb(item,big){
+  const k=KIND[item.t],v=item.id%3;
+  let h="";
+  if(k==="line"){
+    h=`<div class="b" style="width:${70+v*10}%"></div>`+(v?`<div class="b l" style="width:${40+v*12}%"></div>`:"");
+  }else if(k==="table"){
+    const n=8+v*2;
+    h=`<div class="b" style="width:50%"></div><div class="grid" style="grid-template-columns:2fr 1fr 1fr">`
+      +Array.from({length:n*3/3*3},(_,i)=>`<i class="${i%3===0?"":(i+v)%4===0?"c2":"c1"}"></i>`).join("")+`</div>`;
+  }else if(k==="slides"){
+    const n=3+v%2;
+    h=`<div class="slides">`+Array.from({length:n},()=>`<div class="slide"><div class="b"></div><div class="b l"></div><div class="b l"></div></div>`).join("")+`</div>`;
+  }else{
+    h=`<div class="b" style="width:60%"></div><div class="dense">`+Array.from({length:big?36:26},(_,i)=>`<div class="b ${i%5?"l":""}"></div>`).join("")+`</div>`;
+  }
+  return `<div class="thumb ${big?"big":""}"><div class="inner">${h}</div></div>`;
+}
+function shelf(selectable){
+  return TIERS.map((name,t)=>`<div class="tier"><h3>${t+1}段目　${name}<span>${["いちばん粗い","","","いちばん細かい"][t]}</span></h3><div class="shelf">`
+    +SHELF.filter(x=>x.t===t).map(x=>`<button class="item ${S.sel===x.id?"sel":""} ${selectable?"":"static"}" ${selectable?`onclick="pick(${x.id})"`:""}>${thumb(x)}<small>${esc(x.title)}<br>${x.meta}</small></button>`).join("")
+    +`</div></div>`).join("");
+}
+const blurCtl=()=>`<div class="blur-ctl">ぼかし<input type="range" min="0" max="4" step="0.4" value="${S.blur}" oninput="setBlur(this.value)"><span id="bv">${S.blur}</span></div>`;
+
+// ---- 操作 ----
+function setBlur(v){S.blur=+v;document.documentElement.style.setProperty("--bl",v+"px");$("#bv").textContent=v}
+function tick(){if(S.t0===null)S.t0=Date.now()}
+function pick(id){tick();S.sel=id;render()}
+function setRole(r){S.role=r;S.tab=r===0?0:1;render()}
+function setTab(t){S.tab=t;render()}
+function send(){
+  S.text=$("#text").value;S.deadline=$("#dl").value;
+  S.secs=Math.round((Date.now()-S.t0)/1000);
+  S.req={text:S.text,deadline:S.deadline,sample:S.sel};S.reply=null;
+  S.tab=0;render();
+}
+function reply(choice,tier){
+  S.reply={choice,tier};
+  if(choice==="ok")S.records.unshift({text:S.req.text,sample:S.req.sample,tier:tier,by:"受ける側",date:"2026-11-23"});
+  render();
+}
+function loadSample(){
+  S.text=SAMPLE.text;S.deadline=SAMPLE.deadline;S.sel=SAMPLE.sel;S.t0=Date.now()-18000;
+  S.records=SAMPLE.records.slice();S.req=null;S.reply=null;S.secs=null;S.tab=0;S.role=0;render();
+}
+function clearAll(){S.text="";S.deadline="";S.sel=null;S.t0=null;S.secs=null;S.req=null;S.reply=null;S.records=[];render()}
+
+// ---- 画面 ----
+function viewShelf(){
+  const sel=find(S.sel);
+  return `<div class="card"><h2>粒度の棚</h2><p class="lead">過去の資料を粗い順に4段で並べています。中身は読めません。粗さだけを見て選びます。</p>
+    ${blurCtl()}${shelf(false)}</div>`;
+}
+function viewRequest(){
+  const sel=find(S.sel);
+  const sent=S.req?`<div class="note ok">送信しました。見本を選んでから送るまで ${S.secs} 秒${S.secs<=30?"（30秒以内）":"（30秒を超えました）"}</div>`:"";
+  return `<div class="card"><h2>依頼のカード</h2><p class="lead">依頼を一行で書き、棚から「このくらいの粗さ」を一つ選びます。見本は粗さを示すもので、中身をまねる必要はありません。</p>
+    <label class="f">依頼の一行</label><input type="text" id="text" value="${esc(S.text)}" oninput="tick()" placeholder="例：来週の部長会向けに進捗をまとめておいて">
+    <label class="f">締め切り</label><input type="date" id="dl" value="${S.deadline}">
+    <label class="f">見本（${sel?esc(sel.title)+"："+TIERS[sel.t]:"未選択"}）</label>
+    ${blurCtl()}${shelf(true)}
+    <div class="row"><button class="btn" onclick="send()" ${sel&&S.t0!==null?"":"disabled"}>この見本で送る</button></div>
+    ${sent}</div>`;
+}
+function viewInbox(){
+  if(!S.req)return `<div class="card"><h2>受け手の返事</h2><p class="empty">届いている依頼はありません。依頼する側で送るか、「サンプルを読み込む」を押してください。</p></div>`;
+  const s=find(S.req.sample);
+  const r=S.reply;
+  let result="";
+  if(r){
+    const msg={ok:`「この粗さで作ります」と返しました（${TIERS[r.tier]}）`,rough:`「もう少し粗くでよいですか」と返しました（提案：${TIERS[r.tier]}）`,fine:`「もう少し細かくでよいですか」と返しました（提案：${TIERS[r.tier]}）`}[r.choice];
+    result=`<div class="note ok">${msg}</div>`;
+  }
+  const other=`<div class="tier"><h3>違う段を選んで返す</h3><div class="row" style="margin-top:0">`
+    +TIERS.map((n,t)=>`<button class="btn ghost" onclick="reply(${t<s.t?"'rough'":t>s.t?"'fine'":"'ok'"},${t})">${n}</button>`).join("")+`</div></div>`;
+  return `<div class="card"><h2>受け手の返事</h2>
+    <div class="req"><b>依頼</b>${esc(S.req.text)}<span class="pill">締め切り ${esc(S.req.deadline||"未設定")}</span></div>
+    <div class="req"><b>見本（${TIERS[s.t]}）</b>${thumb(s,true)}<small style="color:var(--sub)">${esc(s.title)}・${s.meta}</small></div>
+    <div class="choices">
+      <button class="btn" onclick="reply('ok',${s.t})">この粗さで作ります</button>
+      <button class="btn ghost" onclick="reply('rough',${Math.max(0,s.t-1)})" ${s.t===0?"disabled":""}>もう少し粗くでよいですか</button>
+      <button class="btn ghost" onclick="reply('fine',${Math.min(3,s.t+1)})" ${s.t===3?"disabled":""}>もう少し細かくでよいですか</button>
+    </div>${other}${result}
+    <div class="note hint">返事は資料の出来を測るものではありません。作る前の確認だけです。</div></div>`;
+}
+function viewRecords(){
+  const rows=S.records.map(x=>{const s=find(x.sample);return `<div class="req"><b>${x.date}・${esc(x.by)}</b>${esc(x.text)}<span class="pill">${TIERS[x.tier]}</span>
+    <div style="width:110px;margin-top:6px">${thumb(s)}</div><small style="color:var(--sub)">見本：${esc(s.title)}</small></div>`}).join("");
+  return `<div class="card"><h2>合意の記録</h2><p class="lead">合意した見本と依頼が並びます。次に同じ種類の依頼をするときの手がかりになります。</p>
+    ${rows||`<p class="empty">まだ記録はありません。受ける側が「この粗さで作ります」と返すと追加されます。</p>`}</div>`;
+}
+
+function render(){
+  document.documentElement.style.setProperty("--bl",S.blur+"px");
+  const tabs=["依頼","返事","記録","棚"];
+  $("#nav").innerHTML=ROLES.map((r,i)=>`<button class="${S.role===i?"on":""}" onclick="setRole(${i})">${r}</button>`).join("");
+  const sub=`<nav>`+tabs.map((n,i)=>`<button class="${S.tab===[0,1,2,3][i]?"on":""}" onclick="setTab(${i})">${n}</button>`).join("")+`</nav>`;
+  const views=[viewRequest,viewInbox,viewRecords,viewShelf];
+  $("#main").innerHTML=sub+views[S.tab]()+`<div class="row"><button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button><button class="btn ghost" onclick="clearAll()">クリア</button></div>`
+    +`<div class="note warn" style="margin-top:12px">確かめたいこと：(1) ぼかした画像だけで粗さの違いが一目で伝わるか。ぼかしの強さも変えて試せます。(2) 見本を選ぶ操作が30秒ほどで終わるか。入力を始めてから送るまでを計ります。</div>`;
+}
+render();
+</script>
+</body>
+</html>

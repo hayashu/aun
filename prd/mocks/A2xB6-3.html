@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A2xB6-3 場ごとの粒度ガイド（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--warn-bg:#fff4dc;--warn:#8a5a00;--ok-bg:#e6f4ea;--ok:#1d6b35;--hint-bg:#eef2fc;--bar:#cdd8f3}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--warn-bg:#3a2f14;--warn:#f0c46b;--ok-bg:#16301f;--ok:#7fd69a;--hint-bg:#222a3d;--bar:#2e3a5c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:14px;margin:12px 0 2px;color:var(--sub)}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+p{margin:0}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:56px;resize:vertical}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.hint{background:var(--hint-bg)}
+.empty{color:var(--sub);font-size:14px}
+.scale{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);margin-bottom:4px}
+.lane{display:flex;align-items:center;gap:8px;margin-top:8px}
+.lane .nm{flex:0 0 76px;font-size:13px;text-align:left;background:none;border:0;color:var(--text);padding:0;cursor:pointer;font-family:inherit}
+.lane.sel .nm{font-weight:700;color:var(--accent)}
+.track{position:relative;flex:1;height:22px;background:var(--hint-bg);border-radius:6px}
+.bar{position:absolute;top:3px;bottom:3px;background:var(--bar);border-radius:4px}
+.lane.sel .bar{background:var(--accent)}
+.first{border-left:4px solid var(--accent);padding:2px 0 2px 10px;margin-top:8px}
+.tag{display:inline-block;font-size:12px;border-radius:999px;padding:0 8px;background:var(--hint-bg);color:var(--sub)}
+.dim{opacity:.75}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>会議や報告の場ごとの「粒度ガイド」</h1>
+  <small><span class="badge">A2xB6-3</span><span class="badge">モック</span>入力はこの画面内だけで処理され、送信されません。報告の採点はしません</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+var TABS = [["map", "高さの図"], ["guide", "ガイド"], ["notice", "報告前のお知らせ"]];
+var LEVELS = ["方針", "結論", "判断事項", "数値・条件", "手順"];
+var SAMPLE = [
+  {id: 1, name: "部長会", lo: 0, hi: 2, first: "結論と判断事項を最初の1分で", detail: "1報告3分・資料1〜2枚。測定値は質問されたら答える", miss: "測定条件や波形から説明して「で、判断してほしいことは？」と遮られる", voices: ["「判断事項」と「結論」の違いがわからなかった"]},
+  {id: 2, name: "月次定例", lo: 1, hi: 3, first: "進捗の結論と、遅れの理由を一言で", detail: "1人5分・資料2枚まで。遅れがあれば数値を1つ添える", miss: "数値だけ並べて、結論が最後まで出てこない", voices: []},
+  {id: 3, name: "週次定例", lo: 2, hi: 4, first: "今週決めたいことと、その材料", detail: "1人5分・資料は画面共有1枚。条件は口頭で補う", miss: "議題を言わずに経過から話し始める", voices: []},
+  {id: 4, name: "設計レビュー", lo: 3, hi: 4, first: "測定値と測定条件から", detail: "1件15分・資料5枚程度。波形と条件を必ず載せる", miss: "結論だけを話して「根拠のデータがないと議論できない」と言われる", voices: ["「どこまで細かく」の目安がほしい"]},
+  {id: 5, name: "朝会", lo: 4, hi: 4, first: "今日やる作業と、困りごと", detail: "1人1分・資料なし", miss: "背景から話し始めて時間を使う", voices: []}
+];
+var state = {tab: "map", venues: [], sel: 0, drafting: null, understood: {yes: 0, no: 0}, readMode: "first", noticeFor: 0};
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c];
+  });
+}
+function byId(id) {
+  return state.venues.filter(function (v) { return v.id === id; })[0];
+}
+function loadSample() {
+  state.venues = JSON.parse(JSON.stringify(SAMPLE));
+  state.sel = 1;
+  state.noticeFor = 1;
+  render();
+}
+function guideText(v) {
+  return v.first + v.detail + v.miss;
+}
+function readSec(text) {
+  return Math.round(text.length / 500 * 60);
+}
+
+function renderNav() {
+  var nav = document.getElementById("nav");
+  nav.innerHTML = "";
+  TABS.forEach(function (t) {
+    var b = document.createElement("button");
+    b.textContent = t[1];
+    b.className = state.tab === t[0] ? "on" : "";
+    b.onclick = function () { state.tab = t[0]; render(); };
+    nav.appendChild(b);
+  });
+}
+
+function sampleBar() {
+  return '<div class="row"><button class="btn" onclick="loadSample()">サンプルを読み込む</button></div>';
+}
+
+function viewMap() {
+  if (!state.venues.length) {
+    return '<div class="card"><h2>高さの図</h2><p class="empty">場がまだありません。</p>' + sampleBar() + '</div>';
+  }
+  var h = '<div class="card"><h2>どの場が、どの高さで話すか</h2>';
+  h += '<p class="lead">帯の位置が「最初に話す高さ」の範囲です。場の名前を押すと、ガイドが下に出ます。</p>';
+  h += '<div class="scale"><span>方針(抽象)</span><span>手順(具体)</span></div>';
+  state.venues.forEach(function (v) {
+    var left = v.lo / 5 * 100;
+    var width = (v.hi - v.lo + 1) / 5 * 100;
+    h += '<div class="lane' + (v.id === state.sel ? " sel" : "") + '">';
+    h += '<button class="nm" onclick="state.sel=' + v.id + ';render()">' + esc(v.name) + '</button>';
+    h += '<div class="track"><div class="bar" style="left:' + left + '%;width:' + width + '%"></div></div></div>';
+  });
+  h += '<div class="scale" style="margin-top:6px">' + LEVELS.map(function (l) { return "<span>" + l + "</span>"; }).join("") + '</div>';
+  var v = byId(state.sel);
+  if (v) {
+    h += '<div class="first"><b>' + esc(v.name) + '</b>は最初に<br>' + esc(v.first) + '</div>';
+  }
+  h += '<h3>この図で、場ごとの違いは一目でわかりましたか(自己申告)</h3>';
+  h += '<div class="row" style="margin-top:4px"><button class="btn ghost" onclick="state.understood.yes++;render()">わかった</button>';
+  h += '<button class="btn ghost" onclick="state.understood.no++;render()">わかりにくい</button></div>';
+  h += '<p class="empty" style="margin-top:6px">わかった ' + state.understood.yes + ' / わかりにくい ' + state.understood.no + '(この画面内だけの集計です)</p>';
+  return h + '</div>';
+}
+
+function viewGuide() {
+  if (!state.venues.length) {
+    return '<div class="card"><h2>ガイド</h2><p class="empty">ガイドがまだありません。</p>' + sampleBar() + '</div>';
+  }
+  var v = state.drafting || byId(state.sel);
+  var h = '<div class="card"><h2>場ごとのガイド(主催者が書く)</h2>';
+  h += '<label for="vsel">場を選ぶ</label><select id="vsel" onchange="state.sel=+this.value;state.drafting=null;render()">';
+  state.venues.forEach(function (x) {
+    h += '<option value="' + x.id + '"' + (x.id === v.id ? " selected" : "") + '>' + esc(x.name) + '</option>';
+  });
+  h += '</select>';
+  h += '<label>最初に話す高さ(結論・判断事項・数値)</label><textarea oninput="edit(\'first\',this.value)">' + esc(v.first) + '</textarea>';
+  h += '<label>詳しさ(何分・何枚・どこまで)</label><textarea oninput="edit(\'detail\',this.value)">' + esc(v.detail) + '</textarea>';
+  h += '<label>よくある外し方</label><textarea oninput="edit(\'miss\',this.value)">' + esc(v.miss) + '</textarea>';
+  h += '<label>高さの範囲</label><div class="row" style="margin-top:0">';
+  h += lvSel("lo", v.lo) + '<span>から</span>' + lvSel("hi", v.hi) + '</div>';
+  h += '<div class="note hint" id="len"></div>';
+  h += '<p class="empty" style="margin-top:8px">ガイドは「最初に話すこと」だけを決めます。その後は自由です。</p>';
+  h += '<h3>見直しの声(匿名・年に一度主催者が見直す)</h3><div id="voices">' + voiceList(v) + '</div>';
+  h += '<div class="row"><input type="text" id="vin" placeholder="ここがわからなかった、を書く"><button class="btn" onclick="addVoice()">匿名で残す</button></div>';
+  return h + '</div>';
+}
+function lvSel(key, cur) {
+  var s = '<select style="width:auto" onchange="edit(\'' + key + '\',+this.value);render()">';
+  LEVELS.forEach(function (l, i) {
+    s += '<option value="' + i + '"' + (i === cur ? " selected" : "") + '>' + l + '</option>';
+  });
+  return s + '</select>';
+}
+function voiceList(v) {
+  if (!v.voices.length) { return '<p class="empty">声はまだありません。</p>'; }
+  return v.voices.map(function (t) { return '<p class="dim">・' + esc(t) + '</p>'; }).join("");
+}
+function edit(key, val) {
+  var v = byId(state.sel);
+  v[key] = val;
+  if (key === "lo" && v.hi < val) { v.hi = val; }
+  if (key === "hi" && v.lo > val) { v.lo = val; }
+  var len = document.getElementById("len");
+  if (len) { len.innerHTML = lenText(v); }
+}
+function addVoice() {
+  var input = document.getElementById("vin");
+  if (!input.value.trim()) { return; }
+  byId(state.sel).voices.push(input.value.trim());
+  render();
+}
+function lenText(v) {
+  var n = guideText(v).length;
+  return "ガイド全体 " + n + " 字(約 " + readSec(guideText(v)) + " 秒で読めます)";
+}
+
+function viewNotice() {
+  if (!state.venues.length) {
+    return '<div class="card"><h2>報告前のお知らせ</h2><p class="empty">ガイドがまだありません。</p>' + sampleBar() + '</div>';
+  }
+  var v = byId(state.noticeFor) || state.venues[0];
+  var h = '<div class="card"><h2>報告の予定が入った人に届くお知らせ</h2>';
+  h += '<label for="nsel">報告する場</label><select id="nsel" onchange="state.noticeFor=+this.value;render()">';
+  state.venues.forEach(function (x) {
+    h += '<option value="' + x.id + '"' + (x.id === v.id ? " selected" : "") + '>' + esc(x.name) + '</option>';
+  });
+  h += '</select>';
+  h += '<label for="who">あなたは</label><select id="who" onchange="state.readMode=this.value;render()">';
+  h += '<option value="first"' + (state.readMode === "first" ? " selected" : "") + '>この場で初めて報告する</option>';
+  h += '<option value="again"' + (state.readMode === "again" ? " selected" : "") + '>この場の報告は慣れている</option></select>';
+  var text = guideText(v);
+  h += '<div class="first"><b>' + esc(v.name) + 'の報告前に</b>';
+  h += '<h3>最初に話す高さ</h3><p>' + esc(v.first) + '</p>';
+  h += '<h3>詳しさ</h3><p>' + esc(v.detail) + '</p>';
+  h += '<h3>よくある外し方</h3><p>' + esc(v.miss) + '</p>';
+  if (state.readMode === "first") {
+    h += '<h3>過去の良い報告の構成(中身は伏せています)</h3>';
+    h += '<p>1枚目 結論 → 2枚目 判断してほしいこと → 3枚目 根拠の要約</p>';
+    text += "1枚目結論2枚目判断してほしいこと3枚目根拠の要約";
+  }
+  h += '</div>';
+  var sec = readSec(text);
+  h += '<div class="note ' + (sec <= 60 ? "ok" : "warn") + '">' + text.length + ' 字 / 読むのに約 ' + sec + ' 秒。';
+  h += sec <= 60 ? "1分で読めます。" : "1分を超えています。項目を短くしてください。";
+  h += '</div></div>';
+  return h;
+}
+
+function render() {
+  renderNav();
+  var views = {map: viewMap, guide: viewGuide, notice: viewNotice};
+  document.getElementById("main").innerHTML = views[state.tab]();
+  var len = document.getElementById("len");
+  if (len) { len.innerHTML = lenText(byId(state.sel)); }
+}
+render();
+</script>
+</body>
+</html>

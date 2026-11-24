@@ -1,4 +1,4 @@
-# 進捗表(25セル × 3版)
+# 進捗表(30セル × 3版)
 
 凡例: P = PRD済み / M = モック済み / - = 未着手
 
@@ -9,28 +9,33 @@
 | A1xB3 | P M | P M | P M |
 | A1xB4 | P M | P M | P M |
 | A1xB5 | P M | P M | P M |
+| A1xB6 | P M | P M | P M |
 | A2xB1 | P M | P M | P M |
 | A2xB2 | P M | P M | P M |
 | A2xB3 | P M | P M | P M |
 | A2xB4 | P M | P M | P M |
 | A2xB5 | P M | P M | P M |
+| A2xB6 | P M | P M | P M |
 | A3xB1 | P M | P M | P M |
 | A3xB2 | P M | P M | P M |
 | A3xB3 | P M | P M | P M |
 | A3xB4 | P M | P M | P M |
 | A3xB5 | P M | P M | P M |
+| A3xB6 | P M | P M | P M |
 | A4xB1 | P M | P M | P M |
 | A4xB2 | P M | P M | P M |
 | A4xB3 | P M | P M | P M |
 | A4xB4 | P M | P M | P M |
 | A4xB5 | P M | P M | P M |
+| A4xB6 | P M | P M | P M |
 | A5xB1 | P M | P M | P M |
 | A5xB2 | P M | P M | P M |
 | A5xB3 | P M | P M | P M |
 | A5xB4 | P M | P M | P M |
 | A5xB5 | P M | P M | P M |
+| A5xB6 | P M | P M | P M |
 
-合計: PRD 75/75、モック 75/75
+合計: PRD 90/90、モック 90/90
 
 ## 索引
 
@@ -51,6 +56,9 @@
 | A1xB5-1 | 個人 | 「好きにいじっていいよ」の本当の範囲を読む練習ができる許可ことばトレーナー | [prds/A1xB5-1.md](prds/A1xB5-1.md) | [mocks/A1xB5-1.html](mocks/A1xB5-1.html) |
 | A1xB5-2 | 2人の間 | 持ち主が「ここまで触ってよい」を明示する機材の触っていい度ラベル | [prds/A1xB5-2.md](prds/A1xB5-2.md) | [mocks/A1xB5-2.html](mocks/A1xB5-2.html) |
 | A1xB5-3 | 場の仕組み | 「壊してよい」がはっきりした部署の試作棚と練習用ジャンク機材の貸出制度 | [prds/A1xB5-3.md](prds/A1xB5-3.md) | [mocks/A1xB5-3.html](mocks/A1xB5-3.html) |
+| A1xB6-1 | 個人 | 「もっと本質を考えて」を自分で具体例3つに置き換えて確かめる抽象ことばの具体化ノート | [prds/A1xB6-1.md](prds/A1xB6-1.md) | [mocks/A1xB6-1.html](mocks/A1xB6-1.html) |
+| A1xB6-2 | 2人の間 | 抽象的に話す側が「たとえば」を一つ添え、聞く側が近い例を選んで返す具体例すり合わせカード | [prds/A1xB6-2.md](prds/A1xB6-2.md) | [mocks/A1xB6-2.html](mocks/A1xB6-2.html) |
+| A1xB6-3 | 場の仕組み | 方針を伝えるときに「具体例を1つ・やらないことを1つ」添えるチームの方針カード | [prds/A1xB6-3.md](prds/A1xB6-3.md) | [mocks/A1xB6-3.html](mocks/A1xB6-3.html) |
 | A2xB1-1 | 個人 | 部署の資料の「暗黙の型」を先に見つけて、作り直しを減らす資料チェッカー | [prds/A2xB1-1.md](prds/A2xB1-1.md) | [mocks/A2xB1-1.html](mocks/A2xB1-1.html) |
 | A2xB1-2 | 2人の間 | 資料を頼む前に「誰に・何枚・どの粗さで」を合意する資料の完成ライン合意シート | [prds/A2xB1-2.md](prds/A2xB1-2.md) | [mocks/A2xB1-2.html](mocks/A2xB1-2.html) |
 | A2xB1-3 | 場の仕組み | 資料の型を1枚フォーマットで明文化し、浮いた時間をものづくり枠に回すチームの資料ダイエット | [prds/A2xB1-3.md](prds/A2xB1-3.md) | [mocks/A2xB1-3.html](mocks/A2xB1-3.html) |
@@ -66,6 +74,9 @@
 | A2xB5-1 | 個人 | 試作室や測定器を初めて使う前に「確かめること」と「聞く相手」を並べる初回利用ナビ | [prds/A2xB5-1.md](prds/A2xB5-1.md) | [mocks/A2xB5-1.html](mocks/A2xB5-1.html) |
 | A2xB5-2 | 2人の間 | 慣れた先輩が初回だけ一緒に使い、暗黙のルールをその場で伝える試作室の付き添い予約 | [prds/A2xB5-2.md](prds/A2xB5-2.md) | [mocks/A2xB5-2.html](mocks/A2xB5-2.html) |
 | A2xB5-3 | 場の仕組み | 試作室の使い方ルールを入口の画面で明文化し、予約なしで試せる「お試し枠」を設ける試作室の運用改善 | [prds/A2xB5-3.md](prds/A2xB5-3.md) | [mocks/A2xB5-3.html](mocks/A2xB5-3.html) |
+| A2xB6-1 | 個人 | 「全体像を整理して」がどの抽象度の成果物を求めているかを見積もる抽象度のはしご | [prds/A2xB6-1.md](prds/A2xB6-1.md) | [mocks/A2xB6-1.html](mocks/A2xB6-1.html) |
+| A2xB6-2 | 2人の間 | 依頼する側が過去の資料から「このくらいの粗さ」を選んで見せる粒度の見本合わせ | [prds/A2xB6-2.md](prds/A2xB6-2.md) | [mocks/A2xB6-2.html](mocks/A2xB6-2.html) |
+| A2xB6-3 | 場の仕組み | 会議や報告の種類ごとに「結論の高さ」と「詳しさ」を決めておくチームの粒度ガイド | [prds/A2xB6-3.md](prds/A2xB6-3.md) | [mocks/A2xB6-3.html](mocks/A2xB6-3.html) |
 | A3xB1-1 | 個人 | 「やりたいこと」を業務とのつながりで組み立て、出す相手と時期を決める提案ビルダー | [prds/A3xB1-1.md](prds/A3xB1-1.md) | [mocks/A3xB1-1.html](mocks/A3xB1-1.html) |
 | A3xB1-2 | 2人の間 | 上司が1on1で部下の「やりたいこと」を引き出し、業務とつなげる質問カード | [prds/A3xB1-2.md](prds/A3xB1-2.md) | [mocks/A3xB1-2.html](mocks/A3xB1-2.html) |
 | A3xB1-3 | 場の仕組み | 根回し不要で誰でも5分で「作ってみたいもの」を出せる、部署の月例ものづくり提案会 | [prds/A3xB1-3.md](prds/A3xB1-3.md) | [mocks/A3xB1-3.html](mocks/A3xB1-3.html) |
@@ -81,6 +92,9 @@
 | A3xB5-1 | 個人 | 機材を壊したとき・試作が失敗したときの伝え方を、安全に練習できる失敗報告トレーナー | [prds/A3xB5-1.md](prds/A3xB5-1.md) | [mocks/A3xB5-1.html](mocks/A3xB5-1.html) |
 | A3xB5-2 | 2人の間 | 試す前に「何を試し、壊れたらどうするか」を宣言して先輩の了承を得る「やってみる宣言」 | [prds/A3xB5-2.md](prds/A3xB5-2.md) | [mocks/A3xB5-2.html](mocks/A3xB5-2.html) |
 | A3xB5-3 | 場の仕組み | 誰の責任かを問わず「何が起き、何を学んだか」だけを共有するチームの月例・失敗共有会 | [prds/A3xB5-3.md](prds/A3xB5-3.md) | [mocks/A3xB5-3.html](mocks/A3xB5-3.html) |
+| A3xB6-1 | 個人 | 具体的な報告の頭に「つまり何か」を一行で添える練習をする「つまり一行」下書きツール | [prds/A3xB6-1.md](prds/A3xB6-1.md) | [mocks/A3xB6-1.html](mocks/A3xB6-1.html) |
+| A3xB6-2 | 2人の間 | 会話の途中で「上げて（つまり？）」「下げて（たとえば？）」を気軽に合図し合う抽象度の合図カード | [prds/A3xB6-2.md](prds/A3xB6-2.md) | [mocks/A3xB6-2.html](mocks/A3xB6-2.html) |
+| A3xB6-3 | 場の仕組み | 議題ごとに「目的（抽象）→具体例→まとめ（抽象）」の往復の時間枠を入れる会議の往復進行キット | [prds/A3xB6-3.md](prds/A3xB6-3.md) | [mocks/A3xB6-3.html](mocks/A3xB6-3.html) |
 | A4xB1-1 | 個人 | 試作で受けた指摘を「何が・なぜ・次にどう」に分けて、確かめる質問まで作る試作の振り返りノート | [prds/A4xB1-1.md](prds/A4xB1-1.md) | [mocks/A4xB1-1.html](mocks/A4xB1-1.html) |
 | A4xB1-2 | 2人の間 | 試作を見た上司が「どこが・なぜ・次はどう」を1分で返せるフィードバックカード | [prds/A4xB1-2.md](prds/A4xB1-2.md) | [mocks/A4xB1-2.html](mocks/A4xB1-2.html) |
 | A4xB1-3 | 場の仕組み | 試作の評価観点をチームで公開し、一度の失敗では機会を取り上げない「次の機会」保証 | [prds/A4xB1-3.md](prds/A4xB1-3.md) | [mocks/A4xB1-3.html](mocks/A4xB1-3.html) |
@@ -96,6 +110,9 @@
 | A4xB5-1 | 個人 | 試す前に「予想」を書き、結果とのずれから原因を考える小さな実験ノート | [prds/A4xB5-1.md](prds/A4xB5-1.md) | [mocks/A4xB5-1.html](mocks/A4xB5-1.html) |
 | A4xB5-2 | 2人の間 | うまくいかなかった実験を先輩と15分見返し、先輩は答えではなく問いを返す実験レビュー | [prds/A4xB5-2.md](prds/A4xB5-2.md) | [mocks/A4xB5-2.html](mocks/A4xB5-2.html) |
 | A4xB5-3 | 場の仕組み | 月に半日、失敗を前提に試して「予想・結果・原因の推測」を発表し合う部署の実験デー | [prds/A4xB5-3.md](prds/A4xB5-3.md) | [mocks/A4xB5-3.html](mocks/A4xB5-3.html) |
+| A4xB6-1 | 個人 | 「話が細かすぎる」と言われた会話を振り返り、どこで高さがずれたかを見つける抽象度ずれの振り返りシート | [prds/A4xB6-1.md](prds/A4xB6-1.md) | [mocks/A4xB6-1.html](mocks/A4xB6-1.html) |
+| A4xB6-2 | 2人の間 | 話し手と聞き手が会話のあとに「どこで置いていかれたか」を高さの線で指し合う置いていかれ地点マップ | [prds/A4xB6-2.md](prds/A4xB6-2.md) | [mocks/A4xB6-2.html](mocks/A4xB6-2.html) |
+| A4xB6-3 | 場の仕組み | 注意や助言を「場面・行動・代わりにどうするか」の具体例つきで返すチームのフィードバックの型 | [prds/A4xB6-3.md](prds/A4xB6-3.md) | [mocks/A4xB6-3.html](mocks/A4xB6-3.html) |
 | A5xB1-1 | 個人 | 業務につながる小さなものづくりを、自分のペースで練習して記録する練習プラン帳 | [prds/A5xB1-1.md](prds/A5xB1-1.md) | [mocks/A5xB1-1.html](mocks/A5xB1-1.html) |
 | A5xB1-2 | 2人の間 | 他部署で実際に手を動かしている作り手と、1対1でものづくりの相談ができる「作り手つなぎ」 | [prds/A5xB1-2.md](prds/A5xB1-2.md) | [mocks/A5xB1-2.html](mocks/A5xB1-2.html) |
 | A5xB1-3 | 場の仕組み | 昼休みと終業後に、部署を問わず集まって作れる社内ものづくりサークルの運営キット | [prds/A5xB1-3.md](prds/A5xB1-3.md) | [mocks/A5xB1-3.html](mocks/A5xB1-3.html) |
@@ -111,3 +128,6 @@
 | A5xB5-1 | 個人 | ブラウザの中で回路を組み、壊しても何も失わずに「なぜ壊れたか」がわかる壊してもいい仮想ベンチ | [prds/A5xB5-1.md](prds/A5xB5-1.md) | [mocks/A5xB5-1.html](mocks/A5xB5-1.html) |
 | A5xB5-2 | 2人の間 | 先輩が練習課題を出し、若手が試した結果を写真で返し、先輩が一言を返す練習課題の交換日記 | [prds/A5xB5-2.md](prds/A5xB5-2.md) | [mocks/A5xB5-2.html](mocks/A5xB5-2.html) |
 | A5xB5-3 | 場の仕組み | 練習用キットと「はんだ→測定→改造」の段階課題、相談役をそろえた部署の壊してよい練習カリキュラム | [prds/A5xB5-3.md](prds/A5xB5-3.md) | [mocks/A5xB5-3.html](mocks/A5xB5-3.html) |
+| A5xB6-1 | 個人 | 抽象的な問いに具体例を出し、具体例の束から共通点を言う往復を一人で練習する往復ドリル | [prds/A5xB6-1.md](prds/A5xB6-1.md) | [mocks/A5xB6-1.html](mocks/A5xB6-1.html) |
+| A5xB6-2 | 2人の間 | 2人が「抽象役」と「具体役」を交代しながら、同じ題材を上げ下げして話す役割交代の練習ペア | [prds/A5xB6-2.md](prds/A5xB6-2.md) | [mocks/A5xB6-2.html](mocks/A5xB6-2.html) |
+| A5xB6-3 | 場の仕組み | 若手が上層の方針を具体例に、ベテランが若手の試作報告を一行の意味に翻訳し合う部署の抽象⇔具体翻訳ワークショップ | [prds/A5xB6-3.md](prds/A5xB6-3.md) | [mocks/A5xB6-3.html](mocks/A5xB6-3.html) |

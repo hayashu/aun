@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1xB6-1 抽象ことばの具体化ノート（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--warn-bg:#fff4dc;--warn:#8a5a00;--ok-bg:#e6f4ea;--ok:#1d6b35;--hint-bg:#eef2fc}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--warn-bg:#3a2f14;--warn:#f0c46b;--ok-bg:#16301f;--ok:#7fd69a;--hint-bg:#222a3d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:64px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;font-weight:400;margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px}
+.opts input{margin:0}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.hint{background:var(--hint-bg)}
+.ex{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.ex b{font-size:13px;color:var(--sub)}
+.big{font-size:18px;font-weight:700;border-left:4px solid var(--accent);padding-left:10px;margin:8px 0}
+.q{white-space:pre-wrap}
+.empty{color:var(--sub);font-size:14px}
+.rec{border-bottom:1px solid var(--line);padding:8px 0;font-size:14px}
+.rec:last-child{border-bottom:0}
+.sub{color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>「もっと本質を考えて」を具体例3つに置き換える抽象ことばの具体化ノート</h1>
+  <small><span class="badge">A1xB6-1</span><span class="badge">モック</span>入力はこの画面内だけで処理され、共有・送信されません</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+const TABS = ['1 ことば', '2 具体例', '3 質問', '4 記録'];
+const SCENES = ['報告のあと', '会議中', '雑談'];
+const HINTS = [
+  '作業を増やす方向：「もし○○のことなら、自分は何かを追加で調べる／測る」',
+  '判断を一行で書く方向：「もし○○のことなら、自分は“これは困る／困らない”を一行で書く」',
+  '見せ方を変える方向：「もし○○のことなら、自分は結論を先に出す資料にする」',
+  '減らす・やめる方向：「もし○○のことなら、自分は今の項目のうち何かを外す」'
+];
+const LETTERS = ['A', 'B', 'C'];
+const blank = () => ({ word: '', boss: '課長', scene: SCENES[0], ex: ['', '', ''], hints: 0, q: '', ask: null, answer: null });
+let state = { tab: 0, cur: blank(), history: [], start: null, elapsed: null };
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function sample() {
+  state.cur = {
+    word: 'もっとお客さんにとっての価値から考えてみて', boss: '課長', scene: '報告のあと',
+    ex: [
+      'もし価値が「使う人の困りごと」のことなら、自分は発熱が使う人に困ることかを一行で判断して書く',
+      'もし価値が「評価項目の優先順位」のことなら、自分は今の項目を重要度順に並べ替える',
+      'もし価値が「報告の見せ方」のことなら、自分は結論を先に書く資料に変える'
+    ],
+    hints: 1, q: '', ask: null, answer: null
+  };
+  state.history = [
+    { word: 'もっと本質を考えて', boss: '課長', scene: '会議中', ex: ['原因を一つに絞る', '手順を減らす', '目的を一文で書く'], answer: 2 },
+    { word: 'ちゃんと全体を見て', boss: '課長', scene: '報告のあと', ex: ['他チームの影響を書く', 'スケジュール全体を並べる', '抜けの確認表を作る'], answer: 0 }
+  ];
+  state.start = Date.now() - 150000;
+  state.tab = 0;
+  render();
+}
+
+function buildQ(c) {
+  const opts = c.ex.map((e, i) => e.trim() ? `${LETTERS[i]}：${e.trim()}` : '').filter(Boolean);
+  if (opts.length < 2) return '';
+  return `お忙しいところすみません。「${c.word}」について、次のどれに近いか教えていただけますか。\n${opts.join('\n')}\n（どれも違えば、そう教えてください）`;
+}
+
+function touchStart() { if (!state.start) state.start = Date.now(); }
+
+function view0() {
+  const c = state.cur;
+  const past = state.history.filter((h) => h.word === c.word.trim() && c.word.trim());
+  return `<div class="card"><h2>ことばの書き写し</h2>
+    <p class="lead">言われた言葉をそのまま書きます。意味は考えなくて大丈夫です。</p>
+    <label>言われた言葉</label><textarea id="word">${esc(c.word)}</textarea>
+    <label>言った人</label><input type="text" id="boss" value="${esc(c.boss)}">
+    <label>場面</label><div class="opts">${SCENES.map((s) => `<label><input type="radio" name="scene" value="${s}" ${c.scene === s ? 'checked' : ''}>${s}</label>`).join('')}</div>
+    ${past.length ? `<div class="note hint">同じ言葉の過去の例（参考です。今回も3つ作ります）<br>${past.map((h) => `・${esc(h.ex[h.answer])}`).join('<br>')}</div>` : ''}
+    <div class="row"><button class="btn" id="go1">具体例を作る →</button></div></div>`;
+}
+
+function view1() {
+  const c = state.cur;
+  const hint = c.hints ? c.hints > 0 && HINTS.slice(0, c.hints).map((h) => `<div class="note hint">${esc(h)}</div>`).join('') : '';
+  return `<div class="card"><h2>具体例を3つ作る</h2>
+    <div class="big">${esc(c.word) || '（ことばが未入力です）'}</div>
+    <p class="lead">「もしこの言葉が○○のことなら、自分は××をする」の形で書きます。正解はありません。</p>
+    ${c.ex.map((e, i) => `<div class="ex"><b>具体例 ${LETTERS[i]}</b><textarea data-ex="${i}">${esc(e)}</textarea></div>`).join('')}
+    ${hint}
+    <div class="row"><button class="btn ghost" id="hint" ${c.hints >= HINTS.length ? 'disabled' : ''}>ヒントを一つ見る（${c.hints}/${HINTS.length}）</button>
+    <button class="btn" id="go2">質問にする →</button></div></div>`;
+}
+
+function view2() {
+  const c = state.cur;
+  if (!c.q) c.q = buildQ(c);
+  if (!c.q) return `<div class="card"><h2>確かめる質問</h2><p class="empty">具体例を2つ以上書くと、選択式の質問ができます。</p></div>`;
+  return `<div class="card"><h2>確かめる質問</h2>
+    <p class="lead">言い回しは自由に直せます。自動では送られません。コピーして自分で使います。</p>
+    <textarea id="q" style="min-height:190px">${esc(c.q)}</textarea>
+    <div class="row"><button class="btn ghost" id="rebuild">具体例から作り直す</button></div>
+    <label>この質問なら、上司に聞けそうですか</label>
+    <div class="opts">${[['yes', 'これなら聞ける'], ['no', 'まだ聞きにくい']].map(([v, t]) => `<label><input type="radio" name="ask" value="${v}" ${c.ask === v ? 'checked' : ''}>${t}</label>`).join('')}</div>
+    ${c.ask === 'no' ? '<div class="note warn">具体例を短くする、選択肢を2つにする、前置きを減らすなどを試してみてください。</div>' : ''}
+    ${c.ask === 'yes' ? '<div class="note ok">確かめたら、「記録」で近かった例を選びます。</div>' : ''}</div>`;
+}
+
+function view3() {
+  const c = state.cur;
+  const filled = c.ex.map((e, i) => e.trim() ? i : -1).filter((i) => i >= 0);
+  const pick = filled.length ? `<label>実際に確かめた結果、近かったのは</label><div class="opts">${filled.map((i) => `<label><input type="radio" name="ans" value="${i}" ${c.answer === i ? 'checked' : ''}>${LETTERS[i]}</label>`).join('')}
+    <label><input type="radio" name="ans" value="-1" ${c.answer === -1 ? 'checked' : ''}>どれも違った</label></div>
+    <div class="row"><button class="btn" id="save">記録する</button></div>` : '<p class="empty">まだ記録できる具体例がありません。</p>';
+  const rows = state.history.length ? state.history.map((h) => `<div class="rec"><b>${esc(h.word)}</b><div class="sub">${esc(h.boss)}・${esc(h.scene)}</div>
+    近かった例：${h.answer >= 0 ? esc(h.ex[h.answer]) : 'どれも違った'}</div>`).join('') : '<p class="empty">まだ記録がありません。</p>';
+  return `<div class="card"><h2>答えの記録</h2>${pick}</div>
+    <div class="card"><h2>言葉の傾向</h2><p class="lead">過去の例は参考です。場面で変わるので、毎回3つ作ります。</p>${rows}
+    <div class="row"><button class="btn ghost" id="clear">記録をすべて消す</button></div></div>`;
+}
+
+function timer() {
+  if (!state.start) return '';
+  const done = state.elapsed != null ? state.elapsed : Math.round((Date.now() - state.start) / 1000);
+  const m = Math.floor(done / 60), s = done % 60;
+  return `<div class="note hint">書き始めから ${m}分${s}秒${state.elapsed != null ? '（質問ができるまで）' : ''}</div>`;
+}
+
+function render() {
+  $('#nav').innerHTML = TABS.map((t, i) => `<button data-t="${i}" class="${state.tab === i ? 'on' : ''}">${t}</button>`).join('');
+  const views = [view0, view1, view2, view3];
+  $('#main').innerHTML = `<div class="row" style="margin:0 0 12px"><button class="btn ghost" id="sample">サンプルを読み込む</button></div>${views[state.tab]()}${timer()}`;
+  bind();
+}
+
+function bind() {
+  const c = state.cur;
+  document.querySelectorAll('nav button').forEach((b) => b.onclick = () => { state.tab = +b.dataset.t; render(); });
+  $('#sample').onclick = sample;
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  const word = $('#word');
+  if (word) word.oninput = () => { touchStart(); c.word = word.value; };
+  const boss = $('#boss');
+  if (boss) boss.oninput = () => { c.boss = boss.value; };
+  document.querySelectorAll('[name=scene]').forEach((r) => r.onchange = () => { c.scene = r.value; });
+  document.querySelectorAll('[data-ex]').forEach((t) => t.oninput = () => { c.ex[+t.dataset.ex] = t.value; c.q = ''; });
+  on('#go1', () => { state.tab = 1; render(); });
+  on('#hint', () => { c.hints++; render(); });
+  on('#go2', () => {
+    c.q = buildQ(c);
+    if (c.q && state.start && state.elapsed == null) state.elapsed = Math.round((Date.now() - state.start) / 1000);
+    state.tab = 2; render();
+  });
+  const q = $('#q');
+  if (q) q.oninput = () => { c.q = q.value; };
+  on('#rebuild', () => { c.q = ''; render(); });
+  document.querySelectorAll('[name=ask]').forEach((r) => r.onchange = () => { c.ask = r.value; render(); });
+  document.querySelectorAll('[name=ans]').forEach((r) => r.onchange = () => { c.answer = +r.value; });
+  on('#save', () => {
+    if (c.answer == null) return;
+    state.history.unshift({ word: c.word.trim(), boss: c.boss, scene: c.scene, ex: c.ex.slice(), answer: c.answer });
+    state.cur = blank(); state.start = null; state.elapsed = null; state.tab = 3; render();
+  });
+  on('#clear', () => { state.history = []; render(); });
+}
+
+setInterval(() => {
+  const n = $('#main > .note.hint:last-child');
+  if (n && state.start && state.elapsed == null) n.outerHTML = timer();
+}, 5000);
+render();
+</script>
+</body>
+</html>

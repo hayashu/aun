@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A5xB6-3 抽象⇔具体翻訳ワークショップ（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--young:#e8f3ec;--vet:#fdf0e1;--hint-bg:#eef2fc;--warn-bg:#fff4dc;--warn:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--young:#16301f;--vet:#3a2a14;--hint-bg:#222a3d;--warn-bg:#3a2f14;--warn:#f0c46b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0}
+nav button,.role button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on,.role button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.role{display:flex;gap:4px;align-items:center;font-size:12px;color:var(--sub);margin-bottom:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:14px;margin:0 0 6px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);margin-bottom:6px}
+textarea{min-height:56px;resize:vertical}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--hint-bg)}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.col{border-radius:10px;padding:10px;font-size:14px}
+.col.y{background:var(--young)}
+.col.v{background:var(--vet)}
+.col ol{margin:0;padding-left:18px}
+.col li{margin-bottom:6px}
+.big{text-align:center}
+.big .time{font-size:48px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.big .stage{font-size:20px;font-weight:700;margin:4px 0}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--accent)}
+.steps{display:flex;gap:4px;font-size:12px;margin-top:8px}
+.steps span{flex:1;padding:4px 2px;border:1px solid var(--line);border-radius:6px;text-align:center;color:var(--sub)}
+.steps span.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.empty{color:var(--sub);font-size:14px}
+.shelf{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.opts label{display:inline-block;font-weight:400;margin:0 6px 4px 0;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>若手とベテランが方針と報告を翻訳し合う月一30分のワークショップ</h1>
+  <small><span class="badge">A5xB6-3</span><span class="badge">モック</span>入力はこの画面内だけで処理され、送信されません</small>
+</header>
+<div class="role" id="role"></div>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const SAMPLE = {
+  theme:{policy:"今期は、壊れにくさで勝つ",report:"ESD試験で8kVのときにリセットがかかる個体が3台中1台",anon:true},
+  down:{
+    y:["ESD試験の電圧を上げた条件でも、リセットが出ないか確かめる","基板のGND配線を見直し、静電気の逃げ道を太くする","試験で壊れた個体を分解して、壊れ方を記録に残す"],
+    v:["落下や熱の試験を、今までより厳しい条件で通す","市場から戻ってきた故障の件数を、前年より減らす","部品の定格に余裕をもたせる設計ルールをつくる"]},
+  up:{v:"方針の「壊れにくさ」に直結する、静電気に弱い個体が見つかったという報告",
+      y:"1台でも出たので、原因を調べる許可と試験の時間がほしいという相談"},
+  seen:{y:"課長は、製品全体の故障件数の高さで考えていたのか",v:"Bさんは、自分の基板1枚の作業の高さで考えていたのか"},
+  shelf:[{policy:"今期は、品質で信頼を得る",items:["出荷前の検査項目を1つ増やす","お客様の問い合わせ記録から、多い不具合を調べる"],reads:["「検査で見つけた」の報告は、品質の方針の話として読める"]}]
+};
+const STAGES=[{n:"題材の確認",m:3},{n:"前半 下げる翻訳",m:12},{n:"後半 上げる翻訳",m:12},{n:"棚に残す",m:3}];
+const S={tab:"run",role:"host",theme:{policy:"",report:"",anon:false},
+  down:{y:["","",""],v:["","",""],yd:false,vd:false},up:{v:"",y:"",vd:false,yd:false},
+  seen:{y:"",v:""},shelf:[],stage:0,sec:0,running:false,fast:false,tm:null};
+const ROLES={host:"主催者",y:"若手（Bさん）",v:"ベテラン（課長）"};
+const TABS={run:"進行",theme:"題材",down:"前半",up:"後半",shelf:"棚"};
+const $=s=>document.querySelector(s);
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// ---- 進行 ----
+function total(){return STAGES.reduce((a,s)=>a+s.m*60,0)}
+function elapsed(){return STAGES.slice(0,S.stage).reduce((a,s)=>a+s.m*60,0)+S.sec}
+function fmt(s){s=Math.max(0,s);return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
+function tick(){
+  S.sec+=S.fast?30:1;
+  if(S.sec>=STAGES[S.stage].m*60){nextStage();return}
+  if(S.tab==="run")render();
+}
+function toggle(){
+  S.running=!S.running;
+  clearInterval(S.tm);
+  if(S.running)S.tm=setInterval(tick,1000);
+  render();
+}
+function nextStage(){
+  if(S.stage<STAGES.length-1){S.stage++;S.sec=0}
+  else{S.running=false;clearInterval(S.tm)}
+  S.tab=["theme","down","up","shelf"][S.stage];
+  render();
+}
+function viewRun(){
+  const st=STAGES[S.stage],left=st.m*60-S.sec;
+  return `<div class="card big"><small class="empty">30分の進行（${fmt(total()-elapsed())} 残り）</small>
+  <div class="stage">${S.stage+1}/4　${st.n}</div>
+  <div class="time">${fmt(left)}</div>
+  <div class="bar"><i style="width:${Math.min(100,S.sec/(st.m*60)*100)}%"></i></div>
+  <div class="steps">${STAGES.map((s,i)=>`<span class="${i===S.stage?"on":""}">${s.n.split(" ")[0]}</span>`).join("")}</div>
+  <div class="row" style="justify-content:center">
+   <button class="btn" onclick="toggle()">${S.running?"一時停止":"開始"}</button>
+   <button class="btn ghost" onclick="nextStage()">次の段へ</button>
+   <button class="btn ghost" onclick="S.fast=!S.fast;render()">${S.fast?"30倍速：入":"30倍速：切"}</button></div>
+  <div class="note">${["題材の一文と報告を皆で読みます。方針の良し悪しは扱いません。","若手が先に書き、ベテランも書きます。書き終えたら並べます。","ベテランが先に一行にし、若手が「伝えたかったこと」を書きます。","出た翻訳を棚に残します。名前は伏せられます。"][S.stage]}</div></div>
+  <p class="empty">主催者はこの画面だけで進められます。各段の内容は上のタブを開いて確認してください。</p>`;
+}
+
+// ---- 題材 ----
+function viewTheme(){
+  const t=S.theme;
+  return `<div class="card"><h2>今月の題材</h2><p class="lead">主催者が、方針の一文と、若手の報告から一つ（本人の同意を得て）を選びます。</p>
+  <label>部門の方針の一文</label><input type="text" value="${esc(t.policy)}" oninput="S.theme.policy=this.value" placeholder="例）今期は、壊れにくさで勝つ">
+  <label>若手の最近の報告から一つ</label><textarea oninput="S.theme.report=this.value" placeholder="例）ESD試験で8kVのときに…">${esc(t.report)}</textarea>
+  <div class="opts"><label><input type="checkbox" ${t.anon?"checked":""} onchange="S.theme.anon=this.checked;render()"> 本人の同意を得た・名前を伏せる</label></div>
+  <div class="note warn">ここでは翻訳の練習をします。方針の中身の議論や、翻訳の採点はしません。</div></div>`;
+}
+
+// ---- 前半 ----
+function ta(side,i,locked){
+  return `<textarea ${locked?"disabled":""} oninput="S.down.${side}[${i}]=this.value">${esc(S.down[side][i])}</textarea>`;
+}
+function viewDown(){
+  const d=S.down,r=S.role,both=d.yd&&d.vd;
+  const form=(side,name)=>{
+    const mine=r===side&&!d[side+"d"];
+    if(r!==side)return `<div class="note">${name}：${d[side+"d"]?"書けました":"書いています…"}</div>`;
+    return `<h3>${name}の翻訳（具体例3つ）</h3>${[0,1,2].map(i=>ta(side,i,!mine)).join("")}
+    <div class="row"><button class="btn" ${d[side+"d"]?"disabled":""} onclick="S.down.${side}d=true;render()">${d[side+"d"]?"書けた":"書けた（並べる準備）"}</button></div>`;
+  };
+  let h=`<div class="card"><h2>前半　方針を具体例に下げる</h2>
+  <p class="lead">方針：<b>${esc(S.theme.policy||"（題材タブで入力）")}</b></p>`;
+  if(r==="host")h+=`<div class="note">主催者は進行役です。若手・ベテランを切り替えて入力してください。</div>`;
+  if(r==="y"||r==="v")h+=form(r,ROLES[r]);
+  h+=`<div class="note">${both?"二人とも書けました。下に並べます。":"二人が書き終えるまで、相手の翻訳は見えません。"}</div></div>`;
+  if(both)h+=pairView("若手の具体例","ベテランの具体例",
+    `<ol>${d.y.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`,`<ol>${d.v.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`)+seenView();
+  return h;
+}
+function pairView(ly,lv,hy,hv){
+  return `<div class="card"><h2>並べて見る</h2><p class="lead">どちらも「一つの読み方」です。正解ではありません。比べるのは違いです。</p>
+  <div class="pair"><div class="col y"><h3>${ly}</h3>${hy}</div><div class="col v"><h3>${lv}</h3>${hv}</div></div></div>`;
+}
+function seenView(){
+  const r=S.role;
+  const mine=r==="y"||r==="v";
+  let h=`<div class="card"><h2>相手の高さに気づいたこと</h2><p class="lead">「相手はこの高さで考えていたのか」と思ったことを書きます。点数はつきません。</p>`;
+  if(!mine)h+=`<div class="note">若手・ベテランに切り替えて入力できます。</div>`;
+  else h+=`<label>${ROLES[r]}の気づき</label><textarea oninput="S.seen.${r}=this.value">${esc(S.seen[r])}</textarea>`;
+  h+=`<div class="pair"><div class="col y"><h3>若手</h3>${esc(S.seen.y)||"<span class='empty'>まだ</span>"}</div>
+  <div class="col v"><h3>ベテラン</h3>${esc(S.seen.v)||"<span class='empty'>まだ</span>"}</div></div></div>`;
+  return h;
+}
+
+// ---- 後半 ----
+function viewUp(){
+  const u=S.up,r=S.role,both=u.vd&&u.yd;
+  let h=`<div class="card"><h2>後半　報告を一行の意味に上げる</h2>
+  <p class="lead">題材の報告${S.theme.anon?"（名前は伏せています）":""}：<b>${esc(S.theme.report||"（題材タブで入力）")}</b></p>`;
+  if(r==="host")h+=`<div class="note">主催者は進行役です。若手・ベテランを切り替えて入力してください。</div>`;
+  const f=(side,label)=>r!==side?`<div class="note">${ROLES[side]}：${u[side+"d"]?"書けました":"書いています…"}</div>`:
+    `<label>${label}</label><textarea ${u[side+"d"]?"disabled":""} oninput="S.up.${side}=this.value">${esc(u[side])}</textarea>
+    <div class="row"><button class="btn" ${u[side+"d"]?"disabled":""} onclick="S.up.${side}d=true;render()">書けた</button></div>`;
+  if(r==="v")h+=f("v","ベテラン：この報告を、一行の意味に翻訳する（先に書く）");
+  if(r==="y")h+=f("y","若手：自分が伝えたかったことを一行で");
+  h+=`<div class="note">${both?"二人とも書けました。下に並べます。":"二人が書き終えるまで、相手の一行は見えません。"}</div></div>`;
+  if(both)h+=pairView("若手の「伝えたかったこと」","ベテランの一行の意味",esc(u.y),esc(u.v))+seenView()+
+    `<div class="card"><button class="btn" onclick="saveShelf()">この回の翻訳を棚に残す</button></div>`;
+  return h;
+}
+
+// ---- 棚 ----
+function saveShelf(){
+  const d=S.down;
+  S.shelf.unshift({policy:S.theme.policy||"（無題）",items:[...d.y,...d.v].filter(x=>x),
+    reads:[S.up.v,S.up.y].filter(x=>x)});
+  S.tab="shelf";render();
+}
+function viewShelf(){
+  let h=`<div class="card"><h2>翻訳の棚</h2><p class="lead">方針ごとに、具体例と報告の読み方がたまります。新しく来た人も見られます。</p>`;
+  if(!S.shelf.length)h+=`<p class="empty">まだありません。後半のあとに「棚に残す」を押すか、サンプルを読み込んでください。</p>`;
+  h+=S.shelf.map(s=>`<div class="shelf"><h3>方針：${esc(s.policy)}</h3>
+   <b style="font-size:13px">具体例（複数の読み方）</b><ul>${s.items.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+   <b style="font-size:13px">報告の読み方</b><ul>${s.reads.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("");
+  return h+`</div>`;
+}
+
+// ---- 描画 ----
+function load(){
+  const keep=S.shelf;
+  Object.assign(S.theme,SAMPLE.theme);
+  S.down={y:[...SAMPLE.down.y],v:[...SAMPLE.down.v],yd:true,vd:true};
+  S.up={...SAMPLE.up,vd:true,yd:true};
+  S.seen={...SAMPLE.seen};
+  S.shelf=SAMPLE.shelf.concat(keep.filter(k=>!SAMPLE.shelf.some(s=>s.policy===k.policy)));
+  render();
+}
+function reset(){
+  clearInterval(S.tm);
+  Object.assign(S,{theme:{policy:"",report:"",anon:false},down:{y:["","",""],v:["","",""],yd:false,vd:false},
+    up:{v:"",y:"",vd:false,yd:false},seen:{y:"",v:""},shelf:[],stage:0,sec:0,running:false,tab:"run"});
+  render();
+}
+function render(){
+  $("#role").innerHTML="見る人："+Object.keys(ROLES).map(k=>`<button class="${S.role===k?"on":""}" onclick="S.role='${k}';render()">${ROLES[k]}</button>`).join("");
+  $("#nav").innerHTML=Object.keys(TABS).map(k=>`<button class="${S.tab===k?"on":""}" onclick="S.tab='${k}';render()">${TABS[k]}</button>`).join("");
+  const v={run:viewRun,theme:viewTheme,down:viewDown,up:viewUp,shelf:viewShelf}[S.tab]();
+  const act=`<div class="row"><button class="btn ghost" onclick="load()">サンプルを読み込む</button><button class="btn ghost" onclick="reset()">全部消す</button></div>`;
+  $("#main").innerHTML=v+act;
+}
+render();
+</script>
+</body>
+</html>

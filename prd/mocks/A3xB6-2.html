@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A3xB6-2 抽象度の合図カード（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;
+--down-bg:#fff1dc;--down:#8a5a00;--up-bg:#e3f0fb;--up:#1f5a8a;--ok-bg:#e6f4ea;--ok:#1d6b35;--diff-bg:#fff4dc}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;
+--down-bg:#3a2f14;--down:#f0c46b;--up-bg:#1b2c3d;--up:#8cc4ee;--ok-bg:#16301f;--ok:#7fd69a;--diff-bg:#3a2f14}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:420px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub);font-size:12px}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+.tabs{display:flex;gap:4px;margin:8px 0}
+.tabs button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+.tabs button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.tabs.steps button{font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:16px;margin:0 0 4px}
+p{margin:0 0 8px}
+p.lead{color:var(--sub);font-size:14px}
+.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sig{display:flex;gap:8px;margin-top:12px}
+.sig button{flex:1;font:inherit;font-size:15px;padding:16px 4px;border-radius:12px;border:0;cursor:pointer;line-height:1.4}
+.sig .down{background:var(--down-bg);color:var(--down)}
+.sig .up{background:var(--up-bg);color:var(--up)}
+.sig small{display:block;font-size:12px}
+.in{border-radius:12px;padding:12px 14px;margin-top:10px;font-size:15px}
+.in.down{background:var(--down-bg);color:var(--down)}
+.in.up{background:var(--up-bg);color:var(--up)}
+.in .fb{margin-top:8px;font-size:13px;color:var(--text)}
+.in .fb button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:2px 10px;margin-right:6px;cursor:pointer}
+.in .fb button.sel{border-color:var(--accent);color:var(--accent);font-weight:700}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--ok-bg);color:var(--ok)}
+.agree{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:8px 0;font-size:15px}
+label.s{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+textarea{width:100%;min-height:56px;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+.pair{display:flex;gap:8px}
+.pair>div{flex:1;border:1px solid var(--line);border-radius:10px;padding:8px}
+.pair.diff>div{background:var(--diff-bg)}
+.pair b{font-size:12px;color:var(--sub);display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:6px 3px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-size:12px;font-weight:600}
+.empty{color:var(--sub);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>会話の途中で「上げて」「下げて」を気軽に合図し合う抽象度の合図カード</h1>
+  <small><span class="badge">A3xB6-2</span><span class="badge">モック</span>会話の中身は記録されません。回数は2人だけに返ります</small>
+</header>
+<div class="tabs" id="roles"></div>
+<div class="tabs steps" id="steps"></div>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const ROLES = ["課長","Bさん","Aさん（調整役）"];
+const STEPS = ["① 同意","② 会話中","③ 次にやること","④ 振り返り"];
+const WORDS = {
+  down: {label:"下げて", sub:"（たとえば？）", soft:"もう少し身近な例で聞かせてもらえますか。"},
+  up:   {label:"上げて", sub:"（つまり？）",   soft:"ここまでを、ひとことでまとめてもらえますか。"}
+};
+const SAMPLE_HISTORY = [
+  {date:"10/28 1on1", signals:{"課長":1,"Bさん":0}, match:true},
+  {date:"11/05 試作レビュー", signals:{"課長":2,"Bさん":3}, match:true},
+  {date:"11/12 1on1", signals:{"課長":0,"Bさん":0}, match:false},
+  {date:"11/19 打ち合わせ", signals:{"課長":1,"Bさん":2}, match:true}
+];
+const SAMPLE_NEXT = {"課長":"Bさんが今週中に、放熱の試作を2案作る","Bさん":"放熱の方向性を決めて、試作を1案進める"};
+
+// ---- 状態 ----
+const S = {role:"Bさん", step:0, agree:{}, signals:[], fb:{}, next:{"課長":"","Bさん":""}, history:[], closed:false, style:"soft"};
+const $ = s => document.querySelector(s);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const players = () => ["課長","Bさん"];
+const allAgreed = () => players().every(p => S.agree[p]);
+
+// ---- 操作 ----
+function setRole(r){ S.role = r; render(); }
+function setStep(i){ S.step = i; render(); }
+function toggleAgree(){
+  if (S.role.startsWith("Aさん")) return;
+  S.agree[S.role] = !S.agree[S.role];
+  render();
+}
+function send(dir){
+  S.signals.push({from:S.role, dir:dir, id:S.signals.length, seen:false});
+  render();
+}
+function seen(id){ S.signals[id].seen = true; render(); }
+function feel(id, v){ S.fb[id] = v; render(); }
+function setStyle(v){ S.style = v; render(); }
+function setNext(who, v){ S.next[who] = v; }
+function adopt(from, to){ S.next[to] = S.next[from]; render(); }
+function finish(){
+  const sig = {"課長":0, "Bさん":0};
+  S.signals.forEach(s => { if (sig[s.from] !== undefined) sig[s.from]++; });
+  const a = S.next["課長"].trim(), b = S.next["Bさん"].trim();
+  S.history.push({date:"今回の会話", signals:sig, match: !!a && a === b});
+  S.closed = true;
+  S.step = 3;
+  render();
+}
+function loadSample(){
+  S.agree = {"課長":true, "Bさん":true};
+  S.signals = [
+    {from:"Bさん", dir:"down", id:0, seen:false},
+    {from:"課長", dir:"up", id:1, seen:false},
+    {from:"Bさん", dir:"down", id:2, seen:false}
+  ];
+  S.fb = {}; S.next = Object.assign({}, SAMPLE_NEXT);
+  S.history = SAMPLE_HISTORY.slice(); S.closed = false;
+  S.step = 1;
+  render();
+}
+function reset(){
+  S.agree = {}; S.signals = []; S.fb = {}; S.next = {"課長":"","Bさん":""};
+  S.history = []; S.closed = false; S.step = 0;
+  render();
+}
+
+// ---- 画面 ----
+function viewAgree(){
+  const rows = players().map(p =>
+    `<div class="agree"><span>${p}</span><b>${S.agree[p] ? "同意済み" : "まだ"}</b></div>`).join("");
+  const mine = players().includes(S.role);
+  const btn = mine
+    ? `<button class="btn ${S.agree[S.role] ? "ghost" : ""}" onclick="toggleAgree()">${S.agree[S.role] ? "同意を取り消す" : "この会話では、合図を出してよい"}</button>`
+    : `<p class="empty">調整役は、2人の同意を見守ります（同意するのは会話する2人）。</p>`;
+  return `<div class="card"><h2>始める前の同意</h2>
+    <p class="lead">合図は、相手を責めるものではありません。話の高さを合わせるための、ちいさな道具です。</p>
+    ${rows}<div class="row">${btn}</div>
+    ${allAgreed() ? `<div class="note">2人とも同意しました。会話を始められます。</div>` : ""}
+    <div class="row"><button class="btn" ${allAgreed() ? "" : "disabled"} onclick="setStep(1)">会話を始める</button></div></div>`;
+}
+
+function incoming(){
+  const mine = S.signals.filter(s => s.from !== S.role && !s.seen);
+  if (!mine.length) return `<p class="empty">いま、${esc(S.role)}の画面に届いている合図はありません。</p>`;
+  return mine.map(s => {
+    const w = WORDS[s.dir];
+    const body = S.style === "soft"
+      ? `<b>${w.label}${w.sub}</b><br>${w.soft}`
+      : `<b>${s.dir === "down" ? "↓" : "↑"} ${w.label}</b>`;
+    const f = S.fb[s.id];
+    return `<div class="in ${s.dir}">${body}
+      <div class="fb">この表示、責められている感じは？<br>
+        <button class="${f==="no"?"sel":""}" onclick="feel(${s.id},'no')">しない</button>
+        <button class="${f==="yes"?"sel":""}" onclick="feel(${s.id},'yes')">少しする</button>
+        <button onclick="seen(${s.id})">見ました</button></div></div>`;
+  }).join("");
+}
+
+function viewTalk(){
+  if (!allAgreed()) return `<div class="card"><p class="empty">先に「① 同意」で、2人が同意してください。</p></div>`;
+  const canSend = players().includes(S.role) || S.role.startsWith("Aさん");
+  const sendBox = canSend ? `<div class="sig">
+      <button class="down" onclick="send('down')">下げて<small>（たとえば？）</small></button>
+      <button class="up" onclick="send('up')">上げて<small>（つまり？）</small></button></div>
+      <p class="lead" style="margin-top:8px">言葉は添えなくて大丈夫です。押すと、相手の画面に出ます。</p>` : "";
+  const mineSent = S.signals.filter(s => s.from === S.role).length;
+  return `<div class="card"><h2>${esc(S.role)}の画面</h2>${sendBox}
+      <p class="lead">この会話で、あなたが出した合図：${mineSent}回</p></div>
+    <div class="card"><h2>届いた合図</h2>
+      <div class="row" style="margin:4px 0 8px"><button class="btn ghost" onclick="setStyle('soft')" ${S.style==="soft"?'style="font-weight:700"':""}>表示A：お願いの一言つき</button>
+      <button class="btn ghost" onclick="setStyle('plain')" ${S.style==="plain"?'style="font-weight:700"':""}>表示B：色と矢印だけ</button></div>
+      ${incoming()}</div>
+    <div class="row"><button class="btn" onclick="setStep(2)">会話を終えて「次にやること」へ</button></div>`;
+}
+
+function viewNext(){
+  if (!allAgreed()) return `<div class="card"><p class="empty">先に「① 同意」を済ませてください。</p></div>`;
+  const a = S.next["課長"], b = S.next["Bさん"];
+  const filled = a.trim() && b.trim();
+  const differ = filled && a.trim() !== b.trim();
+  const edit = players().includes(S.role)
+    ? `<label class="s">${esc(S.role)}が思う「Bさんが次にやること」（一行）</label>
+       <textarea oninput="setNext('${S.role}',this.value)" onblur="render()">${esc(S.next[S.role])}</textarea>`
+    : `<p class="lead">調整役は、2人が書いた一行を見て、言い換えが必要か考えます。</p>`;
+  const pair = `<div class="pair ${differ ? "diff" : ""}">
+      <div><b>課長の一行</b>${esc(a) || '<span class="empty">未入力</span>'}</div>
+      <div><b>Bさんの一行</b>${esc(b) || '<span class="empty">未入力</span>'}</div></div>`;
+  const hint = !filled ? "" : differ
+    ? `<div class="note" style="background:var(--diff-bg);color:var(--down)">言葉がちがいます。同じ意味か、その場で確かめましょう。</div>
+       <div class="row"><button class="btn ghost" onclick="adopt('課長','Bさん')">Bさんが課長の一行に合わせる</button>
+       <button class="btn ghost" onclick="adopt('Bさん','課長')">課長がBさんの一行に合わせる</button></div>`
+    : `<div class="note">2人の一行が同じ言葉になっています。</div>`;
+  return `<div class="card"><h2>次にやることの照らし合わせ</h2>${edit}</div>
+    <div class="card"><h2>並べて見る</h2>${pair}${hint}</div>
+    <div class="row"><button class="btn" onclick="finish()">この会話を終える</button></div>`;
+}
+
+function viewReview(){
+  if (!S.history.length) return `<div class="card"><h2>合図の振り返り</h2><p class="empty">まだ会話の履歴がありません。「サンプルを読み込む」か、会話を終えると表示されます。</p></div>`;
+  const rows = S.history.map(h => {
+    const n = h.signals["課長"] + h.signals["Bさん"];
+    return `<tr><td>${esc(h.date)}</td><td>${h.signals["課長"]}</td><td>${h.signals["Bさん"]}</td><td>${h.match ? "一致" : "ずれたまま"}</td></tr>`;
+  }).join("");
+  return `<div class="card"><h2>合図の振り返り</h2>
+    <p class="lead">回数だけを2人に返します。会話の内容や、話し方の良し悪しは見ません。</p>
+    <table><tr><th>会話</th><th>課長</th><th>Bさん</th><th>次にやること</th></tr>${rows}</table>
+    <p class="lead" style="margin-top:8px">合図の回数と、次にやることが一致したかを並べて見ることができます。</p></div>
+    ${S.closed ? `<div class="row"><button class="btn ghost" onclick="reset()">最初からやり直す</button></div>` : ""}`;
+}
+
+function render(){
+  $("#roles").innerHTML = ROLES.map(r =>
+    `<button class="${r===S.role?"on":""}" onclick="setRole('${r}')">${r}</button>`).join("") +
+    `<button onclick="loadSample()">サンプルを読み込む</button>`;
+  $("#steps").innerHTML = STEPS.map((t,i) =>
+    `<button class="${i===S.step?"on":""}" onclick="setStep(${i})">${t}</button>`).join("");
+  $("#main").innerHTML = [viewAgree, viewTalk, viewNext, viewReview][S.step]();
+}
+render();
+</script>
+</body>
+</html>

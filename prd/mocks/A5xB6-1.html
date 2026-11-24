@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A5xB6-1 往復ドリル（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--down:#b4570b;--up:#1d6b8a;--hint-bg:#eef2fc;--ok-bg:#e6f4ea;--ok:#1d6b35}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--down:#f0a35e;--up:#6cc4e6;--hint-bg:#222a3d;--ok-bg:#16301f;--ok:#7fd69a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+textarea,input[type=text]{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:72px;resize:vertical}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tag{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:0 8px;border:1px solid currentColor}
+.tag.down{color:var(--down)}
+.tag.up{color:var(--up)}
+.q{font-size:17px;font-weight:600;margin:8px 0}
+.timer{font-variant-numeric:tabular-nums;color:var(--sub);font-size:14px}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:6px 0 12px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.ex{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px}
+.ex small{color:var(--sub);display:block}
+.mine{background:var(--hint-bg);border-radius:8px;padding:8px 10px;margin-top:8px;white-space:pre-wrap}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:14px;cursor:pointer}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--hint-bg)}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.empty{color:var(--sub);font-size:14px}
+.spark{display:flex;align-items:flex-end;gap:4px;height:70px;margin-top:8px}
+.spark div{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:3px}
+ul.words{padding-left:18px;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>具体と抽象を行き来する、一人の往復ドリル</h1>
+  <small><span class="badge">A5xB6-1</span><span class="badge">モック</span>点数・正解判定はありません。入力はこの画面内だけで処理されます</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ（ものづくり現場の言葉） ----
+const QS = [
+  {id:1,dir:"down",term:"量産しやすい設計",ask:"「量産しやすい設計」の具体例を3つ書いてください",
+   ex:[["部品点数を減らす","具体の高さ：そのまま作業に当てはまる例"],["同じネジ・同じ工具で組める","観点が違う：組み立てる人から見た例"],["公差をゆるくしても性能が出る","観点が違う：ばらつきへの強さから見た例"]]},
+  {id:2,dir:"up",term:"",ask:"「部品点数を減らす」「配線を短くする」「ネジを共通にする」に共通することを一言で",
+   ex:[["手間を減らす","やや高い：作る側の手間でまとめた"],["組み立てミスの入り込む余地を減らす","観点が違う：品質でまとめた"],["シンプルにする","高い：幅広く使える言い方"]]},
+  {id:3,dir:"down",term:"使いやすい",ask:"「使いやすい」の具体例を3つ書いてください",
+   ex:[["ボタンが手袋のままでも押せる","具体の高さ：現場の場面"],["説明書を読まなくても最初の操作がわかる","観点が違う：学習のしやすさ"],["壊れにくく、交換も簡単","観点が違う：保守から見た例"]]},
+  {id:4,dir:"up",term:"",ask:"試作で出た「はんだ不良」「コネクタの抜け」「ケーブルの噛み込み」に共通することは？",
+   ex:[["組み立て工程で起きるばらつき","やや高い：原因の場所でまとめた"],["人の手が入る接続部のトラブル","観点が違う：接続という点に注目"],["設計と製造の間の取り決め不足","高い：仕組みの話にした"]]},
+  {id:5,dir:"down",term:"本質",ask:"課長がよく言う「本質」。具体例を3つ書いてください",
+   ex:[["不具合の見た目でなく、起きる条件","具体の高さ：報告の場面"],["お客様が本当に困っていること","観点が違う：使う人から見た例"],["仕様書の数字の奥にある目的","やや高い：目的に戻る言い方"]]}
+];
+const SAMPLE_LOG = [
+  {q:1,sec:140,diff:"高さが違う",feel:"こういう高さもある",d:"10/27"},{q:2,sec:95,diff:"観点が違う",feel:"こういう高さもある",d:"10/28"},
+  {q:3,sec:80,diff:"観点が違う",feel:"こういう高さもある",d:"11/4"},{q:4,sec:70,diff:"高さが違う",feel:"正解と違った",d:"11/11"},
+  {q:5,sec:65,diff:"観点が違う",feel:"こういう高さもある",d:"11/18"},{q:1,sec:52,diff:"高さが違う",feel:"こういう高さもある",d:"11/20"}
+];
+const SAMPLE_WORDS = ["筋が悪い","全体最適","もう少し丁寧に詰めて"];
+
+// ---- 状態（画面内のみ） ----
+const S = {tab:0,qi:0,phase:"answer",ans:"",t0:0,sec:0,diff:null,feel:null,log:[],words:[],sessStart:0,sessCount:0,tick:null};
+const TABS = ["ドリル","自分の言葉の帳面","続けた記録"];
+const $ = s=>document.querySelector(s);
+const esc = t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+const pool = ()=>QS.concat(S.words.map((w,i)=>({id:100+i,dir:"down",term:w,mine:true,ask:"「"+w+"」の具体例を3つ書いてください",ex:null})));
+
+function nav(){
+  $("#nav").innerHTML = TABS.map((t,i)=>`<button class="${i===S.tab?"on":""}" onclick="go(${i})">${t}</button>`).join("");
+}
+function go(i){ S.tab=i; render(); }
+
+function render(){
+  nav();
+  clearInterval(S.tick);
+  if(S.tab===0) drill(); else if(S.tab===1) notebook(); else record();
+}
+
+// ---- ドリル ----
+function drill(){
+  const q = pool()[S.qi % pool().length];
+  const tag = q.dir==="down" ? `<span class="tag down">下げる 抽象→具体</span>` : `<span class="tag up">上げる 具体→抽象</span>`;
+  const min = S.sessStart ? Math.floor((Date.now()-S.sessStart)/1000) : 0;
+  let h = `<div class="card"><span class="timer" id="sess">昼休み5分：${S.sessCount}問 / 経過 ${fmt(min)}</span>
+    <div class="bar"><i id="sbar" style="width:${Math.min(100,min/3)}%"></i></div>${tag}${q.mine?` <span class="tag">自分の言葉</span>`:""}
+    <div class="q">${esc(q.ask)}</div>`;
+  if(S.phase==="answer"){
+    h += `<div class="timer" id="qt">1問の目安：1分　経過 ${fmt(0)}</div>
+      <textarea id="ans" placeholder="${q.dir==="down"?"具体例を3つ":"共通することを一言で"}">${esc(S.ans)}</textarea>
+      <div class="row"><button class="btn" onclick="submitAns()">答えた。他の答え方を見る</button>
+      <button class="btn ghost" onclick="skip()">この問いは飛ばす</button></div></div>`;
+    $("#main").innerHTML = h;
+    S.t0 = Date.now();
+    S.tick = setInterval(()=>{
+      const e=Math.floor((Date.now()-S.t0)/1000), el=$("#qt"), se=$("#sess");
+      if(el) el.textContent = "1問の目安：1分　経過 "+fmt(e);
+      if(se&&S.sessStart){const m=Math.floor((Date.now()-S.sessStart)/1000);se.textContent=`昼休み5分：${S.sessCount}問 / 経過 ${fmt(m)}`;$("#sbar").style.width=Math.min(100,m/3)+"%";}
+    },1000);
+  } else {
+    h += `<div class="mine">あなたの答え（${fmt(S.sec)}）\n${esc(S.ans||"（空欄）")}</div>
+      <p class="lead" style="margin-top:12px">他の答え方の例です。正解ではなく「こういう答え方もある」というものです。</p>`;
+    if(q.ex){
+      h += q.ex.map(e=>`<div class="ex">${esc(e[0])}<small>${esc(e[1])}</small></div>`).join("");
+    } else {
+      const past = S.log.filter(l=>l.q===q.id&&l.mine).length;
+      h += `<div class="note">自分の言葉の問いには例がありません。上司に聞く材料にするか、数日後に同じ問いでもう一度答えて、並べてみてください。</div>`;
+    }
+    h += `<h2 style="margin-top:16px">自分の答えとの違いは？（選んで記録）</h2>
+      <div class="opts">${["高さが違う","観点が違う","ほぼ同じ"].map(v=>`<label><input type="radio" name="diff" ${S.diff===v?"checked":""} onchange="S.diff='${v}'">${v}</label>`).join("")}</div>
+      <h2 style="margin-top:12px">例を見て、どう受け取りましたか？（モックの確認用）</h2>
+      <div class="opts">${["こういう高さもある","正解と違った","どちらでもない"].map(v=>`<label><input type="radio" name="feel" ${S.feel===v?"checked":""} onchange="S.feel='${v}'">${v}</label>`).join("")}</div>
+      <div class="row"><button class="btn" onclick="saveNext()">記録して次の問いへ</button></div></div>`;
+    $("#main").innerHTML = h;
+  }
+}
+function submitAns(){
+  S.ans = $("#ans").value;
+  S.sec = Math.floor((Date.now()-S.t0)/1000);
+  if(!S.sessStart) S.sessStart = Date.now();
+  S.phase="compare"; S.diff=null; S.feel=null; render();
+}
+function skip(){ S.qi++; S.ans=""; render(); }
+function saveNext(){
+  const q = pool()[S.qi % pool().length];
+  const now = new Date();
+  S.log.push({q:q.id,mine:!!q.mine,sec:S.sec,diff:S.diff||"未選択",feel:S.feel||"未選択",d:(now.getMonth()+1)+"/"+now.getDate()});
+  S.sessCount++; S.qi++; S.ans=""; S.phase="answer"; render();
+}
+
+// ---- 自分の言葉の帳面 ----
+function notebook(){
+  $("#main").innerHTML = `<div class="card"><h2>自分の言葉の帳面</h2>
+    <p class="lead">課長の口癖など、実際に詰まった言葉を足すと、自分用の「下げる問い」になってドリルに入ります。会話そのものは記録しません。</p>
+    <input type="text" id="w" placeholder="例：筋が悪い">
+    <div class="row"><button class="btn" onclick="addWord()">帳面に足す</button></div>
+    ${S.words.length?`<ul class="words">${S.words.map((w,i)=>`<li>${esc(w)} <button class="btn ghost" style="padding:0 8px;font-size:13px" onclick="delWord(${i})">消す</button></li>`).join("")}</ul>`:`<p class="empty">まだ言葉がありません。</p>`}
+    <div class="note">足した言葉は、ドリルの問いの最後に入ります。</div></div>`;
+}
+function addWord(){ const v=$("#w").value.trim(); if(v){S.words.push(v);} render(); }
+function delWord(i){ S.words.splice(i,1); render(); }
+
+// ---- 続けた記録（数と時間の推移だけ） ----
+function record(){
+  if(!S.log.length){
+    $("#main").innerHTML = `<div class="card"><h2>続けた記録</h2><p class="empty">まだ記録がありません。ドリルを解くか、「サンプルを読み込む」を押してください。</p>${sampleBtn()}</div>`;
+    return;
+  }
+  const max = Math.max(...S.log.map(l=>l.sec));
+  const weeks = new Set(S.log.map(l=>{const [m,d]=l.d.split("/").map(Number);return Math.floor(new Date(2026,m-1,d).getTime()/604800000);})).size;
+  const high = S.log.filter(l=>l.feel==="こういう高さもある").length, off = S.log.filter(l=>l.feel==="正解と違った").length;
+  $("#main").innerHTML = `<div class="card"><h2>続けた記録</h2>
+    <p class="lead">解いた数と、1問にかかった時間だけを返します。点数や良し悪しは付けません。</p>
+    <div>解いた問題：<b>${S.log.length}問</b>　続けた週：<b>${weeks}週</b></div>
+    <h2 style="margin-top:12px">1問にかかった時間（古い順）</h2>
+    <div class="spark">${S.log.map(l=>`<div title="${fmt(l.sec)}" style="height:${Math.max(4,l.sec/max*100)}%"></div>`).join("")}</div>
+    <div class="timer">${S.log.map(l=>fmt(l.sec)).join(" → ")}</div>
+    <h2 style="margin-top:12px">例を見たときの受け取り方（自己記録）</h2>
+    <div class="note ok">「こういう高さもある」${high}回 / 「正解と違った」${off}回</div>
+    <div class="row">${sampleBtn()}<button class="btn ghost" onclick="S.log=[];render()">記録を消す</button></div></div>`;
+}
+function sampleBtn(){ return `<button class="btn" onclick="loadSample()">サンプルを読み込む</button>`; }
+function loadSample(){
+  S.log = SAMPLE_LOG.map(l=>({...l,mine:false}));
+  S.words = SAMPLE_WORDS.slice();
+  S.sessCount=0; S.sessStart=0; S.qi=0; S.ans=""; S.phase="answer";
+  render();
+}
+render();
+</script>
+</body>
+</html>

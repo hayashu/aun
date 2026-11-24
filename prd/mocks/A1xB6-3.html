@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1xB6-3 方針カード（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--ex-bg:#e6f4ea;--ex:#1d6b35;--no-bg:#fdebea;--no:#9b2c25;--warn-bg:#fff4dc;--warn:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--ex-bg:#16301f;--ex:#7fd69a;--no-bg:#3b1b1a;--no:#f1a09a;--warn-bg:#3a2f14;--warn:#f0c46b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub);font-size:13px}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+.tabs{display:flex;gap:4px;margin:8px 0}
+.tabs button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+.tabs button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:15px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:56px;resize:vertical}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.btn:disabled{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--accent)}
+button.sm{font-size:13px;padding:4px 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.line3{border-radius:8px;padding:8px 10px;margin-top:6px;font-size:15px}
+.line3 b{display:block;font-size:12px;opacity:.85}
+.pol{background:var(--bg);border:1px solid var(--line)}
+.ex{background:var(--ex-bg);color:var(--ex)}
+.no{background:var(--no-bg);color:var(--no)}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--warn-bg);color:var(--warn)}
+.q{border-top:1px solid var(--line);margin-top:10px;padding-top:8px;font-size:14px}
+.tag{display:inline-block;font-size:12px;border-radius:999px;padding:0 8px;margin-left:4px;border:1px solid var(--line);color:var(--sub)}
+.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:8px 0;background:var(--line)}
+.bar i{display:block}
+.empty{color:var(--sub);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>方針を「具体例1つ・やらないこと1つ」で伝える方針カード</h1>
+  <small><span class="badge">A1xB6-3</span><span class="badge">モック</span>入力はこの画面内だけで処理され、送信されません</small>
+</header>
+<div class="row" style="margin-top:4px">
+  <button class="btn ghost sm" id="roleBtn"></button>
+  <button class="btn sm" onclick="loadSample()">サンプルを読み込む</button>
+  <button class="btn ghost sm" onclick="resetAll()">空にする</button>
+</div>
+<div class="tabs" id="tabs"></div>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const SAMPLE = {
+  cards:[
+    {id:1,word:"今期はスピード重視",ex:"試作の評価項目は減らさず、評価の待ち時間と承認の滞留を減らす",no:"不具合を後工程に回してまで、評価を省くことはしない",qs:[
+      {t:"図面の承認を早めるために、確認者を減らすのは方針に入りますか",a:"入らない",add:"確認者は減らさず、承認の期限を2営業日に決める"},
+      {t:"定例会議を30分に短縮するのは方針に入りますか",a:"入る",add:"会議の短縮は入る。ただし決めるべき議題は減らさない"}]},
+    {id:2,word:"顧客起点で",ex:"仕様を決める前に、顧客の使う現場を1回見に行く",no:"社内の都合だけで、仕様の優先順位を決めない",qs:[]},
+    {id:3,word:"シンプルに",ex:"設定項目を10個から5個に減らす",no:"機能を削って、顧客が必要な操作を消すことはしない",qs:[]}
+  ],
+  interp:{1:[
+    {t:"試作の評価項目を減らして、早く次に進めた",tag:""},
+    {t:"図面の承認を、確認者を絞って早めた",tag:""},
+    {t:"会議を短くして、作業時間を増やした",tag:""},
+    {t:"評価の待ち時間を調べ、承認の期限を決めた",tag:""},
+    {t:"試作の評価は全部行い、結果の共有を当日中にした",tag:""}]}
+};
+const S = {role:"owner",tab:"list",cards:[],interp:{},sel:1,felt:{},draft:{word:"",ex:"",no:""}};
+const ROLES = {owner:"部門長（方針を出す側）",member:"メンバー（受け取る側）"};
+const TABS = [["list","方針の一覧"],["write","カードを書く"],["ask","質問"],["check","解釈の確認"]];
+const $ = s=>document.querySelector(s);
+const esc = t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const card = id=>S.cards.find(c=>c.id===id);
+
+function loadSample(){
+  S.cards = JSON.parse(JSON.stringify(SAMPLE.cards));
+  S.interp = JSON.parse(JSON.stringify(SAMPLE.interp));
+  S.felt = {}; S.sel = 1; S.tab = "list"; render();
+}
+function resetAll(){ S.cards=[]; S.interp={}; S.felt={}; S.draft={word:"",ex:"",no:""}; render(); }
+function setRole(){ S.role = S.role==="owner" ? "member" : "owner"; if(S.role==="member"&&S.tab==="write")S.tab="list"; render(); }
+function go(t){ S.tab=t; render(); }
+
+// ---- 共通部品 ----
+function cardView(c, withQs){
+  const qs = withQs ? c.qs.map(q=>`<div class="q">Q（匿名）${esc(q.t)}<br>
+    <b>答え：${esc(q.a)}</b>${q.add?`<div class="line3 ex"><b>具体例に追加</b>${esc(q.add)}</div>`:""}</div>`).join("") : "";
+  return `<div class="line3 pol"><b>方針の言葉</b>${esc(c.word)}</div>
+    <div class="line3 ex"><b>たとえばこういうこと</b>${esc(c.ex)}</div>
+    <div class="line3 no"><b>これはやらない</b>${esc(c.no)}</div>${qs}`;
+}
+function picker(){
+  return `<div class="tabs">`+S.cards.map(c=>`<button class="${c.id===S.sel?"on":""}" onclick="S.sel=${c.id};render()">${esc(c.word)}</button>`).join("")+`</div>`;
+}
+const needCards = `<div class="card empty">方針カードがまだありません。「サンプルを読み込む」か、部門長の立場で「カードを書く」を使ってください。</div>`;
+
+// ---- 方針の一覧（新しい人も過去の具体例ごと読める + 迷わないか確かめる） ----
+function viewList(){
+  if(!S.cards.length) return needCards;
+  return S.cards.map(c=>{
+    const f = S.felt[c.id];
+    const fb = S.role==="member" ? `<div class="row">
+      <span style="font-size:14px">このカードを読んで：</span>
+      <button class="btn sm ${f==="ok"?"":"ghost"}" onclick="S.felt[${c.id}]='ok';render()">これなら迷わない</button>
+      <button class="btn sm ${f==="no"?"":"ghost"}" onclick="S.felt[${c.id}]='no';render()">まだ迷う</button></div>` : "";
+    return `<div class="card"><h2>${esc(c.word)}</h2>${cardView(c,true)}${fb}
+      ${f==="no"?`<div class="note">迷う点は「質問」から匿名で聞けます。</div>`:""}</div>`;
+  }).join("") + (S.role==="owner" ? feltSummary() : "");
+}
+function feltSummary(){
+  const v = Object.values(S.felt), ok = v.filter(x=>x==="ok").length, no = v.filter(x=>x==="no").length;
+  if(!v.length) return `<div class="card empty">受け取る側に切り替えて「迷わない／まだ迷う」を押すと、ここに集計が出ます（個人は特定されません）。</div>`;
+  return `<div class="card"><h3>受け取る側の感触（匿名）</h3><div class="empty">これなら迷わない ${ok} 件 ／ まだ迷う ${no} 件</div></div>`;
+}
+
+// ---- カードを書く（3行がそろわないと公開できない） ----
+function viewWrite(){
+  const d = S.draft, ready = d.word.trim() && d.ex.trim() && d.no.trim();
+  return `<div class="card"><h2>方針カードを書く</h2>
+    <p class="lead">方針の言葉・具体例1つ・やらないこと1つ。3行がそろうと公開できます。方針の中身は問いません。</p>
+    <label>方針の言葉</label><input type="text" id="dw" value="${esc(d.word)}" oninput="upd()" placeholder="例：今期はスピード重視">
+    <label>たとえばこういうこと（1つ）</label><textarea id="de" oninput="upd()" placeholder="例：評価の待ち時間を減らす">${esc(d.ex)}</textarea>
+    <label>これはやらない（1つ）</label><textarea id="dn" oninput="upd()" placeholder="例：不具合を後に回してまで急がない">${esc(d.no)}</textarea>
+    <div class="note" id="wnote"></div>
+    <div class="row"><button class="btn" id="pub" onclick="publish()">公開する</button></div></div>`;
+}
+function upd(){
+  S.draft = {word:$("#dw").value, ex:$("#de").value, no:$("#dn").value};
+  const miss = [["word","方針の言葉"],["ex","具体例"],["no","やらないこと"]].filter(([k])=>!S.draft[k].trim()).map(x=>x[1]);
+  $("#pub").disabled = miss.length>0;
+  $("#wnote").textContent = miss.length ? "あと書くもの："+miss.join("、") : "3行そろいました。";
+}
+function publish(){
+  const id = Math.max(0,...S.cards.map(c=>c.id))+1;
+  S.cards.push({id, word:S.draft.word.trim(), ex:S.draft.ex.trim(), no:S.draft.no.trim(), qs:[]});
+  S.draft = {word:"",ex:"",no:""}; S.sel = id; S.tab = "list"; render();
+}
+
+// ---- 匿名の質問 ----
+function viewAsk(){
+  if(!S.cards.length) return needCards;
+  const c = card(S.sel) || S.cards[0];
+  let h = picker()+`<div class="card"><h2>${esc(c.word)}</h2>${cardView(c,false)}</div>`;
+  if(S.role==="member"){
+    h += `<div class="card"><h3>匿名で質問する</h3><p class="lead">名前は出ません。「これは方針に入りますか」の形で書いてください。</p>
+      <textarea id="qt" placeholder="例：〇〇は方針に入りますか"></textarea>
+      <div class="row"><button class="btn" onclick="sendQ(${c.id})">匿名で送る</button></div></div>`;
+  }
+  h += `<div class="card"><h3>これまでの質問（${c.qs.length}件）</h3>`+(c.qs.length ? c.qs.map((q,i)=>qView(c,q,i)).join("") : `<div class="empty">まだ質問はありません。</div>`)+`</div>`;
+  return h;
+}
+function qView(c,q,i){
+  if(q.a) return `<div class="q">Q ${esc(q.t)}<br><b>答え：${esc(q.a)}</b>${q.add?`<div class="line3 ex"><b>具体例に追加</b>${esc(q.add)}</div>`:""}</div>`;
+  if(S.role!=="owner") return `<div class="q">Q ${esc(q.t)} <span class="tag">回答待ち</span></div>`;
+  return `<div class="q">Q ${esc(q.t)}<textarea id="qa${i}" placeholder="具体例として足す一文（例：確認者は減らさない）"></textarea>
+    <div class="row"><button class="btn sm" onclick="answer(${c.id},${i},'入る')">入る</button>
+    <button class="btn sm ghost" onclick="answer(${c.id},${i},'入らない')">入らない</button></div></div>`;
+}
+function sendQ(id){
+  const t = $("#qt").value.trim(); if(!t) return;
+  card(id).qs.push({t,a:"",add:""}); render();
+}
+function answer(id,i,a){
+  const q = card(id).qs[i]; q.a = a; q.add = ($("#qa"+i).value||"").trim(); render();
+}
+
+// ---- 解釈の確認（1か月後・名前なしで並ぶ） ----
+const TAGS = [["same","例に沿っている","#2e8b57"],["gap","例にない方向","#d99a1a"],["no","やらないことに近い","#c0453d"]];
+function viewCheck(){
+  if(!S.cards.length) return needCards;
+  const c = card(S.sel) || S.cards[0], list = S.interp[c.id] || [];
+  let h = picker()+`<div class="card"><h2>${esc(c.word)}</h2>${cardView(c,false)}</div>`;
+  if(S.role==="member"){
+    h += `<div class="card"><h3>1か月後：この方針で自分がやったこと</h3><p class="lead">一行で。点数は付きません。名前は表示されません。</p>
+      <input type="text" id="it" placeholder="例：評価の待ち時間を減らした">
+      <div class="row"><button class="btn" onclick="addI(${c.id})">一行で書く</button></div></div>`;
+  }
+  h += `<div class="card"><h3>チームの回答（名前なし・${list.length}件）</h3>`;
+  if(!list.length) h += `<div class="empty">まだ回答がありません。</div>`;
+  else {
+    if(S.role==="owner") h += barView(list)+`<p class="lead">回答が方針カードの例とどう離れているかを、方針を出した側が仕分けます。人の評価ではなく、言葉の見直しに使います。</p>`;
+    h += list.map((x,i)=>iView(c.id,x,i)).join("");
+  }
+  return h+`</div>`;
+}
+function barView(list){
+  const n = list.length;
+  const seg = TAGS.map(([k,l,col])=>{const m=list.filter(x=>x.tag===k).length; return m?`<i style="width:${m/n*100}%;background:${col}"></i>`:"";}).join("");
+  const sum = TAGS.map(([k,l])=>`${l} ${list.filter(x=>x.tag===k).length}`).join(" ／ ")+` ／ 未仕分け ${list.filter(x=>!x.tag).length}`;
+  return `<div class="bar">${seg}</div><div class="empty">${sum}</div>`;
+}
+function iView(id,x,i){
+  const cur = TAGS.find(t=>t[0]===x.tag);
+  if(S.role!=="owner") return `<div class="q">${esc(x.t)}</div>`;
+  return `<div class="q">${esc(x.t)}${cur?`<span class="tag">${cur[1]}</span>`:""}
+    <div class="row" style="margin-top:6px">`+TAGS.map(([k,l])=>`<button class="btn sm ${x.tag===k?"":"ghost"}" onclick="tagI(${id},${i},'${k}')">${l}</button>`).join("")+
+    `<button class="btn sm ghost" onclick="toNo(${id},${i})">やらないことの候補にする</button></div></div>`;
+}
+function addI(id){
+  const t = $("#it").value.trim(); if(!t) return;
+  (S.interp[id] = S.interp[id]||[]).push({t,tag:""}); render();
+}
+function tagI(id,i,k){ const x = S.interp[id][i]; x.tag = x.tag===k ? "" : k; render(); }
+function toNo(id,i){
+  const c = card(id), t = S.interp[id][i].t;
+  c.qs.push({t:"（解釈の確認より）"+t,a:"入らない",add:"「"+t+"」は方針の意図ではない"});
+  S.interp[id][i].tag = "no"; S.tab = "ask"; render();
+}
+
+// ---- 描画 ----
+function render(){
+  $("#roleBtn").textContent = "立場：" + ROLES[S.role] + "（切替）";
+  $("#roleBtn").onclick = setRole;
+  const tabs = TABS.filter(t=>t[0]!=="write"||S.role==="owner");
+  $("#tabs").innerHTML = tabs.map(([k,l])=>`<button class="${S.tab===k?"on":""}" onclick="go('${k}')">${l}</button>`).join("");
+  const v = {list:viewList,write:viewWrite,ask:viewAsk,check:viewCheck}[S.tab];
+  $("#main").innerHTML = v();
+  if(S.tab==="write") upd();
+}
+render();
+</script>
+</body>
+</html>

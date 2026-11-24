@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A4xB6-2 置いていかれ地点マップ（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--warn-bg:#fff4dc;--warn:#8a5a00;--ok-bg:#e6f4ea;--ok:#1d6b35;--hint-bg:#eef2fc;--mark:#d4452f}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--warn-bg:#3a2f14;--warn:#f0c46b;--ok-bg:#16301f;--ok:#7fd69a;--hint-bg:#222a3d;--mark:#ff8a75}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+.seg{display:flex;gap:4px;margin:8px 0}
+.seg button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label.f{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:60px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px}
+.opts input{margin:0}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button.sm{font-size:13px;padding:2px 8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.step{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.step.pt{border-color:var(--mark);border-width:2px}
+.step b{font-size:12px;color:var(--sub)}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.hint{background:var(--hint-bg)}
+.empty{color:var(--sub);font-size:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.col{border:1px solid var(--line);border-radius:10px;padding:10px;font-size:14px}
+.col h3{font-size:13px;margin:0 0 4px;color:var(--sub)}
+svg{width:100%;height:auto;display:block}
+.gl{stroke:var(--line);stroke-width:1}
+.gt{fill:var(--sub);font-size:11px}
+.ln{fill:none;stroke:var(--accent);stroke-width:2.5}
+.dot{fill:var(--accent);stroke:var(--card);stroke-width:2}
+.dot.pt{fill:var(--mark)}
+.dot.click{cursor:pointer}
+.ring{fill:none;stroke:var(--mark);stroke-width:2}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>会話のあとに2人で見る「置いていかれ地点マップ」</h1>
+  <small><span class="badge">A4xB6-2</span><span class="badge">モック</span>入力はこの画面内だけで処理され、保存・送信されません</small>
+</header>
+<div class="seg" id="roles"></div>
+<div class="seg" id="tabs"></div>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const LV = ["方針","構造","具体策","事実"]; // 上ほど抽象
+const REASONS = ["前の段とのつながりがわからなかった","指示なのか説明なのかわからなかった","言葉の意味がわからなかった"];
+const ROLES = ["話し手（課長）","聞き手（Bさん）","調整役（Aさん）"];
+const TABS = ["① 話の流れ","② 置いていかれた地点","③ 次にどうするか"];
+const SAMPLE = {
+  topic:"次の試作の狙いの説明",
+  steps:[
+    {t:"今回の試作は、量産を見据えた検証というより、構想の筋の良さを見る位置づけだから",h:"方針"},
+    {t:"だから評価は全部やらなくていい、肝の3項目で",h:"構造"},
+    {t:"温度は85度条件だけでいい",h:"具体策"}],
+  point:1, reason:REASONS[1],
+  nextSpk:"次は「肝の3項目」のあとに、3項目の名前を一つずつ挙げてから条件の話に入る",
+  nextLis:"次は「肝」という言葉が出たところで、どの項目のことか質問する"
+};
+
+// ---- 状態 ----
+const S = {role:0,tab:0,topic:"",steps:[],point:null,reason:"",resp:"",nextSpk:"",nextLis:"",feel:""};
+const $ = s=>document.querySelector(s);
+const esc = t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function loadSample(){
+  Object.assign(S,{topic:SAMPLE.topic,steps:JSON.parse(JSON.stringify(SAMPLE.steps)),point:SAMPLE.point,reason:SAMPLE.reason,
+    resp:"",nextSpk:SAMPLE.nextSpk,nextLis:SAMPLE.nextLis,feel:""});
+  render();
+}
+function setRole(i){S.role=i;render();}
+function go(i){S.tab=i;render();window.scrollTo(0,0);}
+
+// ---- 流れの編集 ----
+function addStep(){if(S.steps.length<5){S.steps.push({t:"",h:"具体策"});render();}}
+function delStep(i){S.steps.splice(i,1);if(S.point===i)S.point=null;else if(S.point>i)S.point--;render();}
+function setH(i,h){S.steps[i].h=h;render();}
+function pick(i){S.point=i;S.resp="";render();}
+
+// ---- 折れ線 ----
+function chart(clickable){
+  const W=320,H=150,L=44,R=14,T=14,B=10,n=S.steps.length;
+  if(!n)return `<p class="empty">まだ流れがありません。</p>`;
+  const x=i=>n===1?(L+W-R)/2:L+i*(W-L-R)/(n-1);
+  const y=h=>T+LV.indexOf(h)*(H-T-B)/3;
+  const grid=LV.map(l=>`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(l)}" y2="${y(l)}"/><text class="gt" x="2" y="${y(l)+4}">${l}</text>`).join("");
+  const pts=S.steps.map((s,i)=>`${x(i)},${y(s.h)}`).join(" ");
+  const dots=S.steps.map((s,i)=>{
+    const sel=S.point===i;
+    return `${sel?`<circle class="ring" cx="${x(i)}" cy="${y(s.h)}" r="12"/>`:""}
+    <circle class="dot ${sel?"pt":""} ${clickable?"click":""}" cx="${x(i)}" cy="${y(s.h)}" r="${clickable?10:7}" ${clickable?`onclick="pick(${i})"`:""}/>
+    <text class="gt" x="${x(i)}" y="${y(s.h)-14}" text-anchor="middle">${i+1}</text>`;}).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="話の高さの折れ線">${grid}<polyline class="ln" points="${pts}"/>${dots}</svg>`;
+}
+
+// ---- ① 話の流れ ----
+function v0(){
+  const canEdit=S.role<2;
+  const items=S.steps.map((s,i)=>`<div class="step"><b>${i+1}段目</b>
+    ${canEdit?`<textarea oninput="S.steps[${i}].t=this.value" placeholder="話した内容を書く">${esc(s.t)}</textarea>
+    <div class="opts">${LV.map(l=>`<label><input type="radio" name="h${i}" ${s.h===l?"checked":""} onchange="setH(${i},'${l}')">${l}</label>`).join("")}</div>
+    <div class="row" style="margin-top:6px"><button class="btn ghost sm" onclick="delStep(${i})">削除</button></div>`
+    :`<div>${esc(s.t)||"（未入力）"}</div><span class="empty">高さ：${s.h}</span>`}</div>`).join("");
+  return `<div class="card"><h2>話の流れ</h2>
+  <p class="lead">話した内容を3〜5段で書き、各段の高さを選びます。話し手が書くのが難しければ、聞き手が書いて話し手が確認するだけでも構いません。</p>
+  <div class="row" style="margin-top:0"><button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button></div>
+  ${canEdit?`<label class="f" for="topic">どの会話か</label><input type="text" id="topic" value="${esc(S.topic)}" oninput="S.topic=this.value">`:(S.topic?`<p class="lead" style="margin-top:8px">会話：${esc(S.topic)}</p>`:"")}
+  ${chart(false)}${items}
+  ${!canEdit?`<div class="note hint">調整役は見るだけです。流れは話し手か聞き手が書きます。</div>`:""}
+  ${canEdit&&S.steps.length<5?`<div class="row"><button class="btn ghost" onclick="addStep()">＋ 段を追加</button></div>`:""}
+  ${canEdit&&S.steps.length&&S.steps.length<3?`<div class="note warn">3段以上あると、高さの動きが見えやすくなります。</div>`:""}
+  <div class="row"><button class="btn" onclick="go(1)">地点を指す画面へ</button></div></div>`;
+}
+
+// ---- ② 置いていかれた地点 ----
+function v1(){
+  if(S.steps.length<2)return `<div class="card"><h2>置いていかれた地点</h2><p class="empty">先に「話の流れ」を書くか、サンプルを読み込んでください。</p></div>`;
+  const lis=S.role===1, spk=S.role===0;
+  const p=S.point!==null?S.steps[S.point]:null;
+  return `<div class="card"><h2>置いていかれた地点</h2>
+  <p class="lead">${lis?"線の上の点か下の一覧から、置いていかれた地点を一つ指してください。":"聞き手が指した地点をここで見ます。"}これは誰が悪いかを決める画面ではありません。</p>
+  ${chart(lis)}
+  ${S.steps.map((s,i)=>`<div class="step ${S.point===i?"pt":""}"><b>${i+1}段目・${s.h}</b><div>${esc(s.t)||"（未入力）"}</div>
+    ${lis?`<div class="row" style="margin-top:6px"><button class="btn ghost sm" onclick="pick(${i})">${S.point===i?"ここで置いていかれた（指し中）":"ここで置いていかれた"}</button></div>`:""}</div>`).join("")}
+  ${p?`<label class="f">何がわからなかったか</label>
+    <div class="opts">${REASONS.map(r=>`<label><input type="radio" name="rs" ${S.reason===r?"checked":""} ${lis?"":"disabled"} onchange="S.reason='${r}';render()">${r}</label>`).join("")}</div>
+    ${S.point>0&&p.h!==S.steps[S.point-1].h?`<div class="note hint">この地点は、前の段（${S.steps[S.point-1].h}）から${p.h}へ高さが変わった場所です。</div>`:""}`
+    :`<div class="note hint">${lis?"まだ地点が指されていません。":"聞き手がまだ地点を指していません。聞き手に切り替えて指してください。"}</div>`}
+  ${p&&spk?`<label class="f">話し手として、この地点を見てどう思いましたか</label>
+    <div class="opts">${[["飛ばした","ここで高さを飛ばした"],["違う","ちょっと違う気がする"]].map(([v,t])=>`<label><input type="radio" name="rp" ${S.resp===v?"checked":""} onchange="S.resp='${v}';render()">${t}</label>`).join("")}</div>
+    ${S.resp==="飛ばした"?`<div class="note ok">飛ばした地点として、次の画面で「挟むもの」を書けます。</div>`:""}
+    ${S.resp==="違う"?`<div class="note warn">どちらが正しいかは決めません。その段の言い方を、次の画面で書き出してみてください。</div>`:""}`:""}
+  ${p&&S.role===2?`<div class="note hint">話し手の反応：${S.resp==="飛ばした"?"ここで高さを飛ばした":S.resp==="違う"?"ちょっと違う気がする":"まだありません"}</div>`:""}
+  <div class="row"><button class="btn" onclick="go(2)">次にどうするかへ</button></div></div>`;
+}
+
+// ---- ③ 次にどうするか ----
+function v2(){
+  const spk=S.role===0, lis=S.role===1;
+  const both=S.nextSpk.trim()&&S.nextLis.trim();
+  return `<div class="card"><h2>次にどうするか</h2>
+  <p class="lead">2人とも、自分の工夫を一行ずつ書きます。責める項目はありません。</p>
+  ${spk?`<label class="f" for="ns">話し手：次は高さを飛ばさずに、何を挟みますか</label><input type="text" id="ns" value="${esc(S.nextSpk)}" oninput="S.nextSpk=this.value">`:""}
+  ${lis?`<label class="f" for="nl">聞き手：次は、どの地点で質問しますか</label><input type="text" id="nl" value="${esc(S.nextLis)}" oninput="S.nextLis=this.value">`:""}
+  ${S.role===2?`<div class="note hint">調整役は見るだけです。書くのは話し手と聞き手です。</div>`:""}
+  <div class="row"><button class="btn ghost" onclick="render()">並べて表示する</button></div>
+  <div class="cols"><div class="col"><h3>話し手の工夫</h3>${esc(S.nextSpk)||`<span class="empty">未入力</span>`}</div>
+  <div class="col"><h3>聞き手の工夫</h3>${esc(S.nextLis)||`<span class="empty">未入力</span>`}</div></div>
+  ${both?`<label class="f">並べて見て、どう受け取りましたか（モックの確認用）</label>
+    <div class="opts">${["お互いの工夫として受け取れた","責められている感じがした","どちらとも言えない"].map(v=>`<label><input type="radio" name="fl" ${S.feel===v?"checked":""} onchange="S.feel='${v}';render()">${v}</label>`).join("")}</div>
+    ${S.feel?`<div class="note hint">受け取り方は「${esc(S.feel)}」で記録されました。この画面内だけのメモで、評価には使われません。</div>`:""}`:""}
+  <div class="row"><button class="btn ghost" onclick="go(0)">最初に戻る</button></div></div>`;
+}
+
+// ---- 描画 ----
+function render(){
+  $("#roles").innerHTML=ROLES.map((r,i)=>`<button class="${i===S.role?"on":""}" onclick="setRole(${i})">${r}</button>`).join("");
+  $("#tabs").innerHTML=TABS.map((t,i)=>`<button class="${i===S.tab?"on":""}" onclick="go(${i})">${t}</button>`).join("");
+  $("#main").innerHTML=[v0,v1,v2][S.tab]();
+}
+render();
+</script>
+</body>
+</html>

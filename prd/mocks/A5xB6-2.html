@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A5xB6-2 役割交代の練習ペア（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--abs:#e9e4fa;--abs-t:#4a3a99;--con:#dff1e6;--con-t:#1d6b35;--ok-bg:#e6f4ea;--ok:#1d6b35}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--abs:#2a2548;--abs-t:#c4b8ff;--con:#16301f;--con-t:#7fd69a;--ok-bg:#16301f;--ok:#7fd69a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+input[type=text]{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.topic{font-size:18px;font-weight:700;border-left:4px solid var(--accent);padding:4px 0 4px 10px;margin:8px 0}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.role{border-radius:10px;padding:10px;font-size:14px;border:2px solid transparent}
+.role b{display:block;font-size:12px;color:var(--sub)}
+.role.abs{background:var(--abs);color:var(--abs-t)}
+.role.con{background:var(--con);color:var(--con-t)}
+.role.now{border-color:currentColor}
+.role .who{font-size:17px;font-weight:700}
+.role .hint{margin-top:4px}
+.turn{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dots span{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--line);margin-right:4px}
+.dots span.done{background:var(--accent);border-color:var(--accent)}
+.clock{font-variant-numeric:tabular-nums;color:var(--sub);font-size:14px}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.opts label{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px}
+.opts input{margin:0}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--ok-bg);color:var(--ok)}
+.empty{color:var(--sub);font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left}
+th{color:var(--sub);font-weight:600;font-size:12px}
+.pick{display:block;width:100%;text-align:left;font:inherit;font-size:15px;padding:8px 10px;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);cursor:pointer}
+.pick.on{border-color:var(--accent);background:var(--bg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>役を交代しながら話す「抽象役／具体役」の練習ペア</h1>
+  <small><span class="badge">A5xB6-2</span><span class="badge">モック</span>採点なし・会話は録音も記録もしません</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+const TOPICS = ['次の試作で大事にしたいこと', '良い設計レビューとは', '電気チームと機械チームの連携で気をつけたいこと', '不具合の報告はどこまで細かく書くか'];
+const HINTS = {
+  '抽象役': '方針・理由・目的で話す',
+  '具体役': '例・数字・場面で返す'
+};
+const GOODS = ['例がわかりやすかった', 'まとめが短かった', '話の高さがちょうどよかった', '聞き返しが自然だった', '場面が思い浮かんだ'];
+const ROUNDS = 3;
+
+let S = {
+  tab: 'prep',
+  names: ['Aさん', 'Bさん'],
+  topics: TOPICS.slice(),
+  topic: null,
+  phase: 0,        // 0 = 練習前, 1 = 1回目, 2 = 2回目(役交代), 3 = 終了
+  turn: 0,         // 完了した往復数（今のフェーズ内）
+  secs: 0,
+  timer: null,
+  good: [null, null],   // 各人が相手に伝える「良かった一つ」
+  goodNote: ['', ''],
+  log: []          // {topic, counts:[abs,con] per person, good: bool}
+};
+
+// 現在の役: phase1 は 0番が抽象役、phase2 は逆
+function absIdx() { return S.phase === 2 ? 1 : 0; }
+function conIdx() { return 1 - absIdx(); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function loadSample() {
+  stopTimer();
+  S.names = ['Aさん', 'Bさん'];
+  S.topic = TOPICS[0];
+  S.phase = 0; S.turn = 0; S.secs = 0;
+  S.good = [null, null]; S.goodNote = ['', ''];
+  S.log = [
+    {topic: '良い設計レビューとは', abs: [3, 0], con: [0, 3], swapped: true},
+    {topic: '良い設計レビューとは', abs: [0, 3], con: [3, 0], swapped: true},
+    {topic: '不具合の報告はどこまで細かく書くか', abs: [3, 3], con: [3, 3], swapped: true}
+  ].map(x => ({topic: x.topic, a: x.abs, c: x.con}));
+  S.tab = 'prep';
+  render();
+}
+
+function startTimer() {
+  stopTimer();
+  S.timer = setInterval(() => { S.secs++; const c = document.getElementById('clock'); if (c) c.textContent = fmt(S.secs); }, 1000);
+}
+function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
+function fmt(n) { return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); }
+
+function drawCard() {
+  const pool = S.topics.filter(t => t !== S.topic);
+  S.topic = pool[Math.floor(Math.random() * pool.length)];
+  render();
+}
+function addTopic() {
+  const v = document.getElementById('newTopic').value.trim();
+  if (!v) return;
+  S.topics.push(v); S.topic = v; render();
+}
+function setName(i, v) { S.names[i] = v.trim() || (i ? 'Bさん' : 'Aさん'); }
+
+function begin() {
+  S.phase = 1; S.turn = 0; S.secs = 0; S.tab = 'play';
+  startTimer(); render();
+}
+function nextTurn() {
+  S.turn++;
+  if (S.turn >= ROUNDS) {
+    if (S.phase === 1) { S.phase = 2; S.turn = 0; }
+    else { S.phase = 3; stopTimer(); S.tab = 'good'; }
+  }
+  render();
+}
+function pickGood(i, v) { S.good[i] = v; render(); }
+function finish() {
+  S.log.push({topic: S.topic, a: [ROUNDS, ROUNDS], c: [ROUNDS, ROUNDS]});
+  S.phase = 0; S.turn = 0; S.secs = 0; S.good = [null, null]; S.goodNote = ['', ''];
+  S.topic = null; S.tab = 'log'; render();
+}
+function setTab(t) { S.tab = t; render(); }
+
+function viewPrep() {
+  const list = S.topics.map(t => `<button class="pick ${t === S.topic ? 'on' : ''}" onclick="S.topic=this.dataset.t;render()" data-t="${esc(t)}">${esc(t)}</button>`).join('');
+  return `<div class="card"><h2>1. 題材カードを引く</h2>
+    <p class="lead">1回10分・3往復ずつ・役を交代。題材と役は画面が決めます。</p>
+    <div class="topic">${S.topic ? esc(S.topic) : '（まだ引いていません）'}</div>
+    <div class="row"><button class="btn" onclick="drawCard()">カードを引く</button></div>
+    ${list}
+    <div class="row"><input type="text" id="newTopic" placeholder="自分たちの題材を足す"><button class="btn ghost" onclick="addTopic()">追加</button></div>
+  </div>
+  <div class="card"><h2>2人の名前</h2>
+    <div class="row">${S.names.map((n, i) => `<input type="text" style="flex:1" value="${esc(n)}" onchange="setName(${i},this.value)">`).join('')}</div>
+    <div class="row"><button class="btn" ${S.topic ? '' : 'disabled'} onclick="begin()">練習をはじめる（10分）</button>
+    <button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button></div>
+  </div>`;
+}
+
+function viewPlay() {
+  if (S.phase === 0) return `<div class="card"><p class="empty">題材カードを引いて「練習をはじめる」を押してください。</p></div>`;
+  if (S.phase === 3) return `<div class="card"><p class="empty">練習は終わりました。「良かった一つ」へ進んでください。</p></div>`;
+  const ai = absIdx(), ci = conIdx();
+  const dots = Array.from({length: ROUNDS}, (_, i) => `<span class="${i < S.turn ? 'done' : ''}"></span>`).join('');
+  const last = S.turn === ROUNDS - 1;
+  const btn = last ? (S.phase === 1 ? '3往復おわり：役を交代する' : '3往復おわり：練習を終える') : '次の往復へ';
+  return `<div class="card">
+    <div class="turn"><h2>${S.phase}回目 / 2　${S.turn + 1}往復目</h2><span class="clock" id="clock">${fmt(S.secs)}</span></div>
+    <div class="topic">${esc(S.topic)}</div>
+    <div class="dots">${dots}</div>
+    <div class="roles">
+      <div class="role abs now"><b>抽象役</b><span class="who">${esc(S.names[ai])}</span><div class="hint">${HINTS['抽象役']}</div></div>
+      <div class="role con now"><b>具体役</b><span class="who">${esc(S.names[ci])}</span><div class="hint">${HINTS['具体役']}</div></div>
+    </div>
+    <p class="lead">${esc(S.names[ai])}が話し、${esc(S.names[ci])}が返します。役を演じているだけなので、上手下手は問いません。</p>
+    <div class="row"><button class="btn" onclick="nextTurn()">${btn}</button></div>
+    ${S.phase === 2 && S.turn === 0 ? '<div class="note">役が入れ替わりました。同じ題材で逆の高さを試します。</div>' : ''}
+  </div>`;
+}
+
+function viewGood() {
+  if (S.phase !== 3) return `<div class="card"><p class="empty">2回目の3往復が終わると、ここで「良かった一つ」を伝え合います。</p></div>`;
+  const both = S.good[0] && S.good[1];
+  const block = i => {
+    const to = S.names[1 - i];
+    const opts = GOODS.map(g => `<label><input type="radio" name="g${i}" ${S.good[i] === g ? 'checked' : ''} onchange="pickGood(${i},this.value)" value="${g}">${g}</label>`).join('');
+    return `<div class="card"><h2>${esc(S.names[i])}から${esc(to)}へ</h2>
+      <p class="lead">相手の返しで良かった点を一つだけ。直したほうがよい点は書きません。</p>
+      <div class="opts">${opts}</div>
+      <input type="text" placeholder="一行で添える（任意）" value="${esc(S.goodNote[i])}" onchange="S.goodNote[${i}]=this.value">
+    </div>`;
+  };
+  const shown = both ? `<div class="card"><h2>お互いに届いた言葉</h2>
+    ${[0, 1].map(i => `<p>${esc(S.names[1 - i])}へ：<b>${esc(S.good[i])}</b>${S.goodNote[i] ? '　「' + esc(S.goodNote[i]) + '」' : ''}</p>`).join('')}
+    <div class="note">おつかれさまでした。また気が向いたときに、別の題材でどうぞ。</div>
+    <div class="row"><button class="btn" onclick="finish()">練習を終えて記録する</button></div></div>` : '';
+  return block(0) + block(1) + shown;
+}
+
+function viewLog() {
+  if (!S.log.length) return `<div class="card"><p class="empty">まだ練習の記録がありません。「サンプルを読み込む」で例を見られます。</p></div>`;
+  const rows = S.log.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.topic)}</td><td>${esc(S.names[0])} 抽${r.a[0]}／具${r.c[0]}</td><td>${esc(S.names[1])} 抽${r.a[1]}／具${r.c[1]}</td></tr>`).join('');
+  return `<div class="card"><h2>練習の記録</h2>
+    <p class="lead">残るのは題材と役ごとの回数だけ。会話の中身・良かった点・採点は残りません。2人だけが見られます。</p>
+    <table><tr><th>回</th><th>題材</th><th colspan="2">役ごとの往復数</th></tr>${rows}</table>
+    <p class="lead" style="margin-top:8px">練習 ${S.log.length} 回 ／ 役の交代 ${S.log.length} 回</p>
+  </div>`;
+}
+
+function render() {
+  const tabs = [['prep', '題材'], ['play', '練習'], ['good', '良かった一つ'], ['log', '記録']];
+  document.getElementById('nav').innerHTML = tabs.map(([k, l]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('');
+  const v = {prep: viewPrep, play: viewPlay, good: viewGood, log: viewLog}[S.tab];
+  document.getElementById('main').innerHTML = v();
+}
+render();
+</script>
+</body>
+</html>

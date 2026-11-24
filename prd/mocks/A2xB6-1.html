@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A2xB6-1 抽象度のはしご（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--warn-bg:#fff4dc;--warn:#8a5a00;--hint-bg:#eef2fc;--mark:#e0a100}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--warn-bg:#3a2f14;--warn:#f0c46b;--hint-bg:#222a3d;--mark:#f0c46b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:14px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+textarea,input[type=text]{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:64px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;font-weight:400;margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px}
+.opts input{margin:0}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.hint{background:var(--hint-bg)}
+.empty{color:var(--sub);font-size:14px}
+.rung{display:block;width:100%;text-align:left;font:inherit;color:var(--text);background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;cursor:pointer}
+.rung.pick{border-color:var(--accent);background:var(--hint-bg)}
+.rung b{display:block;font-size:15px}
+.rung span{font-size:13px;color:var(--sub)}
+.mark{display:inline-block;font-size:12px;color:var(--mark);border:1px solid var(--mark);border-radius:999px;padding:0 8px;margin-left:6px}
+.sample{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;font-size:14px;background:var(--bg)}
+.sample.big{border:2px solid var(--accent);font-size:15px;background:var(--card)}
+.sample h3{color:var(--sub)}
+.sample ul,.sample ol{margin:4px 0 0;padding-left:20px}
+.sample.tall{max-height:150px;overflow-y:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>「全体像を整理して」の高さを決めてから手を動かす</h1>
+  <small><span class="badge">A2xB6-1</span><span class="badge">モック</span>入力はこの画面内だけで処理され、送信されません</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const TOPIC = "試作の課題";
+const RUNGS = [
+  {id:0, name:"方針（一行）", desc:"どちらへ進むかを一行で言う"},
+  {id:1, name:"構造（3〜5の塊）", desc:"塊に分けて、どれから手を付けるかを示す"},
+  {id:2, name:"具体策（項目の一覧）", desc:"やることや課題を項目で並べる"},
+  {id:3, name:"手順（作業の順番）", desc:"誰が何をいつやるかを順に書く"}
+];
+// 同じ題材「試作の課題」を4段で書いた見本
+const SAMPLES = [
+  `<p>課題は「放熱」から先に片付け、量産の判断材料をそろえる。</p>`,
+  `<ol><li>放熱まわり（発熱・通気・部品の余裕）…最優先</li><li>組立まわり（締結・公差）…放熱の後</li><li>評価まわり（測定のばらつき）…並行して確認</li></ol>`,
+  `<ul><li>基板U3の発熱 78℃（上限70℃）</li><li>通気口の位置が基板と干渉</li><li>ねじ3本が締めにくい</li><li>公差ばらつき 0.3mm</li><li>測定器の校正が未実施</li><li>…全42項目（担当者・測定値つき）</li></ul>`,
+  `<ol><li>月曜：発熱の測定条件をそろえる（B）</li><li>水曜：通気口の案を3つ出す（機械側）</li><li>金曜：試作2号機で再測定（B）</li><li>翌週：結果を持って課長に相談</li></ol>`
+];
+const SAMPLE_REQ = {text:"試作の課題の全体像を整理しておいて", who:"課長だけ", use:"判断を仰ぐ"};
+// 依頼の言葉の手がかり（候補の印だけに使う。判定ではない）
+const WORDS = [
+  [/方向性|方針|考え方|どうする/, 0, "「方向性・方針」は高めの言葉"],
+  [/全体像|論点|整理|まとめ/, 1, "「全体像・論点・整理」は塊に分ける高さが多い"],
+  [/洗い出|一覧|リスト|課題を挙げ/, 2, "「洗い出し・一覧」は項目の高さが多い"],
+  [/段取り|手順|進め方|スケジュール|いつまで/, 3, "「段取り・手順」は低めの言葉"]
+];
+
+// ---- 状態 ----
+const S = {step:0, text:"", who:"課長だけ", use:"判断を仰ぐ", pick:null, habit:null, line:"", t0:null};
+const STEPS = ["① 依頼","② はしご","③ 見本","④ 確かめ"];
+const $ = s=>document.querySelector(s);
+const esc = t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const radios = (name,vals,cur,fn)=>`<div class="opts">`+vals.map(v=>
+  `<label><input type="radio" name="${name}" ${v===cur?"checked":""} onchange="${fn}('${v}')">${v}</label>`).join("")+`</div>`;
+
+function go(n){S.step=n; render(); window.scrollTo(0,0);}
+function startClock(){ if(!S.t0 && S.text.trim()) S.t0=Date.now(); }
+function loadSample(){
+  Object.assign(S,{text:SAMPLE_REQ.text, who:SAMPLE_REQ.who, use:SAMPLE_REQ.use, pick:null, habit:null, line:"", t0:Date.now()});
+  render();
+}
+
+// ---- 候補の印（根拠つき。決めるのは本人） ----
+function candidates(){
+  const score=[0,0,0,0], why=[[],[],[],[]];
+  WORDS.forEach(([re,i,msg])=>{ if(re.test(S.text)){score[i]+=2; why[i].push(msg);} });
+  if(S.who==="部長会"){ score[0]+=1; score[1]+=1; why[1].push("見せる相手が部長会なので高めになりやすい"); }
+  if(S.who==="現場の担当者"){ score[2]+=1; score[3]+=1; why[3].push("見せる相手が現場なので低めになりやすい"); }
+  if(S.use==="作業を割り振る"){ score[3]+=1; why[3].push("作業を割り振る場面は低めになりやすい"); }
+  if(S.use==="判断を仰ぐ"){ score[1]+=1; why[1].push("判断を仰ぐ場面は塊で見せることが多い"); }
+  const top=Math.max(...score);
+  return RUNGS.map(r=>({...r, mark: top>0 && score[r.id]===top, why: why[r.id]}));
+}
+
+// ---- 確かめの一言（下書き） ----
+function draftLine(){
+  const t=S.text.trim()||"この依頼";
+  const forms=[
+    `「${t}」について、方針を一行で示すイメージでよいですか。細かい項目は付けない前提です。`,
+    `「${t}」について、3つの塊に分けて、どれから手を付けるかを1枚にまとめるイメージでよいですか。`,
+    `「${t}」について、課題を項目の一覧にして、担当と数値を付けるイメージでよいですか。`,
+    `「${t}」について、作業の順番と担当を並べたものを作るイメージでよいですか。`
+  ];
+  return forms[S.pick];
+}
+function elapsed(){
+  if(!S.t0) return "";
+  const s=Math.round((Date.now()-S.t0)/1000);
+  return `依頼を入力してから ${Math.floor(s/60)}分${s%60}秒`;
+}
+
+// ---- 描画 ----
+function render(){
+  $("#nav").innerHTML=STEPS.map((t,i)=>`<button class="${i===S.step?"on":""}" onclick="go(${i})">${t}</button>`).join("");
+  $("#main").innerHTML=[v0,v1,v2,v3][S.step]();
+}
+
+function v0(){
+  return `<div class="card"><h2>依頼の入力</h2>
+  <p class="lead">受けた依頼の言葉をそのまま書いてください。手を動かす前に、どの高さで書くかを決めます。</p>
+  <div class="row" style="margin-top:0"><button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button></div>
+  <label for="req">依頼の言葉</label>
+  <textarea id="req" oninput="S.text=this.value;startClock()" placeholder="例：全体像を整理しておいて">${esc(S.text)}</textarea>
+  <label>見せる相手</label>${radios("who",["課長だけ","部長会","現場の担当者"],S.who,"setWho")}
+  <label>使う場面</label>${radios("use",["判断を仰ぐ","共有する","作業を割り振る"],S.use,"setUse")}
+  <div class="row"><button class="btn" onclick="startClock();go(1)">はしごを見る</button></div></div>`;
+}
+function setWho(v){S.who=v}
+function setUse(v){S.use=v}
+
+function v1(){
+  const c=candidates();
+  const anyMark=c.some(x=>x.mark);
+  const items=c.map(r=>`<button class="rung ${S.pick===r.id?"pick":""}" onclick="S.pick=${r.id};render()">
+    <b>${r.id+1}. ${r.name}${r.mark?`<span class="mark">候補</span>`:""}${S.pick===r.id?` <span class="mark" style="color:var(--accent);border-color:var(--accent)">選んだ</span>`:""}</b>
+    <span>${r.desc}</span>
+    ${r.mark&&r.why.length?`<br><span>印の理由：${r.why.map(esc).join("／")}</span>`:""}</button>`).join("");
+  return `<div class="card"><h2>抽象度のはしご</h2>
+  <p class="lead">依頼：「${esc(S.text||"（未入力）")}」／相手：${esc(S.who)}／場面：${esc(S.use)}</p>
+  ${anyMark?`<div class="note hint">「候補」は言葉と相手からの手がかりです。外れることもあります。どの高さにするかは、あなたが選んでください。</div>`
+    :`<div class="note hint">手がかりが見つかりませんでした。見本を見て、自分で選んでください。</div>`}
+  ${items}
+  <div class="row"><button class="btn ghost" onclick="go(0)">戻る</button>
+  <button class="btn" onclick="go(2)" ${S.pick===null?"disabled style='opacity:.5'":""}>見本を見る</button></div>
+  ${S.pick===null?`<p class="empty">段を選ぶと、見本へ進めます。</p>`:""}</div>`;
+}
+
+function v2(){
+  if(S.pick===null) return `<div class="card"><p class="empty">先に「② はしご」で段を選んでください。</p><div class="row"><button class="btn" onclick="go(1)">はしごへ</button></div></div>`;
+  const all=RUNGS.map(r=>`<div class="sample ${r.id===S.pick?"tall":"tall"}"><h3>${r.id+1}. ${r.name}${r.id===S.pick?"（選択中）":""}</h3>${SAMPLES[r.id]}</div>`).join("");
+  const habitOpts=RUNGS.map(r=>`<label><input type="radio" name="habit" ${S.habit===r.id?"checked":""} onchange="S.habit=${r.id};render()">${r.id+1}. ${r.name.split("（")[0]}</label>`).join("");
+  let cmp="";
+  if(S.habit!==null){
+    cmp = S.habit===S.pick
+      ? `いつも書く高さと、今回選んだ高さは同じです。依頼の高さと合っているかを、次の一言で確かめましょう。`
+      : `いつも書く高さは「${RUNGS[S.habit].name}」、今回選んだのは「${RUNGS[S.pick].name}」です。差があるぶん、作り込む前の確かめが役に立ちます。`;
+  }
+  return `<div class="card"><h2>段ごとの見本</h2>
+  <p class="lead">同じ題材「${TOPIC}」を、4つの高さで書くとこうなります。</p>
+  <h3>選んだ段の見本</h3>
+  <div class="sample big"><h3>${S.pick+1}. ${RUNGS[S.pick].name}</h3>${SAMPLES[S.pick]}</div>
+  <h3 style="margin-top:16px">4段を並べて見る</h3>${all}
+  <label>これまでの資料づくりで、あなたがいつも書いていた高さは？</label>
+  <div class="opts">${habitOpts}</div>
+  ${cmp?`<div class="note warn">${cmp}</div>`:""}
+  <div class="row"><button class="btn ghost" onclick="go(1)">段を選び直す</button><button class="btn" onclick="go(3)">確かめの一言へ</button></div></div>`;
+}
+
+function v3(){
+  if(S.pick===null) return `<div class="card"><p class="empty">先に段を選んでください。</p><div class="row"><button class="btn" onclick="go(1)">はしごへ</button></div></div>`;
+  if(!S.line) S.line=draftLine();
+  return `<div class="card"><h2>確かめの一言</h2>
+  <p class="lead">選んだ段（${esc(RUNGS[S.pick].name)}）と見本から作った下書きです。自分の言葉に直して使ってください。</p>
+  <textarea id="line" style="min-height:110px" oninput="S.line=this.value">${esc(S.line)}</textarea>
+  <div class="row"><button class="btn ghost" onclick="S.line=draftLine();render()">下書きを作り直す</button></div>
+  ${S.t0?`<div class="note hint">${elapsed()}（目安は2〜3分）</div>`:""}
+  <div class="note hint">この画面は下書きまでです。送るかどうか、どう言うかは、あなたが決めます。資料の中身は作りません。</div>
+  <div class="row"><button class="btn ghost" onclick="go(2)">見本に戻る</button><button class="btn ghost" onclick="go(0)">最初に戻る</button></div></div>`;
+}
+
+render();
+</script>
+</body>
+</html>

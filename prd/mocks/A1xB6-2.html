@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1xB6-2 具体例すり合わせカード（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--a-bg:#eef2fc;--b-bg:#fff4dc;--ok-bg:#e6f4ea;--ok:#1d6b35;--warn-bg:#fdeaea;--warn:#a12828;--mid-bg:#fff4dc;--mid:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--a-bg:#222a3d;--b-bg:#3a2f14;--ok-bg:#16301f;--ok:#7fd69a;--warn-bg:#3d1c1c;--warn:#f0a0a0;--mid-bg:#3a2f14;--mid:#f0c46b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+.roles,nav{display:flex;gap:4px;margin:8px 0}
+.roles button,nav button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+.roles button.on,nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:16px;margin:0 0 4px}
+p.lead{margin:0 0 8px;color:var(--sub);font-size:14px}
+label.t{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:56px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px}
+.opts input{margin:0}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--a-bg)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.ex{border-radius:10px;padding:8px 10px;font-size:14px;overflow-wrap:anywhere}
+.ex b{display:block;font-size:12px;color:var(--sub)}
+.ex.a{background:var(--a-bg)}
+.ex.b{background:var(--b-bg)}
+.tag{display:inline-block;font-size:12px;border-radius:999px;padding:0 8px;font-weight:600}
+.close{background:var(--ok-bg);color:var(--ok)}
+.little{background:var(--mid-bg);color:var(--mid)}
+.far{background:var(--warn-bg);color:var(--warn)}
+.item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.item .inst{font-weight:600;overflow-wrap:anywhere}
+.empty{color:var(--sub);font-size:14px}
+.timer{font-size:13px;color:var(--sub)}
+.stat{display:flex;gap:8px;margin-top:8px}
+.stat div{flex:1;background:var(--a-bg);border-radius:8px;padding:6px;text-align:center;font-size:12px}
+.stat strong{display:block;font-size:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>具体例すり合わせカード</h1>
+  <small><span class="badge">A1xB6-2</span><span class="badge">モック</span>入力はこの画面内だけで処理され、送信・記録されません</small>
+</header>
+<div class="roles" id="roles"></div>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const SAMPLE = [
+  {id:1, inst:"今期は、もっとシンプルにしていこう", eg:"顧客向けの製品仕様の選択肢を減らす（色・容量のバリエーションを半分に）",
+   reply:{ex:"回路の部品点数を減らす", dist:"far", verdict:"diff", fix:"部品ではなく、お客様に見せる仕様の数の話です"}},
+  {id:2, inst:"試作は、早めに見せてほしい", eg:"完成前でも、動く部分だけの状態を週内に共有する",
+   reply:{ex:"週内に、動く部分だけでも見せる", dist:"close", verdict:"ok", fix:""}},
+  {id:3, inst:"もう少し顧客目線で考えよう", eg:"", reply:null}
+];
+let cards = [];
+let role = "speaker";   // speaker=話す側(課長) / listener=聞く側(Bさん)
+let tab = "write";
+let nextId = 10;
+const started = {};      // 往復の所要時間の目安
+
+const ROLES = {speaker:"話す側(課長)", listener:"聞く側(Bさん)"};
+const TABS = {
+  speaker:[["write","指示を書く"],["verdict","一言で返す"],["list","カード一覧"]],
+  listener:[["ex","例を返す"],["ask","例を頼む"],["list","カード一覧"]]
+};
+const DIST = {close:"近い", little:"少し違う", far:"全然違う"};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function startTimer(key) {
+  if (!started[key]) started[key] = Date.now();
+}
+function elapsed(key) {
+  if (!started[key]) return "";
+  const s = Math.max(1, Math.round((Date.now() - started[key]) / 1000));
+  delete started[key];
+  return `<span class="timer">所要 約${s}秒</span>`;
+}
+
+function renderChrome() {
+  $("roles").innerHTML = Object.keys(ROLES).map(r =>
+    `<button class="${r===role?"on":""}" onclick="setRole('${r}')">${ROLES[r]}</button>`).join("");
+  $("nav").innerHTML = TABS[role].map(t =>
+    `<button class="${t[0]===tab?"on":""}" onclick="setTab('${t[0]}')">${t[1]}</button>`).join("");
+}
+function setRole(r) { role = r; tab = TABS[r][0][0]; render(); }
+function setTab(t) { tab = t; render(); }
+
+function pairHtml(c) {
+  if (!c.reply) return `<div class="empty">まだ聞く側の例は返っていません</div>`;
+  const r = c.reply;
+  const verdict = r.verdict === "ok" ? "合っている" : r.verdict === "diff" ? "ここが違う" : "返事待ち";
+  return `<div class="pair">
+      <div class="ex a"><b>話す側の例</b>${esc(c.eg || "(例なし)")}</div>
+      <div class="ex b"><b>聞く側の例</b>${esc(r.ex)}</div>
+    </div>
+    <div style="margin-top:6px"><span class="tag ${r.dist}">近さ: ${DIST[r.dist]}</span>
+    <span class="tag ${r.verdict==="ok"?"close":r.verdict==="diff"?"far":"little"}">${verdict}</span></div>
+    ${r.fix ? `<div class="note">補足: ${esc(r.fix)}</div>` : ""}`;
+}
+
+// ---- 話す側: 指示を書く ----
+function viewWrite() {
+  return `<div class="card"><h2>指示のカード</h2>
+    <p class="lead">指示を一行で書き、「たとえば」を一つ添えます。</p>
+    <label class="t" for="inst">指示（一行）</label>
+    <input type="text" id="inst" oninput="startTimer('w');checkWrite()" placeholder="例: 今期は、もっとシンプルにしていこう">
+    <label class="t" for="eg">たとえば（必須）</label>
+    <textarea id="eg" oninput="startTimer('w');checkWrite()" placeholder="例: 顧客向けの製品仕様の選択肢を減らす"></textarea>
+    <div class="note" id="wnote">「たとえば」が空のままだと送れません。</div>
+    <div class="row"><button class="btn" id="send" onclick="sendCard()" disabled>カードを送る</button></div>
+    <div id="wmsg"></div></div>`;
+}
+function checkWrite() {
+  const ok = $("inst").value.trim() && $("eg").value.trim();
+  $("send").disabled = !ok;
+  $("wnote").textContent = ok ? "送れます。" : "「たとえば」が空のままだと送れません。";
+}
+function sendCard() {
+  const t = elapsed('w');
+  cards.unshift({id:nextId++, inst:$("inst").value.trim(), eg:$("eg").value.trim(), reply:null});
+  $("inst").value = ""; $("eg").value = "";
+  checkWrite();
+  $("wmsg").innerHTML = `<div class="note">送りました。聞く側の画面で例を返せます。 ${t}</div>`;
+}
+
+// ---- 聞く側: 例を返す ----
+function viewEx() {
+  const open = cards.filter(c => !c.reply);
+  if (!open.length) return `<div class="card"><h2>聞く側の例</h2><div class="empty">返事待ちのカードはありません。</div></div>`;
+  return `<div class="card"><h2>聞く側の例</h2>
+    <p class="lead">思い浮かべた具体例を一つ書き、話す側の例との近さを選びます。</p>
+    ${open.map(c => `<div class="item"><div class="inst">${esc(c.inst)}</div>
+      ${c.eg ? `<div class="ex a" style="margin-top:6px"><b>話す側の例</b>${esc(c.eg)}</div>`
+             : `<div class="note">「たとえば」がまだありません。下の「例を頼む」から依頼できます。</div>`}
+      <label class="t" for="ex${c.id}">自分が思い浮かべた例</label>
+      <textarea id="ex${c.id}" oninput="startTimer('l${c.id}')"></textarea>
+      ${c.eg ? `<label class="t">話す側の例との近さ</label>
+      <div class="opts">${Object.keys(DIST).map(k =>
+        `<label><input type="radio" name="d${c.id}" value="${k}">${DIST[k]}</label>`).join("")}</div>` : ""}
+      <div class="row"><button class="btn" onclick="sendEx(${c.id})">返す</button></div>
+      <div id="m${c.id}"></div></div>`).join("")}</div>`;
+}
+function sendEx(id) {
+  const c = cards.find(x => x.id === id);
+  const ex = $("ex"+id).value.trim();
+  const d = document.querySelector(`input[name=d${id}]:checked`);
+  if (!ex || (c.eg && !d)) { $("m"+id).innerHTML = `<div class="note">例と近さを選んでください。</div>`; return; }
+  c.reply = {ex, dist: d ? d.value : "little", verdict:"wait", fix:""};
+  tab = "list"; role = "listener"; render();
+}
+
+// ---- 聞く側: 例を頼む ----
+function viewAsk() {
+  return `<div class="card"><h2>「たとえば」を頼む</h2>
+    <p class="lead">口頭の指示を書き起こし、話す側に例を頼めます。</p>
+    <label class="t" for="ainst">聞いた指示（一行）</label>
+    <input type="text" id="ainst" placeholder="例: もう少し顧客目線で考えよう">
+    <div class="row"><button class="btn" onclick="askEg()">「たとえばを教えてください」と送る</button></div>
+    <div id="amsg"></div></div>`;
+}
+function askEg() {
+  const v = $("ainst").value.trim();
+  if (!v) { $("amsg").innerHTML = `<div class="note">指示を入れてください。</div>`; return; }
+  cards.unshift({id:nextId++, inst:v, eg:"", reply:null, asked:true});
+  $("ainst").value = "";
+  $("amsg").innerHTML = `<div class="note">依頼しました。話す側の「指示を書く」で例を添えられます。</div>`;
+}
+
+// ---- 話す側: 一言の返事 ----
+function viewVerdict() {
+  const wait = cards.filter(c => c.reply && c.reply.verdict === "wait");
+  if (!wait.length) return `<div class="card"><h2>一言の返事</h2><div class="empty">返事待ちの例はありません。</div></div>`;
+  return `<div class="card"><h2>一言の返事</h2>
+    <p class="lead">両方の例を見比べて、選びます。違うときは一行で補います。</p>
+    ${wait.map(c => `<div class="item"><div class="inst">${esc(c.inst)}</div>${pairHtml(c)}
+      <div class="opts" style="margin-top:8px">
+        <label><input type="radio" name="v${c.id}" value="ok" onchange="startTimer('v${c.id}')">合っている</label>
+        <label><input type="radio" name="v${c.id}" value="diff" onchange="startTimer('v${c.id}')">ここが違う</label></div>
+      <textarea id="fx${c.id}" placeholder="違うときの一行（任意）" style="margin-top:8px"></textarea>
+      <div class="row"><button class="btn" onclick="sendVerdict(${c.id})">返事する</button></div>
+      <div id="vm${c.id}"></div></div>`).join("")}</div>`;
+}
+function sendVerdict(id) {
+  const c = cards.find(x => x.id === id);
+  const v = document.querySelector(`input[name=v${id}]:checked`);
+  if (!v) { $("vm"+id).innerHTML = `<div class="note">「合っている」か「ここが違う」を選んでください。</div>`; return; }
+  c.reply.verdict = v.value;
+  c.reply.fix = v.value === "diff" ? $("fx"+id).value.trim() : "";
+  tab = "list"; render();
+}
+
+// ---- カード一覧 ----
+function viewList() {
+  const replied = cards.filter(c => c.reply);
+  const gaps = replied.filter(c => c.reply.dist !== "close" || c.reply.verdict === "diff").length;
+  const withEg = cards.filter(c => c.eg).length;
+  return `<div class="card"><h2>カードの一覧</h2>
+    <p class="lead">2人の例が並びます。ずれの数は一覧の確認用で、評価には使いません。</p>
+    <div class="stat">
+      <div><strong>${cards.length}</strong>カード</div>
+      <div><strong>${withEg}</strong>「たとえば」あり</div>
+      <div><strong>${gaps}</strong>ずれが見つかった</div></div>
+    ${cards.length ? cards.map(c => `<div class="item"><div class="inst">${esc(c.inst)}</div>
+      ${c.asked && !c.eg ? `<div class="note">聞く側から「たとえば」を依頼中</div>` : ""}
+      ${c.reply ? pairHtml(c) : (c.eg ? `<div class="ex a" style="margin-top:6px"><b>話す側の例</b>${esc(c.eg)}</div><div class="empty">聞く側の返事待ち</div>` : "")}
+      </div>`).join("") : `<div class="empty">カードはまだありません。「サンプルを読み込む」で例を入れられます。</div>`}
+    </div>`;
+}
+
+function render() {
+  renderChrome();
+  const v = {write:viewWrite, verdict:viewVerdict, list:viewList, ex:viewEx, ask:viewAsk}[tab];
+  $("main").innerHTML = v() + `<div class="row">
+    <button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button>
+    <button class="btn ghost" onclick="clearAll()">空にする</button></div>`;
+}
+function loadSample() {
+  cards = JSON.parse(JSON.stringify(SAMPLE));
+  tab = "list"; render();
+}
+function clearAll() { cards = []; render(); }
+
+render();
+</script>
+</body>
+</html>

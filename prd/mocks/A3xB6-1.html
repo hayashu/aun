@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A3xB6-1 「つまり一行」下書きツール（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--warn-bg:#fff4dc;--warn:#8a5a00;--ok-bg:#e6f4ea;--ok:#1d6b35;--hint-bg:#eef2fc}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--warn-bg:#3a2f14;--warn:#f0c46b;--ok-bg:#16301f;--ok:#7fd69a;--hint-bg:#222a3d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.role{display:flex;gap:6px;margin:4px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:14px;margin:14px 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],textarea,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{min-height:56px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;font-weight:400;margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px}
+.opts input{margin:0}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button.small{font-size:13px;padding:2px 8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.fact{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.fact .f{font-size:14px;color:var(--sub)}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.hint{background:var(--hint-bg)}
+.skel{border-left:4px solid var(--accent);padding:6px 0 6px 12px;margin-top:10px}
+.skel .one{font-weight:700;font-size:17px}
+.skel ol{margin:6px 0 0;padding-left:20px;font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600;font-size:12px}
+.empty{color:var(--sub);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>具体の報告の頭に「つまり」を一行添える下書きツール</h1>
+  <small><span class="badge">A3xB6-1</span><span class="badge">モック</span>入力はこの画面内だけで処理され、保存・送信されません</small>
+</header>
+<div class="role" id="role"></div>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const DIRS = ["判断できる","判断できない（何かが足りない）","予定どおり","遅れている","問題あり","問題なし"];
+const AUD = {
+  "課長":{want:"行ける／行けない、のどちらか",ex:"例：まだ判断できない。筐体に入れた状態の測定が1つ足りない。来週測る。"},
+  "部長":{want:"何を決めてほしいか",ex:"例：量産の判断を来週まで待ってほしい。理由は、筐体内の温度が未測定のため。"},
+  "隣の分野の人":{want:"自分の作業に影響があるか",ex:"例：機構側の変更は今のところ不要。ただ来週の測定結果次第で通気の相談をするかもしれない。"}
+};
+const SAMPLE = [
+  "温度試験（45度）で、電源ICの表面温度が98度だった",
+  "データシートの上限は105度である",
+  "筐体に入れた状態では、まだ測っていない"
+];
+const LOG0 = [{line:"温度は上限内だが、筐体内は未測定なので判断は来週",cut:"遮られた",hints:2,date:"11/10"},
+              {line:"部品Cの納期は2週間遅れる。代替品の検討を始める",cut:"遮られなかった",hints:1,date:"11/17"}];
+
+// ---- 状態 ----
+const S = {role:"B",step:0,facts:[""],why:[""],hinted:[false],aud:"課長",line:"",seeEx:false,
+           react:"",quick:false,log:[],saved:false,cut:"未記入"};
+const STEPS = ["① 事実","② だから何か","③ つまり","④ 骨組み","⑤ 記録"];
+const $ = s=>document.querySelector(s);
+const esc = t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const filled = ()=>S.facts.map((f,i)=>({f:f.trim(),w:(S.why[i]||"").trim(),i})).filter(x=>x.f);
+const steps = ()=>S.quick?[0,2,3,4]:[0,1,2,3,4];
+
+function go(n){S.step=n;render();window.scrollTo(0,0);}
+function next(){const s=steps();go(s[Math.min(s.indexOf(S.step)+1,s.length-1)]);}
+function setRole(r){S.role=r;render();}
+function reset(){Object.assign(S,{step:0,facts:[""],why:[""],hinted:[false],line:"",seeEx:false,react:"",saved:false,cut:"未記入"});}
+function loadSample(){
+  reset();S.facts=SAMPLE.slice();S.why=["","",""];S.hinted=[false,false,false];
+  if(!S.log.length)S.log=JSON.parse(JSON.stringify(LOG0));
+  render();
+}
+function addFact(){if(S.facts.length<3){S.facts.push("");S.why.push("");S.hinted.push(false);render();}}
+function delFact(i){S.facts.splice(i,1);S.why.splice(i,1);S.hinted.splice(i,1);if(!S.facts.length)addFact();else render();}
+
+// ---- 描画 ----
+function render(){
+  $("#role").innerHTML=[["B","Bさん（自分の報告）"],["A","Aさん（Bさんの報告を言い換える）"]]
+    .map(r=>`<button class="btn ${S.role===r[0]?"":"ghost"} small" onclick="setRole('${r[0]}')">${r[1]}</button>`).join("");
+  const ss=steps();
+  $("#nav").innerHTML=STEPS.map((t,i)=>ss.includes(i)?`<button class="${i===S.step?"on":""}" onclick="go(${i})">${t}</button>`:"").join("");
+  $("#main").innerHTML=[v0,v1,v2,v3,v4][S.step]();
+}
+
+function v0(){
+  const lead=S.role==="B"?"報告で伝えたい事実を3つまで、一行ずつ書きます。測定値や条件など、具体のままで構いません。"
+    :"Bさんから聞いた具体的な話を、事実として3つまで書き出します。ここでは要約せず、聞いたままで構いません。";
+  const fs=S.facts.map((f,i)=>`<div class="fact"><label for="f${i}" style="margin-top:0">事実 ${i+1}</label>
+    <input type="text" id="f${i}" value="${esc(f)}" oninput="S.facts[${i}]=this.value">
+    <div class="row" style="margin-top:6px"><button class="btn ghost small" onclick="delFact(${i})">削除</button></div></div>`).join("");
+  return `<div class="card"><h2>事実の書き出し</h2><p class="lead">${lead}</p>
+  <div class="row" style="margin-top:0"><button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button></div>
+  ${fs}
+  <div class="row">${S.facts.length<3?`<button class="btn ghost" onclick="addFact()">＋ 事実を追加</button>`:`<span class="empty">事実は3つまでです。</span>`}</div>
+  <label>時間の余裕</label>
+  <div class="opts"><label><input type="radio" name="q" ${!S.quick?"checked":""} onchange="S.quick=false;render()">ふつう</label>
+  <label><input type="radio" name="q" ${S.quick?"checked":""} onchange="S.quick=true;render()">直前（短い流れ）</label></div>
+  ${S.quick?`<div class="note hint">事実ごとの問いを省き、事実と一行だけで進みます。</div>`:""}
+  <div class="row"><button class="btn" onclick="next()">${S.quick?"「つまり」へ":"「だから何か」へ"}</button></div></div>`;
+}
+
+function v1(){
+  const fs=filled();
+  if(!fs.length)return `<div class="card"><h2>だから何か</h2><p class="empty">先に事実を書いてください。</p></div>`;
+  const items=fs.map(({f,i})=>{
+    const opened=S.hinted[i];
+    return `<div class="fact"><div class="f">事実：${esc(f)}</div>
+    <label for="w${i}">だから何か（自分の言葉で一行）</label>
+    <input type="text" id="w${i}" value="${esc(S.why[i]||"")}" placeholder="まず自分で書いてみる" oninput="S.why[${i}]=this.value">
+    ${opened?`<div class="note hint">考える方向の例（文ではなく方向です。選んでも自動では入りません）<br>${DIRS.map(d=>`・${d}`).join("<br>")}</div>`
+      :`<div class="row" style="margin-top:6px"><button class="btn ghost small" onclick="S.hinted[${i}]=true;render()">方向のヒントを見る</button></div>`}</div>`;}).join("");
+  return `<div class="card"><h2>「だから何か」の問い</h2><p class="lead">事実ごとに「だから何か」を問います。書けなければ、ヒントを見て構いません（見た回数は記録されます）。</p>
+  ${items}<div class="row"><button class="btn" onclick="next()">「つまり」へ</button></div></div>`;
+}
+
+function v2(){
+  const fs=filled();
+  const view=fs.map(x=>`<tr><td>${esc(x.f)}</td><td>${S.quick?"（省略）":esc(x.w||"（未記入）")}</td></tr>`).join("");
+  const a=AUD[S.aud];
+  return `<div class="card"><h2>「つまり」の一行</h2><p class="lead">${S.role==="B"?"相手に最初に言う一行を、自分で書きます。":"課長に最初に言う一行を、Bさんの話から自分で書きます。"}</p>
+  ${view?`<table><tr><th>事実</th><th>だから何か</th></tr>${view}</table>`:`<p class="empty">事実が未入力です。</p>`}
+  <label>相手</label><select onchange="S.aud=this.value;S.seeEx=false;render()">${Object.keys(AUD).map(k=>`<option ${k===S.aud?"selected":""}>${k}</option>`).join("")}</select>
+  <div class="note hint">${esc(S.aud)}が最初に聞きたがること：${esc(a.want)}</div>
+  <label for="line">「つまり」の一行</label>
+  <textarea id="line" oninput="S.line=this.value">${esc(S.line)}</textarea>
+  ${S.seeEx?`<div class="note hint">${esc(a.ex)}<br><span class="empty">（一つの例です。自分の一行と見比べてください。この例を使う必要はありません）</span></div>`
+    :`<div class="row" style="margin-top:6px"><button class="btn ghost small" onclick="S.seeEx=true;render()">相手向けの例を見る</button></div>`}
+  <div class="row"><button class="btn" onclick="${S.line.trim()?"next()":"alert('一行は自分で書いてください。ツールは作りません。')"}">骨組みへ</button></div></div>`;
+}
+
+function v3(){
+  const fs=filled();
+  const one=S.line.trim();
+  const reacts=["通りそう","変わらない","わからない"];
+  const body=fs.map(x=>`<li>${esc(x.f)}</li>`).join("");
+  return `<div class="card"><h2>報告の骨組み</h2><p class="lead">一行を先頭に、事実を後ろに並べました。事実は根拠として必ず残します。</p>
+  ${one?`<div class="skel"><div class="one">${esc(one)}</div><div class="empty">根拠：</div><ol>${body}</ol></div>`:`<p class="empty">一行が未記入です。</p>`}
+  <h3>見比べ（${esc(S.aud)}向け）</h3>
+  <div class="note hint">${esc(S.aud)}が最初に聞きたがること：${esc(AUD[S.aud].want)}</div>
+  <label>この順番は、${esc(S.aud)}に通りそうですか（あなたの感覚）</label>
+  <div class="opts">${reacts.map(r=>`<label><input type="radio" name="re" ${S.react===r?"checked":""} onchange="S.react='${r}'">${r}</label>`).join("")}</div>
+  <div class="row"><button class="btn ghost" onclick="go(2)">一行を書き直す</button><button class="btn" onclick="next()">記録へ</button></div></div>`;
+}
+
+function v4(){
+  const used=S.hinted.filter(Boolean).length+(S.seeEx?1:0);
+  const rows=S.log.map(l=>`<tr><td>${l.date}</td><td>${esc(l.line)}</td><td>${l.cut}</td><td>${l.hints}</td></tr>`).join("");
+  const avg=S.log.length?(S.log.reduce((s,l)=>s+l.hints,0)/S.log.length).toFixed(1):"-";
+  return `<div class="card"><h2>練習の記録</h2><p class="lead">記録は自分用です。他の人には見えず、評価や採点には使いません。</p>
+  <div class="note hint">今回のヒント使用：${used}回（事実の方向ヒント＋相手向けの例）</div>
+  <label>実際に報告して、途中で遮られましたか</label>
+  <div class="opts">${["遮られた","遮られなかった","まだ報告していない"].map(c=>`<label><input type="radio" name="cut" ${S.cut===c?"checked":""} onchange="S.cut='${c}'">${c}</label>`).join("")}</div>
+  <div class="row"><button class="btn" onclick="saveLog()" ${S.saved?"disabled":""}>${S.saved?"記録しました":"この一行を記録する"}</button>
+  <button class="btn ghost" onclick="reset();render()">新しい報告を始める</button></div>
+  <h3>これまでの記録</h3>
+  ${rows?`<table><tr><th>日付</th><th>一行</th><th>遮り</th><th>ヒント</th></tr>${rows}</table>
+  <p class="empty">1回あたりの平均ヒント使用：${avg}回（少しずつ減っていけば十分です）</p>`:`<p class="empty">まだ記録がありません。「サンプルを読み込む」で例が入ります。</p>`}</div>`;
+}
+function saveLog(){
+  const used=S.hinted.filter(Boolean).length+(S.seeEx?1:0);
+  S.log.push({line:S.line.trim()||"（未記入）",cut:S.cut==="未記入"?"まだ報告していない":S.cut,hints:used,date:"今日"});
+  S.saved=true;render();
+}
+
+render();
+</script>
+</body>
+</html>

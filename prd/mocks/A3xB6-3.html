@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A3xB6-3 往復進行キット（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--abs:#e8eefc;--abs-t:#2a4ba0;--con:#fff0dc;--con-t:#8a4b00;--ok-bg:#e6f4ea;--ok:#1d6b35}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--abs:#222c4a;--abs-t:#a9c0ff;--con:#46320f;--con-t:#ffcf8a;--ok-bg:#16301f;--ok:#7fd69a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+nav{display:flex;gap:4px;margin:8px 0}
+nav button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:10px 0 4px}
+input[type=text],input[type=number],select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+.mins{display:flex;gap:6px}
+.mins div{flex:1}
+.mins label{font-size:12px;margin-top:0}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;font-size:14px}
+.item b{display:block;font-size:12px;color:var(--sub)}
+.stage{border-radius:16px;padding:20px 16px;text-align:center;margin-bottom:12px}
+.stage.abs{background:var(--abs);color:var(--abs-t)}
+.stage.con{background:var(--con);color:var(--con-t)}
+.stage .kind{font-size:14px;font-weight:700}
+.stage .now{font-size:24px;font-weight:800;line-height:1.4;margin:4px 0}
+.stage .time{font-size:56px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.stage .sub{font-size:14px}
+.steps{display:flex;gap:4px;margin-bottom:12px}
+.steps span{flex:1;text-align:center;font-size:12px;padding:4px 2px;border-radius:8px;border:1px solid var(--line);color:var(--sub)}
+.steps span.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--ok-bg);color:var(--ok)}
+.sg{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.sg button{text-align:left;font:inherit;font-size:14px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);cursor:pointer}
+.empty{color:var(--sub);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>議題ごとに「目的→具体例→まとめ」を往復する会議の進行キット</h1>
+  <small><span class="badge">A3xB6-3</span><span class="badge">モック</span>発言者の名前や回数は記録しません</small>
+</header>
+<div class="row" style="margin-top:0">
+  <select id="role" aria-label="役割">
+    <option value="host">主催者（課長）</option>
+    <option value="b">参加者（Bさん）</option>
+    <option value="a">参加者（Aさん・議事録）</option>
+  </select>
+</div>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+const TYPES = {
+  dir:  {label:'方向性を決める', m:[3,10,2]},
+  solve:{label:'課題を解く',     m:[2,12,3]},
+  rep:  {label:'報告を聞く',     m:[1,6,1]}
+};
+const PH = [
+  {name:'目的をそろえる', kind:'抽象', cls:'abs', msg:'「何のために」を話す時間です'},
+  {name:'たとえば', kind:'具体', cls:'con', msg:'具体例・数字・案を出す時間です'},
+  {name:'まとめ', kind:'抽象', cls:'abs', msg:'「つまり何を決めたか」を話す時間です'}
+];
+const SAMPLE = {
+  agendas:[
+    {title:'次の試作の方向性', type:'dir', m:[3,10,2]},
+    {title:'試作2号機の発熱対策', type:'solve', m:[2,12,3]}
+  ],
+  finals:{host:'コストを優先し、品質は現行を維持する',
+          b:'部品Aを型番替えして単価を20円下げる方向で進める',
+          a:'コスト優先で、まず部品Aの型番替えを試す'}
+};
+let S = {tab:'set', agendas:[], cur:0, ph:0, left:0, run:false, parked:[], finals:{}, role:'host', parkOpen:false, t0:0, lastSec:null, justParked:null};
+let timer = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = n => String(Math.floor(n/60)).padStart(2,'0') + ':' + String(n%60).padStart(2,'0');
+const ag = () => S.agendas[S.cur];
+
+function load(){
+  S.agendas = JSON.parse(JSON.stringify(SAMPLE.agendas));
+  S.finals = Object.assign({}, SAMPLE.finals);
+  S.parked = [];
+  startAgenda(0);
+  render();
+}
+function startAgenda(i){
+  S.cur = i; S.ph = 0; S.run = false; S.parked = []; S.finals = {};
+  S.left = S.agendas[i] ? S.agendas[i].m[0]*60 : 0;
+}
+function gotoPhase(p){
+  S.ph = p; S.left = ag().m[p]*60; S.run = false; S.parkOpen = false;
+}
+
+function tick(){
+  if(S.run && S.left > 0){ S.left--; }
+  if(S.left === 0) S.run = false;
+  if(S.tab === 'live') render();
+}
+timer = setInterval(tick, 1000);
+
+function viewSet(){
+  const isHost = S.role === 'host';
+  let h = '<div class="card"><h2>議題の往復設定</h2><p class="lead">議題ごとに3つの枠の時間（分）を決めます。' +
+    (isHost ? '' : '（設定は主催者のみ）') + '</p>';
+  S.agendas.forEach((a,i) => {
+    const dis = isHost ? '' : ' disabled';
+    h += '<div class="item"><label style="margin-top:0">議題</label>' +
+      '<input type="text" value="'+esc(a.title)+'" data-t="'+i+'"'+dis+'>' +
+      '<label>議題の種類</label><select data-ty="'+i+'"'+dis+'>' +
+      Object.keys(TYPES).map(k => '<option value="'+k+'"'+(k===a.type?' selected':'')+'>'+TYPES[k].label+'</option>').join('') +
+      '</select><label>時間の配分（分）</label><div class="mins">' +
+      PH.map((p,j) => '<div><label>'+p.name+'</label><input type="number" min="1" max="60" value="'+a.m[j]+'" data-m="'+i+'-'+j+'"'+dis+'></div>').join('') +
+      '</div><div class="empty" style="margin-top:4px">合計 '+a.m.reduce((x,y)=>x+y,0)+' 分</div></div>';
+  });
+  h += '<div class="row">' + (isHost ? '<button class="btn ghost" data-act="add">議題を追加</button>' : '') +
+       '<button class="btn" data-act="sample">サンプルを読み込む</button></div></div>';
+  return h;
+}
+
+function viewLive(){
+  if(!ag()) return '<div class="card"><p class="empty">議題がありません。「設定」でサンプルを読み込んでください。</p></div>';
+  const p = PH[S.ph], isHost = S.role === 'host';
+  let h = '<div class="card" style="padding:12px"><b style="font-size:14px">議題：'+esc(ag().title)+'</b> ' +
+    '<span class="badge">'+TYPES[ag().type].label+'</span>' +
+    (S.agendas.length>1 ? '<div class="row" style="margin-top:8px">'+S.agendas.map((a,i)=>
+      '<button class="btn '+(i===S.cur?'':'ghost')+'" style="font-size:12px;padding:4px 10px" data-act="agenda" data-i="'+i+'">'+(i+1)+'</button>').join('')+'</div>' : '') + '</div>';
+  h += '<div class="steps">' + PH.map((q,i)=>'<span class="'+(i===S.ph?'on':'')+'">'+q.name+'（'+q.kind+'）</span>').join('') + '</div>';
+  h += '<div class="stage '+p.cls+'"><div class="kind">いまは【'+p.kind+'】の時間</div>' +
+    '<div class="now">いまは「'+p.name+'」の時間です</div><div class="time">'+fmt(S.left)+'</div>' +
+    '<div class="sub">'+p.msg+'</div></div>';
+  if(isHost){
+    h += '<div class="row" style="margin-top:0"><button class="btn" data-act="run">'+(S.run?'一時停止':'開始')+'</button>' +
+      '<button class="btn ghost" data-act="ext">この枠を1分延ばす</button>' +
+      '<button class="btn ghost" data-act="skip">+30秒進める（デモ）</button>' +
+      (S.ph<2 ? '<button class="btn ghost" data-act="next">次の枠へ</button>' : '') + '</div>';
+  }
+  h += '<div class="card" style="margin-top:12px"><h2>一時置きのメモ</h2>' +
+    '<p class="lead">いまの枠と違う高さの話は、否定せず次の枠に回します。</p>';
+  if(S.justParked) h += '<div class="note">「'+esc(S.justParked.text)+'」は次の枠で取り上げます（所要 '+S.justParked.sec+' 秒）</div>';
+  if(S.ph < 2){
+    if(!S.parkOpen){
+      h += '<div class="row"><button class="btn" data-act="parkopen">違う高さの発言を一時置きする</button></div>';
+    } else {
+      const sg = S.ph === 1 ? ['そもそも何を優先する会社なのか','品質の基準を見直すべきでは'] : ['部品Aを別の型番に替えると単価が20円下がる','試作の納期は3週間かかる'];
+      h += '<div class="sg">' + sg.map((t,i)=>'<button data-act="park" data-t="'+esc(t)+'">'+esc(t)+'</button>').join('') + '</div>' +
+        '<label>または入力</label><input type="text" id="ptext" placeholder="発言の要点">' +
+        '<div class="row"><button class="btn" data-act="parkfree">一時置きする</button><button class="btn ghost" data-act="parkcancel">やめる</button></div>';
+    }
+  }
+  h += S.parked.length ? S.parked.map(x=>'<div class="item"><b>次の枠で取り上げます</b>'+esc(x.text)+'</div>').join('') :
+    '<div class="empty" style="margin-top:8px">置かれたメモはまだありません</div>';
+  if(S.ph === 2 && S.parked.length) h += '<div class="note" style="background:var(--abs);color:var(--abs-t)">まとめの前に、上のメモを読み上げて取り上げます</div>';
+  return h + '</div>';
+}
+
+function viewSum(){
+  if(!ag()) return '<div class="card"><p class="empty">議題がありません。</p></div>';
+  const who = {host:'主催者（課長）', b:'Bさん', a:'Aさん'};
+  const f = S.finals, keys = Object.keys(who);
+  let h = '<div class="card"><h2>決まったことの照らし合わせ</h2><p class="lead">議題「'+esc(ag().title)+'」。まとめの枠の最後に、各自が「決まったこと」を一行で書き、並べて見ます。</p>' +
+    '<label>あなたの一行（'+who[S.role]+'）</label><input type="text" id="fin" value="'+esc(f[S.role]||'')+'" placeholder="例：〜を優先し、〜を進める">' +
+    '<div class="row"><button class="btn" data-act="savefin">書く／直す</button></div></div>';
+  h += '<div class="card"><h2>並べて表示</h2>' + keys.map(k =>
+    '<div class="item"><b>'+who[k]+'</b>'+(f[k]?esc(f[k]):'<span class="empty">まだ書かれていません</span>')+'</div>').join('') +
+    '<p class="lead" style="margin-top:10px">言い回しや内容にずれがあれば、その場で話して、各自の一行を直します。正解は一つに決められません。</p></div>';
+  return h;
+}
+
+function render(){
+  const tabs = [['set','設定'],['live','会議中'],['sum','まとめ']];
+  $('#nav').innerHTML = tabs.map(t=>'<button data-tab="'+t[0]+'" class="'+(S.tab===t[0]?'on':'')+'">'+t[1]+'</button>').join('');
+  $('#main').innerHTML = S.tab==='set' ? viewSet() : S.tab==='live' ? viewLive() : viewSum();
+}
+
+function park(text){
+  if(!text.trim()) return;
+  const sec = Math.max(1, Math.round((Date.now() - S.t0)/1000));
+  S.parked.push({text:text.trim()});
+  S.justParked = {text:text.trim(), sec};
+  S.parkOpen = false;
+  render();
+}
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  if(t.dataset.tab){ S.tab = t.dataset.tab; S.justParked = null; render(); return; }
+  const a = t.dataset.act; if(!a) return;
+  if(a==='sample') load();
+  if(a==='add'){ S.agendas.push({title:'新しい議題', type:'dir', m:[3,10,2]}); if(S.agendas.length===1) startAgenda(0); render(); }
+  if(a==='agenda'){ startAgenda(+t.dataset.i); S.justParked = null; render(); }
+  if(a==='run'){ S.run = !S.run; render(); }
+  if(a==='ext'){ S.left += 60; render(); }
+  if(a==='skip'){ S.left = Math.max(0, S.left-30); render(); }
+  if(a==='next'){ gotoPhase(S.ph+1); S.justParked = null; render(); }
+  if(a==='parkopen'){ S.parkOpen = true; S.t0 = Date.now(); S.justParked = null; render(); }
+  if(a==='parkcancel'){ S.parkOpen = false; render(); }
+  if(a==='park') park(t.dataset.t);
+  if(a==='parkfree') park($('#ptext').value);
+  if(a==='savefin'){ S.finals[S.role] = $('#fin').value.trim(); render(); }
+});
+document.addEventListener('change', e => {
+  const t = e.target, d = t.dataset;
+  if(d.ty !== undefined){ const a = S.agendas[+d.ty]; a.type = t.value; a.m = TYPES[t.value].m.slice(); if(+d.ty===S.cur) startAgenda(S.cur); render(); }
+  if(d.t !== undefined){ S.agendas[+d.t].title = t.value; }
+  if(d.m !== undefined){
+    const [i,j] = d.m.split('-').map(Number);
+    S.agendas[i].m[j] = Math.max(1, +t.value || 1);
+    if(i===S.cur) startAgenda(i);
+    render();
+  }
+});
+$('#role').addEventListener('change', e => { S.role = e.target.value; render(); });
+render();
+</script>
+</body>
+</html>

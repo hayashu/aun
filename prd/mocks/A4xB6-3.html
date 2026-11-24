@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A4xB6-3 フィードバックの型（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--warn-bg:#fff4dc;--warn:#8a5a00;--ok-bg:#e6f4ea;--ok:#1d6b35;--hint-bg:#eef2fc}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--warn-bg:#3a2f14;--warn:#f0c46b;--ok-bg:#16301f;--ok:#7fd69a;--hint-bg:#222a3d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:17px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--sub)}
+.role{display:flex;gap:6px;align-items:center;margin:8px 0;font-size:13px;color:var(--sub)}
+.role select{font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 4px}
+p.lead{margin:0 0 12px;color:var(--sub);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+label small{font-weight:400;color:var(--sub)}
+input[type=text],select.f{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+button.btn{font:inherit;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.btn:disabled{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.ok{background:var(--ok-bg);color:var(--ok)}
+.hint{background:var(--hint-bg)}
+.item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.item .meta{font-size:12px;color:var(--sub)}
+.item dl{margin:6px 0 0}
+.item dt{font-size:12px;color:var(--sub);margin-top:6px}
+.item dd{margin:0}
+.abs{font-size:18px;font-weight:700;margin:6px 0}
+.cols{display:grid;grid-template-columns:1fr;gap:10px}
+.empty{color:var(--sub);font-size:14px}
+.bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden;margin:4px 0 10px}
+.bar i{display:block;height:100%;background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>注意や助言を「場面・行動・代わりにどうするか」で返すフィードバックの型</h1>
+  <small><span class="badge">A4xB6-3</span><span class="badge">モック</span>入力はこの画面内だけで処理され、外部には送られません</small>
+</header>
+<div class="role">
+  <span>いまの立場</span>
+  <select id="role">
+    <option value="giver">注意する側（課長）</option>
+    <option value="taker">受け取る側（Bさん）</option>
+  </select>
+</div>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const ABSTRACT = ["主体的","視座","詰めが甘い","もっと","当事者意識","スピード感"];
+const PEOPLE = ["Bさん","Aさん"];
+const SAMPLE = [
+  {to:"Bさん",scene:"試作部品の納期が遅れた先週火曜",action:"課長に言われるまで代わりの部品を探さなかった",instead:"遅れがわかった時点で、代替品の候補を2つ課長に伝えてほしい",summary:"主体的に",reply:"ok",question:""},
+  {to:"Aさん",scene:"電気と機械の調整会議（11月10日）",action:"両チームの要望を、順番に聞くだけで終わった",instead:"要望がぶつかる点を一つ選び、決めたい案を先に出してほしい",summary:"視座を上げて",reply:"unknown",question:"「決めたい案」は、誰の了承を取る前に出してよいですか"},
+  {to:"Bさん",scene:"部品評価の報告（11月15日）",action:"試験条件を書かずに結果だけ共有した",instead:"結果と一緒に、試験条件を1行添えてほしい",summary:"",reply:null,question:""}
+];
+const COMPARE = {
+  abs:"もう少し主体的に動いてほしい",
+  full:{scene:"試作部品の納期が遅れたとき",action:"課長に言われるまで代わりの部品を探さなかった",instead:"遅れがわかった時点で、代替品の候補を2つ課長に伝えてほしい",summary:"主体的に"}
+};
+let S = {tab:"write",notes:[],draft:{to:"Bさん",scene:"",action:"",instead:"",summary:""},
+  dismissed:false,feel:{hint:{ok:0,pushy:0},cmp:{abs:0,full:0}},sent:false};
+
+// ---- 補助 ----
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hasAbstract = d => [d.scene,d.action,d.instead,d.summary].join(" ");
+function foundWord(d){
+  const t = hasAbstract(d);
+  return ABSTRACT.find(w=>t.includes(w));
+}
+function complete(n){return n.scene.trim()&&n.action.trim()&&n.instead.trim();}
+
+// ---- 描画 ----
+const TABS = [["write","書く"],["inbox","受け取る"],["compare","並べて見る"],["team","チームの集計"]];
+function render(){
+  $("nav").innerHTML = TABS.map(([k,l])=>`<button class="${S.tab===k?"on":""}" data-t="${k}">${l}</button>`).join("");
+  document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;render();});
+  $("main").innerHTML = {write:vWrite,inbox:vInbox,compare:vCompare,team:vTeam}[S.tab]();
+  bind();
+}
+function dyn(){
+  const d = S.draft, w = foundWord(d), ok = complete(d);
+  let h = "";
+  if(w && !S.dismissed){
+    h += `<div class="note hint">「${esc(w)}」という言葉が入っています。どの場面のことか、一つ思い出せたら場面の欄に書けます。思い出せなければ、このまま進めて構いません。
+    <div class="row"><button class="btn ghost" data-act="dismiss">このまま進める</button></div>
+    <div class="empty" style="margin-top:6px">この促しはどう感じましたか（実験用）</div>
+    <div class="row" style="margin-top:4px"><button class="btn ghost" data-act="hint-ok">気にならない</button><button class="btn ghost" data-act="hint-pushy">押しつけがましい</button></div></div>`;
+  }
+  if(!ok && (d.summary.trim()||d.scene||d.action||d.instead)) h += `<div class="note warn">場面・行動・代わりの行動の3つがそろうと渡せます。</div>`;
+  if(S.sent) h += `<div class="note ok">渡しました。「受け取る」で、受け取る側の見え方を確かめられます。</div>`;
+  return h;
+}
+function vWrite(){
+  const d = S.draft, ok = complete(d);
+  let h = `<div class="card"><h2>注意や助言を書く</h2>
+  <p class="lead">口頭で伝えたあとに、一行ずつ書きます。まとめの言葉だけでは渡せません。</p>
+  <label>宛先</label><select class="f" id="to">${PEOPLE.map(p=>`<option ${d.to===p?"selected":""}>${p}</option>`).join("")}</select>
+  <label>場面 <small>いつ・どの件で</small></label><input type="text" id="scene" value="${esc(d.scene)}" placeholder="例）試作部品の納期が遅れた先週火曜">
+  <label>行動 <small>何をしたか</small></label><input type="text" id="action" value="${esc(d.action)}" placeholder="例）言われるまで代わりの部品を探さなかった">
+  <label>代わりにどうしてほしかったか</label><input type="text" id="instead" value="${esc(d.instead)}" placeholder="例）遅れがわかった時点で候補を課長に伝えてほしい">
+  <label>抽象的なまとめの言葉 <small>任意・最後に添える</small></label><input type="text" id="summary" value="${esc(d.summary)}" placeholder="例）主体的に">`;
+  h += `<div id="dyn">${dyn()}</div>`;
+  h += `<div class="row"><button class="btn" data-act="send" ${ok?"":"disabled"}>渡す</button><button class="btn ghost" data-act="sample">サンプルを読み込む</button></div></div>`;
+  return h;
+}
+function vInbox(){
+  const mine = S.notes.filter(n=>n.to==="Bさん");
+  let h = `<div class="card"><h2>受け取った注意</h2><p class="lead">「直す一点がわかった」か「まだわからない」を返します。わからないときは質問を一つ書けます。</p>`;
+  if(S.role==="giver") h += `<div class="note warn">いまは「注意する側」です。上の立場を「受け取る側（Bさん）」に切り替えると返事ができます。</div>`;
+  if(!mine.length) h += `<p class="empty">まだ届いていません。「書く」から渡すか、サンプルを読み込んでください。</p>`;
+  h += mine.map(n=>{
+    const i = S.notes.indexOf(n);
+    let r = "";
+    if(n.reply==="ok") r = `<div class="note ok">直す一点がわかった</div>`;
+    else if(n.reply==="unknown") r = `<div class="note warn">まだわからない：${esc(n.question||"（質問なし）")}</div>`;
+    else if(S.role==="taker") r = `<div class="row"><button class="btn" data-act="reply-ok" data-i="${i}">直す一点がわかった</button><button class="btn ghost" data-act="reply-no" data-i="${i}">まだわからない</button></div>`;
+    if(n.reply===null && n.asking) r = `<label>質問を一つ</label><input type="text" id="q${i}" placeholder="例）どこまでが自分で決めてよい範囲ですか"><div class="row"><button class="btn" data-act="reply-send" data-i="${i}">返す</button></div>`;
+    return `<div class="item"><div class="meta">宛先：${esc(n.to)}</div>${body(n)}${r}</div>`;
+  }).join("");
+  return h+`</div>`;
+}
+function body(n){
+  return `<dl><dt>場面</dt><dd>${esc(n.scene)}</dd><dt>行動</dt><dd>${esc(n.action)}</dd><dt>代わりにどうしてほしかったか</dt><dd>${esc(n.instead)}</dd>${n.summary?`<dt>まとめ</dt><dd>${esc(n.summary)}</dd>`:""}</dl>`;
+}
+function vCompare(){
+  const f = COMPARE.full, c = S.feel.cmp;
+  return `<div class="card"><h2>2つの渡し方を並べて見る</h2>
+  <p class="lead">同じ出来事への注意です。受け取る側として、直す一点を見つけやすいのはどちらでしょうか。</p>
+  <div class="cols">
+    <div class="item"><div class="meta">A　まとめの言葉だけ</div><div class="abs">${esc(COMPARE.abs)}</div></div>
+    <div class="item"><div class="meta">B　3項目がそろった注意</div>${body(f)}</div>
+  </div>
+  <div class="row"><button class="btn ghost" data-act="cmp-abs">Aのほうが見つけやすい</button><button class="btn ghost" data-act="cmp-full">Bのほうが見つけやすい</button></div>
+  <div class="note hint">この画面での選択：A ${c.abs}回 / B ${c.full}回（回答者個人は記録しません）</div></div>`;
+}
+function vTeam(){
+  const n = S.notes.length, full = S.notes.filter(complete).length, rep = S.notes.filter(x=>x.reply);
+  const ok = rep.filter(x=>x.reply==="ok").length, hp = S.feel.hint;
+  const pct = (a,b)=>b?Math.round(a/b*100):0;
+  return `<div class="card"><h2>チームの集計</h2>
+  <p class="lead">割合だけを表示します。誰が誰に何を言ったかは出しません。人事評価には使いません。</p>
+  ${n?`<div>3項目がそろった注意：${pct(full,n)}%（${full}/${n}件）</div><div class="bar"><i style="width:${pct(full,n)}%"></i></div>
+  <div>「直す一点がわかった」：${pct(ok,rep.length)}%（${ok}/${rep.length}件の返事）</div><div class="bar"><i style="width:${pct(ok,rep.length)}%"></i></div>`
+  :`<p class="empty">まだデータがありません。サンプルを読み込んでください。</p>`}
+  <div class="note hint">促しへの反応（実験用）：気にならない ${hp.ok}回 / 押しつけがましい ${hp.pushy}回</div></div>`;
+}
+
+// ---- 操作 ----
+function bind(){
+  ["to","scene","action","instead","summary"].forEach(k=>{
+    const el = $(k); if(!el) return;
+    el.oninput = ()=>{
+      S.draft[k]=el.value;S.sent=false;
+      $("dyn").innerHTML=dyn();
+      document.querySelector('[data-act=send]').disabled=!complete(S.draft);
+      document.querySelectorAll("#dyn [data-act]").forEach(b=>b.onclick=()=>act(b.dataset.act,+b.dataset.i));
+    };
+  });
+  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>act(b.dataset.act,+b.dataset.i));
+}
+function act(a,i){
+  if(a==="dismiss") S.dismissed=true;
+  if(a==="hint-ok") S.feel.hint.ok++;
+  if(a==="hint-pushy") S.feel.hint.pushy++;
+  if(a==="sample"){S.notes=SAMPLE.map(x=>({...x}));S.sent=false;}
+  if(a==="send" && complete(S.draft)){
+    S.notes.push({...S.draft,reply:null,question:""});
+    S.draft={to:S.draft.to,scene:"",action:"",instead:"",summary:""};
+    S.dismissed=false;S.sent=true;
+  }
+  if(a==="reply-ok") S.notes[i].reply="ok";
+  if(a==="reply-no") S.notes[i].asking=true;
+  if(a==="reply-send"){
+    S.notes[i].question=$("q"+i).value.trim();
+    S.notes[i].reply="unknown";S.notes[i].asking=false;
+  }
+  if(a==="cmp-abs") S.feel.cmp.abs++;
+  if(a==="cmp-full") S.feel.cmp.full++;
+  if(a!=="send") S.sent=false;
+  render();
+}
+$("role").onchange = e=>{S.role=e.target.value;if(S.role==="taker")S.tab="inbox";else S.tab="write";render();};
+S.role="giver";
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A4xB6-1 抽象度ずれの振り返りシート（モック）</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--sub:#5d6575;--line:#d9dde4;--accent:#2f5fd0;--accent-t:#fff;--gap:#d2531f;--want:#2a8a52;--hint-bg:#eef2fc;--warn-bg:#fff4dc;--warn:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e8eaf0;--sub:#9ba3b3;--line:#363d4a;--accent:#7aa2ff;--accent-t:#0f1522;--gap:#ff8a5c;--want:#6fd39a;--hint-bg:#222a3d;--warn-bg:#3a2f14;--warn:#f0c46b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:420px;margin:0 auto;padding:0 16px 48px}
+header{padding:16px 0 8px}
+header h1{font-size:16px;margin:0 0 2px;line-height:1.4}
+header small{color:var(--sub);font-size:12px}
+.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-right:6px}
+nav{display:flex;gap:4px;margin:8px 0 12px}
+nav button{flex:1;padding:8px 2px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:8px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:16px;margin:0 0 4px}
+p.lead{margin:0 0 8px;color:var(--sub);font-size:13px}
+label.t{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],select{width:100%;font:inherit;font-size:15px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+.step{display:flex;gap:6px;margin-top:8px;align-items:center}
+.step span{font-size:12px;color:var(--sub);width:18px}
+.step input{flex:1;min-width:0}
+.step select{width:84px;flex:none}
+button.btn{font:inherit;font-size:14px;padding:8px 12px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{border-radius:8px;padding:8px 10px;font-size:14px;margin-top:8px;background:var(--hint-bg)}
+.warn{background:var(--warn-bg);color:var(--warn)}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.opts label{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:13px;cursor:pointer}
+.opts input{margin:0}
+.read{border-left:4px solid var(--accent);padding:2px 0 2px 10px;margin-top:10px;font-size:14px}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--sub);font-size:11px}
+.legend{font-size:12px;color:var(--sub);margin-top:4px}
+.legend b{display:inline-block;width:16px;height:3px;vertical-align:middle;margin:0 4px 0 8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600;font-size:12px}
+.empty{color:var(--sub);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>「話が細かすぎる」と言われた会話を振り返る、抽象度ずれの振り返りシート</h1>
+  <small><span class="badge">A4xB6-1</span><span class="badge">モック</span>記録はこの端末の中だけ。共有・送信はしません</small>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+// ---- ダミーデータ ----
+const LEVELS = ["事実","具体策","構造","方針"]; // 添字が高さ（0=低い, 3=高い）
+const READINGS = {
+  "細かすぎる": "高さが低いまま始めた可能性（事実や具体策から話し始めた）",
+  "もっと大きく": "話の高さが合っていない可能性（全体への影響や方針の話が出なかった）",
+  "結論から": "話す順番が相手の聞きたい順と違った可能性",
+  "わかりにくい": "高さのずれか、中身の説明不足か、切り分けが必要"
+};
+const OTHER = ["中身（内容そのもの）の誤り","時機（話すタイミング）","相手の事情・機嫌","わからない"];
+const SAMPLE = {
+  words: "話が細かすぎる。もっと大きく捉えて",
+  who: "課長", when: "試作遅れの報告（3回目）",
+  steps: [["部品Cの納期が2週間遅れた",0],["発注先の工場で検査待ちが出ている",0],["代替の部品を探している",1],["代替案は3社で、見積もりを取り中",1],["日程への影響は、まだ計算していない",2]],
+  want: ["全体の日程にどう響くか、結論を先に聞きたかった", 3],
+  note: "最初に全体の日程への影響を一言で言う"
+};
+const PAST = [
+  {date:"10/18", words:"話が細かすぎる", first:0, want:3, note:"資料を半分にする"},
+  {date:"11/02", words:"もっと大きく捉えて", first:0, want:3, note:"早口をやめる"}
+];
+
+// ---- 状態 ----
+let tab = 0;
+let S = blank();
+let hist = [];
+try { hist = JSON.parse(localStorage.getItem("a4b61hist")) || []; } catch(e) {}
+function blank(){
+  return {words:"", who:"", when:"", steps:[["",0],["",0],["",0]], want:["",3], reading:"", causes:[], note:""};
+}
+function save(){ try { localStorage.setItem("a4b61hist", JSON.stringify(hist)); } catch(e) {} }
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function opt(sel){ return LEVELS.map((l,i) => `<option value="${i}"${i===sel?" selected":""}>${l}</option>`).join(""); }
+
+// ---- 画面1: 書く ----
+function viewWrite(){
+  const rd = Object.keys(READINGS).filter(k => S.words.includes(k));
+  let h = `<div class="card"><h2>1. 注意の言葉</h2>
+    <p class="lead">言われた言葉をそのまま書きます。会話のあとに、思い出せる範囲で。</p>
+    <label class="t">言われた言葉</label>
+    <input type="text" id="words" value="${esc(S.words)}" placeholder="例：話が細かすぎる">
+    <label class="t">誰に</label><input type="text" id="who" value="${esc(S.who)}">
+    <label class="t">どんな場面</label><input type="text" id="when" value="${esc(S.when)}">`;
+  if (rd.length) {
+    h += rd.map(k => `<div class="read">読み方の候補：「${k}」→ ${READINGS[k]}</div>`).join("");
+    h += `<p class="lead" style="margin-top:8px">これは候補のひとつです。決めつけではありません。しっくりきますか。</p>
+    <div class="opts">
+      <label><input type="radio" name="rd" value="しっくりくる"${S.reading==="しっくりくる"?" checked":""}>しっくりくる</label>
+      <label><input type="radio" name="rd" value="違う気がする"${S.reading==="違う気がする"?" checked":""}>違う気がする</label>
+      <label><input type="radio" name="rd" value="決めつけられた感じがする"${S.reading==="決めつけられた感じがする"?" checked":""}>決めつけられた感じがする</label>
+    </div>`;
+  }
+  h += `<p class="lead" style="margin-top:10px">高さ以外の原因の可能性（複数選べます）</p><div class="opts">`
+    + OTHER.map(o => `<label><input type="checkbox" class="cause" value="${o}"${S.causes.includes(o)?" checked":""}>${o}</label>`).join("")
+    + `</div></div>`;
+  h += `<div class="card"><h2>2. 話した順番と高さ</h2>
+    <p class="lead">話した順に3〜5段。各段に高さの印を付けます。<br>方針＝何のために／構造＝全体の枠組み／具体策＝やり方／事実＝起きたこと</p>`;
+  h += S.steps.map((s,i) => `<div class="step"><span>${i+1}</span>
+    <input type="text" class="st" data-i="${i}" value="${esc(s[0])}" placeholder="話したこと">
+    <select class="sl" data-i="${i}">${opt(s[1])}</select></div>`).join("");
+  h += `<div class="row">
+    <button class="btn ghost" id="add"${S.steps.length>=5?" disabled":""}>＋段を足す</button>
+    <button class="btn ghost" id="del"${S.steps.length<=3?" disabled":""}>－段を減らす</button></div>
+    <label class="t">相手が最初に聞きたかったこと（推測でよい）</label>
+    <input type="text" id="want" value="${esc(S.want[0])}" placeholder="例：全体の日程への影響">
+    <label class="t">その高さ</label>
+    <select id="wl">${opt(S.want[1])}</select>
+    <div class="row"><button class="btn" id="go">折れ線で見る</button>
+    <button class="btn ghost" id="sample">サンプルを読み込む</button>
+    <button class="btn ghost" id="clear">空にする</button></div></div>`;
+  return h;
+}
+function bindWrite(){
+  const $ = id => document.getElementById(id);
+  const syncText = () => { S.words=$("words").value; S.who=$("who").value; S.when=$("when").value; S.want[0]=$("want").value; };
+  $("words").oninput = () => { const a = Object.keys(READINGS).filter(k => S.words.includes(k)).length; syncText(); if (a !== Object.keys(READINGS).filter(k => S.words.includes(k)).length) render(); };
+  $("who").oninput = $("when").oninput = $("want").oninput = syncText;
+  $("wl").onchange = () => S.want[1] = +$("wl").value;
+  document.querySelectorAll(".st").forEach(e => e.oninput = () => S.steps[+e.dataset.i][0] = e.value);
+  document.querySelectorAll(".sl").forEach(e => e.onchange = () => S.steps[+e.dataset.i][1] = +e.value);
+  document.querySelectorAll("input[name=rd]").forEach(e => e.onchange = () => S.reading = e.value);
+  document.querySelectorAll(".cause").forEach(e => e.onchange = () => {
+    S.causes = [...document.querySelectorAll(".cause")].filter(c => c.checked).map(c => c.value);
+  });
+  $("add").onclick = () => { syncText(); S.steps.push(["",0]); render(); };
+  $("del").onclick = () => { syncText(); S.steps.pop(); render(); };
+  $("go").onclick = () => { syncText(); tab = 1; render(); };
+  $("sample").onclick = () => {
+    S = {words:SAMPLE.words, who:SAMPLE.who, when:SAMPLE.when, steps:SAMPLE.steps.map(s => s.slice()),
+         want:SAMPLE.want.slice(), reading:"", causes:[], note:""};
+    render();
+  };
+  $("clear").onclick = () => { S = blank(); render(); };
+}
+
+// ---- 画面2: 折れ線 ----
+function viewLine(){
+  const st = S.steps.filter(s => s[0].trim());
+  if (st.length < 2) return `<div class="card"><p class="empty">「書く」で2段以上の話した順番を入れると、高さの流れが見えます。</p></div>`;
+  const W = 340, H = 190, x0 = 70, x1 = 320, n = st.length;
+  const X = i => x0 + (n === 1 ? 0 : (x1 - x0) * i / (n - 1));
+  const Y = l => 20 + (3 - l) * 48;
+  const wl = S.want[1];
+  let g = LEVELS.map((l,i) => `<line x1="${x0-8}" x2="${x1+8}" y1="${Y(i)}" y2="${Y(i)}" stroke="var(--line)" stroke-dasharray="3 3"/><text x="8" y="${Y(i)+4}">${l}</text>`).join("");
+  g += `<line x1="${x0-8}" x2="${x1+8}" y1="${Y(wl)}" y2="${Y(wl)}" stroke="var(--want)" stroke-width="3"/>`;
+  for (let i = 0; i < n - 1; i++) {
+    g += `<line x1="${X(i)}" y1="${Y(st[i][1])}" x2="${X(i+1)}" y2="${Y(st[i+1][1])}" stroke="var(--accent)" stroke-width="3"/>`;
+  }
+  g += st.map((s,i) => {
+    const gap = s[1] !== wl;
+    return `<circle cx="${X(i)}" cy="${Y(s[1])}" r="8" fill="${gap?"var(--gap)":"var(--want)"}"/><text x="${X(i)-3}" y="${Y(s[1])+4}" style="fill:#fff;font-size:10px">${i+1}</text>`;
+  }).join("");
+  const gaps = st.map((s,i) => s[1] !== wl ? i+1 : 0).filter(Boolean);
+  let h = `<div class="card"><h2>高さの流れ</h2>
+    <p class="lead">自分の話の高さ（青い線）と、相手が最初に聞きたかった高さ（緑の線）を並べています。</p>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="話の高さの折れ線">${g}</svg>
+    <div class="legend"><b style="background:var(--accent)"></b>自分の話<b style="background:var(--want)"></b>相手が求めた高さ（${LEVELS[wl]}）<b style="background:var(--gap)"></b>ずれた地点</div>
+    <table style="margin-top:12px"><tr><th>段</th><th>話したこと</th><th>高さ</th></tr>`
+    + st.map((s,i) => `<tr><td>${i+1}</td><td>${esc(s[0])}</td><td style="color:${s[1]!==wl?"var(--gap)":"var(--want)"}">${LEVELS[s[1]]}</td></tr>`).join("")
+    + `</table>
+    <div class="note">${gaps.length ? `相手が求めた高さ「${LEVELS[wl]}」と違っていた段：${gaps.join("、")}段目。最初の段は「${LEVELS[st[0][1]]}」でした。` : "すべての段が、推測した高さと同じでした。"}
+    ずれの意味は、あなたが決めてください。</div>`;
+  if (S.causes.length) h += `<div class="note warn">高さ以外の可能性として選んだもの：${S.causes.map(esc).join("、")}</div>`;
+  h += `<div class="row"><button class="btn" id="next">次に直す一点を書く</button></div></div>`;
+  return h;
+}
+
+// ---- 画面3: 次に直す一点・履歴 ----
+function viewNext(){
+  const st = S.steps.filter(s => s[0].trim());
+  let h = `<div class="card"><h2>次に直す一点</h2>
+    <p class="lead">振り返りは、この一行で終わります。次の会話で試すことを一つだけ。</p>
+    <input type="text" id="note" value="${esc(S.note)}" placeholder="例：最初に全体の日程への影響を言う">
+    <div class="row"><button class="btn" id="keep">この振り返りを保存</button>
+    <button class="btn ghost" id="wipe">保存した記録を消す</button></div>
+    <div id="msg"></div></div>`;
+  const rows = PAST.concat(hist);
+  h += `<div class="card"><h2>過去の振り返り</h2>
+    <p class="lead">同じずれが続いているか、変わってきたかを見ます。</p>
+    <table><tr><th>日付</th><th>注意の言葉</th><th>最初の高さ</th><th>相手</th><th>直す一点</th></tr>`
+    + rows.map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.words)}</td><td>${LEVELS[r.first]}</td><td>${LEVELS[r.want]}</td><td>${esc(r.note)}</td></tr>`).join("")
+    + `</table>`;
+  const same = rows.filter(r => r.first < r.want).length;
+  h += `<div class="note">${rows.length}件のうち${same}件で、最初の高さが相手の求めた高さより低いところから始まっています。</div></div>`;
+  return h;
+}
+function bindNext(){
+  const $ = id => document.getElementById(id);
+  $("note").oninput = () => S.note = $("note").value;
+  $("keep").onclick = () => {
+    const st = S.steps.filter(s => s[0].trim());
+    if (!st.length || !S.note.trim()) { $("msg").innerHTML = `<div class="note warn">話した順番と、次に直す一点を書いてから保存します。</div>`; return; }
+    hist.push({date:"今回", words:S.words || "（未記入）", first:st[0][1], want:S.want[1], note:S.note});
+    save(); render();
+  };
+  $("wipe").onclick = () => { hist = []; save(); render(); };
+}
+
+// ---- 描画 ----
+function render(){
+  document.getElementById("nav").innerHTML = ["1 書く","2 折れ線で見る","3 次の一点"]
+    .map((t,i) => `<button class="${i===tab?"on":""}" data-t="${i}">${t}</button>`).join("");
+  document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = +b.dataset.t; render(); });
+  const m = document.getElementById("main");
+  m.innerHTML = [viewWrite, viewLine, viewNext][tab]();
+  if (tab === 0) bindWrite();
+  if (tab === 1 && document.getElementById("next")) document.getElementById("next").onclick = () => { tab = 2; render(); };
+  if (tab === 2) bindNext();
+}
+render();
+</script>
+</body>
+</html>
